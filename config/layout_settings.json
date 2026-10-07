@@ -1,0 +1,17 @@
+{
+  "units_note": "Drawing units. 5 units = spacing between bus bars. All values are placeholders until measured from the template.",
+  "page": {
+    "drawable_width": 500.0,
+    "drawable_height": 300.0,
+    "margin_standard": 10.0,
+    "margin_relaxed": 5.0
+  },
+  "section": {
+    "divider_clearance": 5.0
+  },
+  "title_block_keepout": {
+    "corner": "bottom_right",
+    "width": 100.0,
+    "height": 100.0
+  }
+}
