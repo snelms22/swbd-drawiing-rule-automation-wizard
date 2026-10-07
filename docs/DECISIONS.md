@@ -52,6 +52,46 @@ commits only when Sammy asks.
 OneDrive alone can't do that. Kept local so no company drawings leave the PC.
 **Status:** Approved
 
+### 2026-10-07 — Milestone 1 scope
+**Decision:** Milestone 1 = project data (ordered sections with placeholder width/height,
+push and link flags), settings loader, pure-Python page-fitting engine, one automated test
+per rule, and a PySide6 preview app (section table, page drawing, warnings list, live
+update). Out of scope: AutoCAD, blocks, catalog, devices, bus lines, real measurements,
+saving/loading projects.
+**Reason:** Prove the page-fitting rules work before anything is drawn in AutoCAD.
+**Status:** Approved
+
+### 2026-10-07 — Section order is never changed
+**Decision:** Sections stay in the order entered. Layout never reorders them to fill gaps.
+**Reason:** The main bus is continuous, so section order is electrical, not cosmetic.
+**Status:** Approved
+
+### 2026-10-07 — Linked sections that don't fit
+**Decision:** A linked group that doesn't fit on the current page moves to a fresh page
+together. If it doesn't fit even on an empty page, it is placed anyway (overflowing) with a
+warning so the problem is visible.
+**Reason:** Keeps linked sections together; a visible overflow is easier to fix than a silent split.
+**Status:** Approved
+
+### 2026-10-07 — Title block keep-out handling
+**Decision:** For now, sections hang down from the top margin. A section that sits over the
+keep-out's x-range and reaches down into it moves to the next page. Warn only if it can't
+move (e.g. it is alone on the page or part of a linked group that still collides).
+**Reason:** Simple starting rule.
+**Status:** Approved (may change with use)
+
+### 2026-10-07 — Section taller than a page
+**Decision:** A section taller than the page (between standard margins) is a design error
+and gets a warning, same as a section wider than a page.
+**Reason:** Consistent with the oversized-width rule.
+**Status:** Approved (may change with use)
+
+### 2026-10-07 — Library versions not pinned
+**Decision:** `requirements.txt` and `requirements-dev.txt` list libraries without version numbers.
+**Reason:** Single user on a single PC; the environment is set up once and not rebuilt
+elsewhere. Revisit if the project is shared or moved to another PC.
+**Status:** Approved
+
 ## Approach
 
 ### 2026-10-07 — Rebuild from scratch
