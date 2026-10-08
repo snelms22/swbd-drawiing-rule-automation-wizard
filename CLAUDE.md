@@ -26,6 +26,7 @@
 
 ## Non-negotiable rules
 - Controlled blocks (WBLOCK .dwg files) are ALWAYS inserted at scale 1.0. Never scale them.
+  Flipping (X scale -1) is allowed, but text and attributes must still read normally.
 - Blocks are NOT exploded. Connection points are read from marker points inside the block.
 - Block geometry is authoritative. Code never redraws or reinterprets a block's contents.
 

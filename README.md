@@ -50,12 +50,10 @@ Milestone 1 (built, awaiting Sammy's review): model, config, layout engine, basi
 with placeholder section sizes.
 
 ## Open items (to decide when the work reaches them)
-- Blocks: connection-marker convention (HS_CONN), then add markers to each block.
-- Blocks: legacy assumptions to re-decide (junction bullet placed separately from feeder
-  blocks; SPD block excludes its drops to the bus).
-- Blocks: naming (`SCHEME_` vs `SCHEM_`) and which variants are current
-  (`SCHEME_ATC*`, `SCHEME_COM800*`).
-- Blocks: no tie breaker block yet.
+- Blocks: waiting on Sammy's Hyper block set for `blocks/` (replaces legacy `SCHEM_*`).
+  Then: connection-marker convention, and how dynamic blocks (visibility states) are handled.
+- House standard picks (divider layer/linetype, page-break style, feeder row pitch, section
+  label position): to come from Sammy's master reference drawing.
 - Drawing: how bus bars and section dividers (code-drawn lines, not blocks) are drawn.
 - Drawing: title block keep-out position on the page, and page-to-AutoCAD coordinate mapping.
 - Drawing: how the AutoCAD step uses `templates/EW_SWBD_TEMPLATE.dwg`.

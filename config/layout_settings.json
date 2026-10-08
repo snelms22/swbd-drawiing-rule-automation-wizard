@@ -1,17 +1,17 @@
 {
-  "units_note": "Drawing units. 5 units = spacing between bus bars. All values are placeholders until measured from the template.",
+  "units_note": "Drawing units. 5 units = spacing between bus bars. Page and title block measured from ES-011511 (2026-10-08); margins and clearance may be fine-tuned.",
   "page": {
-    "drawable_width": 500.0,
-    "drawable_height": 300.0,
-    "margin_standard": 10.0,
-    "margin_relaxed": 5.0
+    "drawable_width": 419.04,
+    "drawable_height": 269.49,
+    "margin_standard": 5.0,
+    "margin_relaxed": 2.5
   },
   "section": {
-    "divider_clearance": 5.0
+    "divider_clearance": 10.0
   },
   "title_block_keepout": {
     "corner": "bottom_right",
-    "width": 100.0,
-    "height": 100.0
+    "width": 82.41,
+    "height": 70.96
   }
 }
