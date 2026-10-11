@@ -1,0 +1,65 @@
+# 3-Line Diagram: Parts Checklist
+
+The 3-line page broken into small parts. Each part gets a rule (what it looks like, where it
+goes, which layer/block, and the numbers). Once a part's rule is approved it moves to
+`docs/DECISIONS.md` and its numbers go into config.
+
+Status: **Approved** = rule decided. **Proposed** = drafted from the references, waiting for
+Sammy. **Open** = needs a decision first. **Later** = not needed for the first master drawing.
+
+Coordinates are frame-relative drawing units (frame drawable area 419.04 x 269.49).
+
+## Page parts
+
+| # | Part | Status | Rule / notes | Source |
+|---|---|---|---|---|
+| P1 | Page frame | Approved | 3-line goes in ES frames, page origin = frame insertion point | DECISIONS |
+| P2 | Section dividers | **Built** | Layer DEVIDER, between sections only, y 8.44–256.33; end-of-page divider (next page if it would hit the title block) | Sammy's ES_01 |
+| P3 | Ground bus + symbol + label | **Built** | Layer GROUND, y 20.94, x 7.54 to 8.91 before title block (last page: to end of last section); symbol at left end; "GROUND BUS" text above | Sammy's ES_01 |
+| P4 | Section labels | **Built** | "SECTION n", layer 0, h 1.25, no underline, below ground bus, centred under section | Sammy's ES_01 |
+| P5 | Page title | Proposed | "THREE LINE DIAGRAM 0n" bottom-right, just left of title block | all refs |
+| P6 | Page break | Open | Style to pick (squiggle+bracket+A/B/C, bracket block, or none) | PRIME-014032 / 014034 |
+
+## Bus parts
+
+| # | Part | Status | Rule / notes | Source |
+|---|---|---|---|---|
+| B1 | Main bus | **Built** (preview) | Horizontal, phases 5 apart, A on top. Starts as low as possible, stays level, steps only in the section that needs it (+10 width) | DECISIONS |
+| B2 | Corners and tees | Proposed | BUSSING_3PH_3W_3L. Bus end = staggered corner, no dots. Mid-bus = tee with BUS_NODE dots | all refs |
+| B3 | Bus at two heights | Proposed | Joined by a vertical riser or tie breaker | NTT-013631, PRIME-014034, NTT-013630 |
+| B4 | Bus end / rating label | Proposed | A/B/C letters + "nnnnA CU" at vertical bus foot; main bus run-out after last section | NTT-013627 |
+| B5 | Junction dots | Proposed | BUS_NODE, dia 1.5, layer BUS | all refs |
+
+## Source parts
+
+| # | Part | Status | Rule / notes | Source |
+|---|---|---|---|---|
+| S1 | Main breaker | Approved (direction) / Proposed (geometry) | On a vertical riser, fed from top or bottom (engineer's choice) | DECISIONS |
+| S2 | Incoming block | Proposed | PHASE_LUGS_3L_R0, A/B/C letters, "PROVISIONS FOR…" + rating text | all refs |
+| S3 | Tie breaker | **Built** (placeholder size) | Vertical, at the section's right edge, any section; bus steps up/down 70 | DECISIONS |
+| S4 | Main–main interlock | Proposed | Dashed line between two mains, "ELECTRICAL INTERLOCK" | NTT-013631 |
+
+## Feeder parts
+
+| # | Part | Status | Rule / notes | Source |
+|---|---|---|---|---|
+| F1 | Single breaker | Approved (concept) / Proposed (geometry) | One breaker on a riser off the main bus, up or down | DECISIONS |
+| F2 | Group Mounted Distribution | **Built** (sizes) | Levels outward from bus; gap 15, pitch 25, overhang 10; editor done | NTT-013627, ES_12 |
+| F3 | Twin mount | Approved | Two breakers on one level, right one flipped | DECISIONS |
+| F4 | Single mount | Approved | One breaker per level, alternating sides | DECISIONS |
+| F5 | Mixed twin + single | Approved | Allowed on one vertical bus | DECISIONS, ES_12 |
+| F6 | Combination | Approved | Above-bus and below-bus parts of a section can differ | DECISIONS |
+| F7 | SPACE / provision slot | Proposed | Tap stub with no breaker + "PROVISION FOR…" text | NTT-013627, ES_12 |
+| F8 | Load-end lugs + text | Proposed | SIE_LUGS_3P_3L_R0 with wire-range text | NTT-013627, ES_12 |
+
+## Annotation parts
+
+| # | Part | Status | Rule / notes | Source |
+|---|---|---|---|---|
+| A1 | Breaker label | Later | Attributes on SIE_BKR blocks (labels being reworked by Sammy) | ES_11 |
+| A2 | BOM balloon | Proposed | ITEM#_BOM_R0 above each device | all refs |
+
+## Other devices (later)
+
+SPD (SPD_EATON_3L_R0), CTs (3_CTS_3L_R1) + shorting block, CPT (CPT_1), fused voltage taps,
+Kirk keys, "TO X SHEET n" references, neutral sensor.

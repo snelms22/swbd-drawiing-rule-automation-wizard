@@ -253,3 +253,49 @@ left/right singles, pitch 25, 15 from the bus; tap lengths 10/15/20 by phase. Di
 DEVIDER/ISO04, clearance 3.3–60.8. Page break: bus overrun + A/B/C + BRACKET_TEXT_R0 with
 placeholder "XXX". KIRK_KEY_BLK at scale 0.937.
 **Notable:** tie drawn vertically between bus levels, not inline.
+
+## GND_Section_Devider_REFERENCE  (Sammy's style reference, not a real job)
+**Files:** .dxf only (no PDF)  **Studied:** 2026-10-09
+**Contents:** Built from PRIME-014034. The layouts show grid frames ES_01/ES_02 (PRIME-014034
+3-line). Sammy restyled **ES_01** (section labels, ground bus, dividers). Extra copies of
+3-line pages from NTT-013631, NTT-013627, PRIME-014032 and NTT-013630 (2 copies) are pasted
+off-grid to the left (duplicate frame names ES_01 x6, ES_02 x4; unchanged from originals).
+**ES_11 = block palette** (true names of the dynamic blocks): CDP_CHASSIS_BUS_3PH_3W_3L_ASSY,
+CDP_CHASSIS_BUS_3PH_4W_3L_ASSY, BUSSING_3PH_3W_3L, BUSSING_3PH_4W_3L, PHASE_LUGS_3L_R0,
+CIRCUIT_BREAKERS_2P_3L_R0, 3P_CB_FM_1, 3P_CB_DO, SIE_BKR_1P_3L_ASSY_R0, SIE_BKR_3P_3L_ASSY_R0,
+NEUTRAL_CURRENT_SENSOR_BLK_2, 3_CTS_3L_R1, SPD_EATON_3L_R0, CPT_1. Two are being re-labelled
+by Sammy (block editing deferred).
+**ES_12 = Group Mounted Distribution example** mixing single mount and twin mount on one
+vertical bus (copy of NTT-013627 section 2). Tap blocks CDP_BUS_HORIZ_3PH_3W_3L every 25;
+rows from top: single L, single R, single L, single R + provision L, twin, [main bus], twin,
+twin. Right-hand breakers mirrored (X scale -1).
+**Sammy's restyled ES_01 (frame-relative):**
+- Dividers: layer DEVIDER (BYLAYER: red, ACAD_ISO04W100), only between sections
+  (x 49.96 / 92.17 / 135.00 / 318.33), y **8.44 – 256.33** (was 68.89 – 256.33).
+- Ground bus: layer GROUND, y **20.94**, x 7.54 – 327.72 (ends 8.91 before the title block).
+- Ground symbol at the left end (x 13.40), layer GROUND: stem 1.98 down, bars 4.92 / 3.69 /
+  2.46 wide, 1.23 apart.
+- "GROUND BUS" text: layer 0, style Hyper_Text, h 1.17, above the bus line (y 22.28), x 8.2.
+- Section labels "SECTION n": layer 0, style Hyper_Text, h 1.25, **not underlined**, below
+  the ground bus (y 15.97 – 17.28), roughly under each section.
+- ES_02 (page 2) was not restyled: ground bus still y 50.23, dividers 36.35 – 256.33.
+
+## IMS-REFERENCE
+**Files:** .dxf, .pdf  **Studied:** 2026-10-09
+**Contents:** ES-008672, 5000A 480V MSB with UPS isolation / maintenance bypass. 10 sections.
+Utility main 52-U and gen main 52-G (5000A, both bottom-fed), 3000A UPS output bus, bypass
+breakers MBB / MIB / UIB1-2 / UOB1-2, group-mounted feeders CB01-CB13. 15 PDF pages;
+3-line = pages 3-5, in **EO_04 / EO_05 / EO_06 frames** (not ES, unlike the newer jobs).
+**Measurements:** Bus phases 5 apart, A on top. Bus height changes at page breaks (-40,
+-14.2), not inside sections. Two main buses (5000A, 3000A) joined by MBB, which loops
+below the bus mid-section; a separate upper UPS output bus; a riser that crosses the main
+bus without connecting (break marks). Dividers DEVIDER/ISO04, clearance often under 10
+(0.5-8.4). The whole diagram sits above the title block: ground bus at y 74-77 running the
+full width, no ground symbol, "GROUND BUS" on layer TEXT. Section labels underlined, not
+reliably centred. Section 5 is split across pages 3-4 with an L-shaped divider. Group
+mounted spacing irregular (gap 18.7-33.5, pitch 17.2-33.3). **All power devices are
+exploded geometry**; only annotation blocks (BOM balloons, wire tags, bracket) are inserted.
+**Proposed rules (pending approval):** none adopted; mostly older drafting style. Useful as
+the most complex lineup seen (multiple buses, bypass loops, crossovers, UPS sources).
+**Questions for Sammy:** see the 2026-10-09 chat summary (scope of multi-bus / bypass
+lineups; page-start divider; split sections; bus height change at a page break).

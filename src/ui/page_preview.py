@@ -22,7 +22,11 @@ PAGE_BORDER = QColor("#333333")
 MARGIN_LINE = QColor("#9aa5b1")
 KEEPOUT_FILL = QColor("#e4e7eb")
 KEEPOUT_BORDER = QColor("#7b8794")
-DIVIDER_LINE = QColor("#52606d")
+DIVIDER_COLOR = QColor("#d64545")   # DEVIDER layer is red in AutoCAD
+GROUND_COLOR = QColor("#2f9e44")    # GROUND layer is green in AutoCAD
+BUS_COLOR = QColor("#b8860b")       # BUS layer is yellow in AutoCAD (darkened to show on white)
+TEXT_COLOR = QColor("#1f2933")
+MIN_TEXT_PX = 9                     # smallest readable font size on screen
 SECTION_FILL = QColor("#cfe3fa")
 SECTION_BORDER = QColor("#2f6db5")
 OVERFLOW_FILL = QColor("#f8d0cc")   # a section sticking out past the page edge
@@ -138,25 +142,109 @@ class PagePreview(QWidget):
         painter.setPen(KEEPOUT_BORDER)
         painter.drawText(keepout_rect, Qt.AlignCenter, "Title block")
 
-        # Sections (component area)
+        # Sections: one box for what is above the main bus and one for what is below.
+        # (Plain test boxes without a bus are drawn as a single box.)
         for placed in page.placed_sections:
             overflowing = placed.right_divider_x > W - page.side_margin
             painter.setPen(QPen(OVERFLOW_BORDER if overflowing else SECTION_BORDER, 1.2))
             painter.setBrush(OVERFLOW_FILL if overflowing else SECTION_FILL)
-            box = self._rect(
-                placed.component_left_x, placed.component_bottom_y,
-                placed.component_right_x, placed.component_top_y, page_top_px,
-            )
-            painter.drawRect(box)
-            painter.setPen(QColor("#1f2933"))
-            painter.drawText(box.adjusted(2, 2, -2, -2), Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap,
-                             placed.section.name)
+            for bottom_y, top_y in self._content_boxes(placed):
+                box = self._rect(placed.component_left_x, bottom_y,
+                                 placed.component_right_x, top_y, page_top_px)
+                painter.drawRect(box)
+                painter.setPen(QColor("#1f2933"))
+                painter.drawText(box.adjusted(2, 2, -2, -2),
+                                 Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap,
+                                 f"Section {placed.number}")
+                painter.setPen(QPen(OVERFLOW_BORDER if overflowing else SECTION_BORDER, 1.2))
 
-        # Dividing lines. How tall they really are is still an open item, so the preview
-        # draws them between the top and bottom margins, stopping at the title block.
-        painter.setPen(QPen(DIVIDER_LINE, 1.5))
-        for x in page.divider_xs:
-            line_bottom = s.keepout_height if x > keepout_left else bottom_y
+        if page.parts is not None:
+            self._draw_page_parts(painter, page, page_top_px)
+
+    def _content_boxes(self, placed):
+        """(bottom_y, top_y) of each content box: above the bus, below the bus."""
+        box = placed.section
+        if box.bus is None:
+            return [(placed.component_bottom_y, placed.component_top_y)]
+        half = self._settings.main_bus.phase_spacing
+        boxes = []
+        if box.above_height > 0:
+            boxes.append((box.bus.body_y + half, box.bus.body_y + half + box.above_height))
+        if box.below_height > 0:
+            boxes.append((box.bus.body_y - half - box.below_height, box.bus.body_y - half))
+        return boxes
+
+    def _draw_bus(self, painter: QPainter, path, page_top_px: float):
+        """Three phases along the bus centre line: A above / left, B on it, C below / right.
+        Corners are not joined neatly; this is only a preview."""
+        half = self._settings.main_bus.phase_spacing
+        painter.setPen(QPen(BUS_COLOR, 1.2))
+        for (x1, y1), (x2, y2) in zip(path, path[1:]):
+            vertical = abs(x1 - x2) < 1e-9
+            for offset in (-half, 0.0, half):
+                if vertical:
+                    a, b = (x1 + offset, y1), (x2 + offset, y2)
+                else:
+                    a, b = (x1, y1 - offset), (x2, y2 - offset)
+                painter.drawLine(self._to_screen(*a, page_top_px), self._to_screen(*b, page_top_px))
+
+    def _draw_page_parts(self, painter: QPainter, page: Page, page_top_px: float):
+        """Main bus, dividers, ground bus (with its symbol and label) and section labels."""
+        s = self._settings
+        parts = page.parts
+        self._draw_bus(painter, parts.bus_path, page_top_px)
+
+        # Dividers: dashed, in the DEVIDER layer's colour (red).
+        painter.setPen(QPen(DIVIDER_COLOR, 1.2, Qt.DashLine))
+        for line in parts.dividers:
             painter.drawLine(
-                self._to_screen(x, top_y, page_top_px), self._to_screen(x, line_bottom, page_top_px)
+                self._to_screen(line.x, line.top_y, page_top_px),
+                self._to_screen(line.x, line.bottom_y, page_top_px),
             )
+
+        # Ground bus, in the GROUND layer's colour (green).
+        ground = parts.ground_bus
+        if ground is not None:
+            g = s.ground_bus
+            painter.setPen(QPen(GROUND_COLOR, 1.5))
+            painter.drawLine(
+                self._to_screen(ground.start_x, ground.y, page_top_px),
+                self._to_screen(ground.end_x, ground.y, page_top_px),
+            )
+            # Ground symbol: a short stem down from the bus, then bars getting narrower.
+            stem_x = ground.start_x + g.symbol_offset_x
+            stem_bottom_y = ground.y - g.symbol_stem_length
+            painter.drawLine(
+                self._to_screen(stem_x, ground.y, page_top_px),
+                self._to_screen(stem_x, stem_bottom_y, page_top_px),
+            )
+            for bar_index, bar_width in enumerate(g.symbol_bar_widths):
+                bar_y = stem_bottom_y - bar_index * g.symbol_bar_spacing
+                painter.drawLine(
+                    self._to_screen(stem_x - bar_width / 2, bar_y, page_top_px),
+                    self._to_screen(stem_x + bar_width / 2, bar_y, page_top_px),
+                )
+            self._draw_drawing_text(
+                painter, g.label_text, ground.start_x + g.label_offset_x,
+                ground.y + g.label_gap_above_bus, page_top_px, centred=False,
+            )
+
+        for label in parts.section_labels:
+            self._draw_drawing_text(
+                painter, label.text, label.center_x, label.bottom_y, page_top_px, centred=True
+            )
+
+    def _draw_drawing_text(self, painter, text, x, bottom_y, page_top_px, centred):
+        """Draw text at its drawing position. At preview scale the real text height would
+        be unreadably small, so the preview uses a minimum font size."""
+        painter.save()   # so the font change below doesn't leak into later drawing
+        font = painter.font()
+        font.setPixelSize(max(int(self._settings.text.height * self._pixels_per_unit()), MIN_TEXT_PX))
+        painter.setFont(font)
+        painter.setPen(TEXT_COLOR)
+        anchor = self._to_screen(x, bottom_y, page_top_px)
+        if centred:
+            width = painter.fontMetrics().horizontalAdvance(text)
+            anchor = QPointF(anchor.x() - width / 2, anchor.y())
+        painter.drawText(anchor, text)
+        painter.restore()

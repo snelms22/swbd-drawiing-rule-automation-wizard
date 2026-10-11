@@ -1,5 +1,5 @@
 {
-  "units_note": "Drawing units. 5 units = spacing between bus bars. Page and title block measured from ES-011511 (2026-10-08); margins and clearance may be fine-tuned.",
+  "units_note": "Drawing units, frame-relative. 5 units = spacing between bus bars. Page and title block measured from ES-011511; page parts measured from Sammy's restyled ES_01 (GND_Section_Devider_REFERENCE).",
   "page": {
     "drawable_width": 419.04,
     "drawable_height": 269.49,
@@ -13,5 +13,59 @@
     "corner": "bottom_right",
     "width": 82.41,
     "height": 70.96
+  },
+  "divider": {
+    "layer": "DEVIDER",
+    "bottom_y": 8.44,
+    "top_y": 256.33
+  },
+  "ground_bus": {
+    "layer": "GROUND",
+    "y": 20.94,
+    "start_x": 7.54,
+    "gap_before_title_block": 8.91,
+    "label_text": "GROUND BUS",
+    "label_offset_x": 0.66,
+    "label_gap_above_bus": 1.34,
+    "symbol_offset_x": 5.86,
+    "symbol_stem_length": 1.98,
+    "symbol_bar_widths": [4.92, 3.69, 2.46],
+    "symbol_bar_spacing": 1.23
+  },
+  "text": {
+    "layer": "0",
+    "style": "Hyper_Text",
+    "height": 1.25,
+    "char_width_factor": 0.73
+  },
+  "section_label": {
+    "text_format": "SECTION {number}",
+    "bottom_y": 15.97,
+    "gap_above_title_block": 1.34
+  },
+  "group_mounted": {
+    "note": "Measured from NTT-013627 / PRIME-014034 / ES_12.",
+    "gap_to_first_level": 15.0,
+    "level_pitch": 25.0,
+    "level_height": 10.0,
+    "vertical_bus_overhang": 10.0,
+    "single_mount_first_side": "left"
+  },
+  "placeholder_sizes": {
+    "note": "PLACEHOLDERS until the real blocks are catalogued. Widths include labels.",
+    "main_breaker_width": 30.0,
+    "main_breaker_height": 75.0,
+    "single_breaker_width": 30.0,
+    "single_breaker_height": 45.0,
+    "group_mounted_width": 145.0,
+    "tie_breaker_width": 30.0
+  },
+  "main_bus": {
+    "note": "Bus height positions are the B (middle) phase. content_bottom_y = ground bus (20.94) + 10 clearance.",
+    "phase_spacing": 5.0,
+    "step_width": 10.0,
+    "tie_step_height": 70.0,
+    "content_top_y": 256.33,
+    "content_bottom_y": 30.94
   }
 }

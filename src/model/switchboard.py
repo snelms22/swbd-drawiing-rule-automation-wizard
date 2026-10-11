@@ -1,19 +1,20 @@
 """Project data: a switchboard and its sections.
 
-For Milestone 1 each section's size is a typed-in placeholder. Later it will be
-calculated from the real block footprints in catalog/.
+Sections have no names: on the drawing they are "SECTION 1", "SECTION 2", ... by their
+position in the lineup. Names like "52-F1" belong to components, not sections.
+
+A section's size is not typed in; it is worked out from its contents
+(src/layout/section_builder.py).
 """
 from dataclasses import dataclass, field
+
+from src.model.section_contents import SectionContents
 
 
 @dataclass
 class Section:
-    name: str
-    # Width from the outermost component on the left to the outermost component on the
-    # right. The dividing lines are NOT included; the layout engine adds that clearance.
-    width: float
-    # Height from the top of the highest component to the bottom of the lowest one.
-    height: float
+    # What is above the main bus, below it, and an optional tie breaker.
+    contents: SectionContents = field(default_factory=SectionContents)
     # Start this section on a new page, even if it would fit on the current one.
     push_to_next_page: bool = False
     # Keep this section on the same page as the section after it.

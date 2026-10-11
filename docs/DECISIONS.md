@@ -177,6 +177,108 @@ NTT-013630: it joins two parts of the main bus at different heights.)
 terms used at Hyper.
 **Status:** Approved
 
+### 2026-10-09 — Build the master drawing with the real program (Option A)
+**Decision:** No throwaway script. Each approved part is added to the layout engine (with
+tests), then the AutoCAD step is written. The master drawing is the program's first output.
+**Reason:** No wasted work; every approved rule becomes tested code.
+**Status:** Approved
+
+### 2026-10-09 — Page style comes from Sammy's restyled ES_01
+**Decision:** Every 3-line page uses the style of ES_01 in GND_Section_Devider_REFERENCE
+(dividers, ground bus, ground symbol, section labels at the same heights on every page).
+**Reason:** Sammy restyled page 1 as the example; page 2 was not edited.
+**Status:** Approved
+
+### 2026-10-09 — Section labels and "GROUND BUS" text
+**Decision:** "SECTION n" labels and the "GROUND BUS" text are on layer 0, style Hyper_Text,
+height 1.25 (same size), no underline. Section labels sit below the ground bus, centred
+under their section.
+**Reason:** Layer 0 matches most drawings; one text size keeps it consistent.
+**Status:** Approved
+
+### 2026-10-09 — Divider placement
+**Decision:** One divider between adjacent sections. None at the start of the lineup and
+none at the end. When a section is the last one on a page and the next section starts on
+the next page, its divider is drawn at the end of the current page; if it can't fit there,
+it goes at the start of the next page.
+**Reason:** Sammy's rule; matches the restyled ES_01.
+**Status:** Approved
+
+### 2026-10-09 — A section may continue across a page break
+**Decision:** A section can be split across a page break when that makes sense; there is
+no divider at that break. When to split, and how, is still to be defined.
+**Reason:** Seen in practice; avoids wasting a page.
+**Status:** Approved (concept) / To confirm (rules)
+
+### 2026-10-09 — Page-part details
+**Decision:**
+- "Can't fit" for an end-of-page divider means it would run down through the title block;
+  it then goes at the start of the next page.
+- A divider between two sections that sits over the title block stops at the title
+  block's top edge. No warning.
+- On the last page the ground bus stops at the end of the last section.
+- A section label that would land in the title block moves up to sit just above it
+  (gap 1.34, in config).
+**Reason:** Sammy's answers to the page-part questions.
+**Status:** Approved
+
+### 2026-10-09 — Sections have no names
+**Decision:** Sections are identified only by their position in the lineup and labelled
+"SECTION n". Descriptive labels (like "52-F1") belong to components, not sections.
+**Reason:** That is the only section label the drawing needs.
+**Status:** Approved
+
+### 2026-10-09 — What a section holds (Option A)
+**Decision:** Each section has an **above** part (above the main bus) and a **below** part.
+Each part holds one arrangement: Empty, Main breaker (above = fed from top, below = fed
+from bottom), Single breaker, or Group Mounted Distribution. Any combination is allowed,
+including a main on one side and something else on the other. A **tie breaker** can be
+added to any section, alongside whatever else it holds.
+"Above" and "below" are positions, not equal halves: the layout may move the main bus up
+or down to fit what is there (e.g. nothing below and a lot above → bus moves down).
+**Reason:** Covers every arrangement in the references with one simple structure.
+**Status:** Approved
+
+### 2026-10-09 — Main bus height
+**Decision:** The main bus stays at the same height as much as possible. It changes height
+only where a section needs room above or below it, and then only in that section. A
+height change (the bus travelling up or down) adds about 10 to that section's width
+(in config).
+**Reason:** A level bus is cleaner and matches the physical product; stepping costs space.
+**Status:** Approved. Details settled 2026-10-09:
+- The bus starts **as low as possible**. As the part below the bus fills up, it pushes the
+  bus up; a tall part above can push it back down. Otherwise it stays level.
+- The section that causes a height change takes the step (at its left edge) and the extra
+  width.
+- The extra width is **10 drawing units**: the three phases are 5 apart, so A to C is 10.
+
+### 2026-10-09 — Tie breaker sits at the right edge of its section
+**Decision:** In a section that holds a tie breaker, the tie sits at the section's right
+edge; the bus steps up or down there as it leaves the section.
+**Reason:** Sammy's choice.
+**Status:** Approved
+
+### 2026-10-09 — Section editor layout
+**Decision:** Section list on the left (add, remove, reorder, push, link). Editor for the
+selected section on the right: Above and Below each pick Empty / Main breaker / Single
+breaker / Group Mounted; group mounted has add twin / add single / remove / reorder / flip
+levels and a label (or SPACE) per slot; tie breaker checkbox with label and step up/down.
+Ratings and block choice come later. Page preview and warnings stay as they are.
+**Reason:** Approved "for now".
+**Status:** Approved
+
+### 2026-10-09 — Group mounted levels: order and sides
+**Decision:** Levels in a Group Mounted Distribution are counted outward from the main bus.
+Single-mount levels alternate sides automatically; the engineer can flip any level.
+**Reason:** Matches the physical stacking and the references; flipping covers exceptions.
+**Status:** Approved
+
+### 2026-10-09 — Twin mount and single mount can share a vertical bus
+**Decision:** Within one Group Mounted Distribution, twin-mount levels and single-mount
+levels can be mixed on the same vertical bus. Example: ES_12 of GND_Section_Devider_REFERENCE.
+**Reason:** Seen in real jobs (NTT-013627, NTT-013630).
+**Status:** Approved
+
 ### 2026-10-08 — Mirroring is allowed, scaling is not
 **Decision:** A block may be flipped (X scale -1, e.g. the right-hand breaker of a twin
 mount). It is never scaled. Text and attributes must still read normally after flipping.

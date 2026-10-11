@@ -8,10 +8,11 @@ drawable area, with y pointing UP (the same direction as AutoCAD).
 
 Rules applied (each one is recorded in docs/DECISIONS.md):
 - Sections keep the order they were entered in. They are never reordered.
-- Dividing lines sit `divider_clearance` outside each section's components, and
-  neighbouring sections share one dividing line.
+- Each section's edges sit `divider_clearance` outside its components, and neighbouring
+  sections share one edge. (Which edges actually get a drawn divider line is decided in
+  page_parts.py.)
 - The side margin is measured from the edge of the drawable area to the outermost
-  dividing line.
+  section edge.
 - Pages use the standard side margin. If the next section (or linked group) only fits
   with the relaxed margin, that page switches to the relaxed margin.
 - Pages fill left to right with as many sections as fit.
@@ -25,8 +26,11 @@ Rules applied (each one is recorded in docs/DECISIONS.md):
 """
 from dataclasses import dataclass, field
 
+from src.layout.page_parts import PageParts, add_page_parts
 from src.layout.settings import LayoutSettings
-from src.model.switchboard import Section, Switchboard
+from src.layout.main_bus import BusPlan, plan_bus
+from src.layout.section_builder import section_size
+from src.model.switchboard import Switchboard
 
 # Allowance for floating-point rounding when comparing positions, so that a section
 # which fits exactly (e.g. right edge at 490.0000000001) still counts as fitting.
@@ -34,8 +38,27 @@ ROUNDING_TOLERANCE = 1e-9
 
 
 @dataclass
+class SectionBox:
+    """What page fitting needs to know about a section: its size and page controls.
+    Built from the section's contents by fit_pages(); tests build them directly."""
+    width: float      # outermost component to outermost component (clearance added later)
+    height: float     # top of the highest component to the bottom of the lowest
+    push_to_next_page: bool = False
+    link_with_next: bool = False
+    # Filled in by fit_pages() from the section's contents. Tests that leave them out get
+    # a plain box hanging from the top margin.
+    top_y: float | None = None          # y of the highest component
+    bus: BusPlan | None = None          # main bus height in this section
+    above_height: float = 0.0           # room used above the main bus
+    below_height: float = 0.0           # room used below the main bus
+    has_tie: bool = False
+
+
+@dataclass
 class PlacedSection:
-    section: Section
+    section: SectionBox
+    number: int               # position in the lineup: 1 for the first section, and so on
+    # "divider" here means the section's edge; a line is only drawn at some edges.
     left_divider_x: float
     right_divider_x: float
     component_left_x: float
@@ -49,10 +72,12 @@ class Page:
     number: int          # 1, 2, 3 ...
     side_margin: float   # standard or relaxed, whichever this page needed
     placed_sections: list[PlacedSection] = field(default_factory=list)
+    # Dividers, ground bus and section labels; filled in by page_parts.add_page_parts().
+    parts: PageParts | None = None
 
     @property
-    def divider_xs(self) -> list[float]:
-        """x position of every dividing line on the page, left to right (shared lines once)."""
+    def edge_xs(self) -> list[float]:
+        """x of every section edge on the page, left to right (shared edges listed once)."""
         if not self.placed_sections:
             return []
         return [self.placed_sections[0].left_divider_x] + [
@@ -67,13 +92,43 @@ class LayoutResult:
 
 
 def fit_pages(switchboard: Switchboard, settings: LayoutSettings) -> LayoutResult:
+    """Work out each section's size from its contents, then fit the sections onto pages."""
+    sections = switchboard.sections
+    sizes = [section_size(section.contents, settings) for section in sections]
+    bus_warnings: list[str] = []
+    plans = plan_bus(sizes, [s.contents.tie for s in sections], settings, bus_warnings)
+
+    half_bundle = settings.main_bus.phase_spacing    # B phase to A (top) or C (bottom)
+    boxes = []
+    for section, size, plan in zip(sections, sizes, plans):
+        # The section that makes the bus change height pays for the step in width.
+        step_width = settings.main_bus.step_width if plan.steps_at_entry else 0.0
+        boxes.append(SectionBox(
+            width=size.width + step_width,
+            height=size.above_height + 2 * half_bundle + size.below_height,
+            push_to_next_page=section.push_to_next_page,
+            link_with_next=section.link_with_next,
+            top_y=plan.body_y + half_bundle + size.above_height,
+            bus=plan,
+            above_height=size.above_height,
+            below_height=size.below_height,
+            has_tie=section.contents.tie is not None,
+        ))
+    result = fit_boxes(boxes, settings)
+    result.warnings[:0] = bus_warnings     # bus problems first: they explain later ones
+    return result
+
+
+def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings) -> LayoutResult:
     warnings: list[str] = []
-    _check_section_sizes(switchboard.sections, settings, warnings)
-    groups = _group_linked_sections(switchboard.sections, warnings)
+    # Sections are known by their position in the lineup ("Section 3"); they have no names.
+    numbers = {id(box): n for n, box in enumerate(boxes, start=1)}
+    _check_section_sizes(boxes, settings, warnings)
+    groups = _group_linked_sections(boxes, numbers, warnings)
 
     # First decide which sections go on which page, then work out exact positions.
-    sections_per_page: list[list[Section]] = []
-    current_page: list[Section] = []
+    sections_per_page: list[list[SectionBox]] = []
+    current_page: list[SectionBox] = []
 
     for group in groups:
         if current_page and group[0].push_to_next_page:
@@ -94,7 +149,7 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings) -> LayoutResul
         else:
             # Doesn't fit even on an empty page. Give it a page of its own so nothing
             # else gets squeezed in beside it, and say why.
-            warning = _explain_why_group_does_not_fit(group, settings)
+            warning = _explain_why_group_does_not_fit(group, numbers, settings)
             if warning:
                 warnings.append(warning)
             sections_per_page.append(group)
@@ -102,10 +157,13 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings) -> LayoutResul
     if current_page:
         sections_per_page.append(current_page)
 
-    pages = [
-        _build_page(number, sections, settings)
-        for number, sections in enumerate(sections_per_page, start=1)
-    ]
+    pages = []
+    first_section_number = 1
+    for page_number, sections in enumerate(sections_per_page, start=1):
+        pages.append(_build_page(page_number, sections, settings, first_section_number))
+        first_section_number += len(sections)
+
+    add_page_parts(pages, settings)
     return LayoutResult(pages=pages, warnings=warnings)
 
 
@@ -113,36 +171,37 @@ def _check_section_sizes(sections, settings, warnings):
     """Design errors that no page arrangement can fix."""
     widest_allowed = settings.drawable_width - 2 * settings.margin_relaxed
     tallest_allowed = settings.drawable_height - 2 * settings.margin_standard
-    for section in sections:
+    for number, section in enumerate(sections, start=1):
+        name = f"Section {number}"
         if section.width <= 0 or section.height <= 0:
-            warnings.append(f'"{section.name}": width and height must be greater than zero.')
+            warnings.append(f"{name} has no size. Is it empty?")
         footprint = section.width + 2 * settings.divider_clearance
         if footprint > widest_allowed + ROUNDING_TOLERANCE:
             warnings.append(
-                f'"{section.name}" is wider than a page (design error): needs {footprint:g} '
+                f"{name} is wider than a page (design error): needs {footprint:g} "
                 f"including divider clearance, page allows {widest_allowed:g}."
             )
         if section.height > tallest_allowed + ROUNDING_TOLERANCE:
             warnings.append(
-                f'"{section.name}" is taller than a page (design error): height '
+                f"{name} is taller than a page (design error): height "
                 f"{section.height:g}, page allows {tallest_allowed:g}."
             )
 
 
-def _group_linked_sections(sections, warnings) -> list[list[Section]]:
+def _group_linked_sections(sections, numbers, warnings) -> list[list[SectionBox]]:
     """Split the section list into groups that must stay on the same page.
 
     A section with link_with_next=True joins the section after it. Unlinked sections
     become a group of one.
     """
     groups = []
-    current_group: list[Section] = []
+    current_group: list[SectionBox] = []
     for section in sections:
         if current_group and section.push_to_next_page:
             # Pushing would split the group, which contradicts the link. Link wins.
             warnings.append(
-                f'"{section.name}" is linked to "{current_group[-1].name}", '
-                f'so its "push to next page" is ignored.'
+                f"Section {numbers[id(section)]} is linked to Section "
+                f'{numbers[id(current_group[-1])]}, so its "push to next page" is ignored.'
             )
         current_group.append(section)
         if not section.link_with_next:
@@ -153,18 +212,24 @@ def _group_linked_sections(sections, warnings) -> list[list[Section]]:
     return groups
 
 
-def _place_sections(sections, side_margin, settings) -> list[PlacedSection]:
-    """Position sections left to right on one page, sharing dividing lines."""
+def _place_sections(sections, side_margin, settings, first_number=1) -> list[PlacedSection]:
+    """Position sections left to right on one page, sharing edges.
+
+    first_number is the lineup number of the first section on this page (pages hold
+    consecutive sections, since sections are never reordered).
+    """
     clearance = settings.divider_clearance
-    # Sections hang down from the top margin (approved starting rule).
-    top_y = settings.drawable_height - settings.margin_standard
+    # Boxes without a bus plan (some tests) hang down from the top margin.
+    default_top_y = settings.drawable_height - settings.margin_standard
     placed = []
     divider_x = side_margin
-    for section in sections:
+    for offset, section in enumerate(sections):
+        top_y = section.top_y if section.top_y is not None else default_top_y
         right_divider_x = divider_x + clearance + section.width + clearance
         placed.append(
             PlacedSection(
                 section=section,
+                number=first_number + offset,
                 left_divider_x=divider_x,
                 right_divider_x=right_divider_x,
                 component_left_x=divider_x + clearance,
@@ -188,9 +253,8 @@ def _placement_fits(placed, side_margin, settings) -> bool:
 
 def _overlaps_title_block(placed: PlacedSection, settings) -> bool:
     """True if the section sits over the keep-out's x-range AND reaches down into it."""
-    keepout_left_x = settings.drawable_width - settings.keepout_width
     keepout_top_y = settings.keepout_height
-    is_over_keepout = placed.right_divider_x > keepout_left_x + ROUNDING_TOLERANCE
+    is_over_keepout = placed.right_divider_x > settings.keepout_left_x + ROUNDING_TOLERANCE
     reaches_into_keepout = placed.component_bottom_y < keepout_top_y - ROUNDING_TOLERANCE
     return is_over_keepout and reaches_into_keepout
 
@@ -205,7 +269,7 @@ def _fits_on_one_page(sections, settings) -> bool:
     )
 
 
-def _build_page(number, sections, settings) -> Page:
+def _build_page(number, sections, settings, first_section_number) -> Page:
     # Standard margin unless this page only works with the relaxed one. A page that
     # doesn't fit either way (an overflow page) keeps the standard margin.
     if _fits_with_margin(sections, settings.margin_standard, settings):
@@ -214,17 +278,17 @@ def _build_page(number, sections, settings) -> Page:
         side_margin = settings.margin_relaxed
     else:
         side_margin = settings.margin_standard
-    placed = _place_sections(sections, side_margin, settings)
+    placed = _place_sections(sections, side_margin, settings, first_section_number)
     return Page(number=number, side_margin=side_margin, placed_sections=placed)
 
 
-def _explain_why_group_does_not_fit(group, settings) -> str:
+def _explain_why_group_does_not_fit(group, numbers, settings) -> str:
     """Warning text for a group that can't fit even on an empty page.
 
     Returns "" when the reason was already reported by _check_section_sizes
     (a single section wider than a page), to avoid saying the same thing twice.
     """
-    names = ", ".join(f'"{section.name}"' for section in group)
+    names = ", ".join(str(numbers[id(section)]) for section in group)
     if len(group) > 1:
         return (
             f"Linked sections {names} do not fit together on one page; "
@@ -233,4 +297,4 @@ def _explain_why_group_does_not_fit(group, settings) -> str:
     footprint = group[0].width + 2 * settings.divider_clearance
     if footprint > settings.drawable_width - 2 * settings.margin_relaxed + ROUNDING_TOLERANCE:
         return ""
-    return f"{names} reaches into the title block area even alone on a page."
+    return f"Section {names} reaches into the title block area even alone on a page."
