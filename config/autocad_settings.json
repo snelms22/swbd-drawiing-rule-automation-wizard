@@ -1,0 +1,16 @@
+{
+  "note": "How the program talks to AutoCAD. Layout numbers live in layout_settings.json.",
+  "autocad_program_id": "AutoCAD.Application.25.1",
+  "autocad_program_note": "25.1 = AutoCAD 2026. Never use AutoCAD Electrical (decision 2026-10-11).",
+  "template_file": "templates/EW_SWBD_TEMPLATE.dwg",
+  "output_folder": "output",
+  "frame_block_name": "TITLE_BLOCK_MODEL",
+  "frame_name_attribute": "NAME",
+  "page_frame_format": "ES_{page:02d}",
+  "page_layout_format": "ES_{page:02d}",
+  "block_library_file": "C:/Users/SamanthaNelms/Hyper Solutions/Hyper Document Library - Engineering/Electrical Team/CAD BLOCKS/Symbols-blocks.dwg",
+  "block_library_note": "Blocks are copied from this library drawing (decision 2026-10-11). It is read in the background, never opened or changed.",
+  "objectdbx_program_id": "ObjectDBX.AxDbDocument.25",
+  "placeholder_layer": "CFG_PLACEHOLDER",
+  "placeholder_layer_color": 8
+}

@@ -23,6 +23,9 @@ Rules applied:
 """
 from dataclasses import dataclass, field
 
+from src.layout.main_breakers import main_breaker_geometry, terminal_spacing_problem
+from src.model.section_contents import MainBreaker
+
 ROUNDING_TOLERANCE = 1e-9
 
 
@@ -48,23 +51,52 @@ class SectionLabel:
 
 
 @dataclass
+class ContentBox:
+    """Where a section's contents go: one box above the main bus, one below.
+    Drawn as placeholders until the real blocks are in."""
+    section_number: int
+    part: str            # "above" or "below"
+    left_x: float
+    bottom_y: float
+    right_x: float
+    top_y: float
+
+
+@dataclass
 class PageParts:
     # Main bus centre line (B phase) as a list of corner points, left to right.
     # A is phase_spacing above / left of it, C the same below / right.
     bus_path: list[tuple[float, float]] = field(default_factory=list)
     dividers: list[DividerLine] = field(default_factory=list)
+    content_boxes: list[ContentBox] = field(default_factory=list)
+    # Main breakers drawn for real (see main_breakers.py): extra bus runs, library blocks
+    # (breakers, junction dots) and placeholders for blocks that aren't ready yet.
+    bus_lines: list = field(default_factory=list)
+    blocks: list = field(default_factory=list)
+    placeholders: list = field(default_factory=list)
+    bus_start_path: list | None = None
     ground_bus: GroundBusLine | None = None
     section_labels: list[SectionLabel] = field(default_factory=list)
 
 
-def add_page_parts(pages, settings):
-    """Fill in page.parts for every page."""
+def add_page_parts(pages, settings, catalog=None, warnings=None):
+    """Fill in page.parts for every page. Without a block catalog, main breakers are left
+    as placeholder boxes."""
     for page in pages:
         page.parts = PageParts()
 
+    if catalog is not None:
+        problem = terminal_spacing_problem(settings, catalog)
+        if problem:
+            if warnings is not None:
+                warnings.append(problem)
+            catalog = None      # can't line the bus up with this block, so don't try
+
     _add_dividers(pages, settings)
     for page in pages:
+        drawn_parts = _add_main_breakers(page, settings, catalog)
         _add_bus_path(page, settings)
+        _add_content_boxes(page, settings, drawn_parts)
     for index, page in enumerate(pages):
         is_last_page = index == len(pages) - 1
         _add_ground_bus(page, is_last_page, settings)
@@ -117,8 +149,39 @@ def _divider_clear_of_title_block(x, settings) -> DividerLine:
     return DividerLine(x, divider.bottom_y, divider.top_y)
 
 
+def _add_main_breakers(page, settings, catalog) -> set:
+    """Draw main breakers for real. Returns {(section number, part)} that were drawn, so
+    their placeholder boxes are left out."""
+    drawn = set()
+    if catalog is None:
+        return drawn
+    for placed in page.placed_sections:
+        box = placed.section
+        if box.bus is None or box.contents is None:
+            continue
+        for part in ("above", "below"):
+            arrangement = getattr(box.contents, part)
+            if not isinstance(arrangement, MainBreaker):
+                continue
+            # The main bus only starts here for the first section of the lineup.
+            starts_the_bus = placed.number == 1 and page.parts.bus_start_path is None
+            geometry = main_breaker_geometry(arrangement, part, placed, settings, catalog,
+                                             starts_the_bus)
+            if geometry.bus_start_path:
+                page.parts.bus_start_path = geometry.bus_start_path
+            page.parts.bus_lines += geometry.bus_lines
+            page.parts.blocks += geometry.blocks
+            page.parts.placeholders += geometry.placeholders
+            drawn.add((placed.number, part))
+    return drawn
+
+
 def _add_bus_path(page, settings):
     points = page.parts.bus_path
+    start = page.parts.bus_start_path
+    if start:
+        # The main bus begins at a main breaker's riser and bends into the bus.
+        points.extend(start)
     for placed in page.placed_sections:
         box = placed.section
         plan = box.bus
@@ -135,6 +198,28 @@ def _add_bus_path(page, settings):
             points.append((tie_x, plan.body_y))
             points.append((tie_x, plan.exit_y))
         points.append((placed.right_divider_x, plan.exit_y))
+
+
+def _add_content_boxes(page, settings, drawn_parts=frozenset()):
+    """Plain test boxes (no bus plan) get one box; real sections get above / below boxes,
+    except for parts already drawn for real (main breakers)."""
+    half_bundle = settings.main_bus.phase_spacing
+    for placed in page.placed_sections:
+        box = placed.section
+        left, right = placed.component_left_x, placed.component_right_x
+        if box.bus is None:
+            page.parts.content_boxes.append(ContentBox(
+                placed.number, "above", left, placed.component_bottom_y, right, placed.component_top_y))
+            continue
+        bus_y = box.bus.body_y
+        if box.above_height > 0 and (placed.number, "above") not in drawn_parts:
+            page.parts.content_boxes.append(ContentBox(
+                placed.number, "above", left, bus_y + half_bundle, right,
+                bus_y + half_bundle + box.above_height))
+        if box.below_height > 0 and (placed.number, "below") not in drawn_parts:
+            page.parts.content_boxes.append(ContentBox(
+                placed.number, "below", left, bus_y - half_bundle - box.below_height, right,
+                bus_y - half_bundle))
 
 
 def _add_ground_bus(page, is_last_page, settings):

@@ -77,11 +77,23 @@ class PlaceholderSizes:
 
 @dataclass(frozen=True)
 class MainBusSettings:
+    layer: str
     phase_spacing: float     # A-B and B-C; A to C is twice this
     step_width: float        # extra section width when the bus changes height there
     tie_step_height: float   # how far the bus moves up or down at a tie breaker
     content_top_y: float     # nothing in a section goes above this
     content_bottom_y: float  # nothing in a section goes below this (clear of the ground bus)
+    junction_dot_block: str  # library block for bus junction dots ("BUS_NODE")
+
+
+@dataclass(frozen=True)
+class MainBreakerSettings:
+    block: str                  # library block for the breaker (e.g. "3P_CB_FM_1")
+    block_layer: str
+    visibility: str             # the block's "Visibility1" state to use (e.g. "1 BOM")
+    gap_bus_to_breaker: float   # main bus (nearest phase) to the breaker's near terminals
+    gap_breaker_to_input: float # breaker's far terminals to the input end of the bus
+    input_box_height: float     # room kept for the input block and its label
 
 
 @dataclass(frozen=True)
@@ -100,6 +112,7 @@ class LayoutSettings:
     group_mounted: GroupMountedSettings
     placeholder_sizes: PlaceholderSizes
     main_bus: MainBusSettings
+    main_breaker: MainBreakerSettings
 
     @property
     def keepout_left_x(self) -> float:
@@ -187,11 +200,21 @@ def load_settings(path) -> LayoutSettings:
             tie_breaker_width=_read_number(data, "placeholder_sizes", "tie_breaker_width"),
         ),
         main_bus=MainBusSettings(
+            layer=_read_text(data, "main_bus", "layer"),
             phase_spacing=_read_number(data, "main_bus", "phase_spacing"),
             step_width=_read_number(data, "main_bus", "step_width"),
             tie_step_height=_read_number(data, "main_bus", "tie_step_height"),
             content_top_y=_read_number(data, "main_bus", "content_top_y"),
             content_bottom_y=_read_number(data, "main_bus", "content_bottom_y"),
+            junction_dot_block=_read_text(data, "main_bus", "junction_dot_block"),
+        ),
+        main_breaker=MainBreakerSettings(
+            block=_read_text(data, "main_breaker", "block"),
+            block_layer=_read_text(data, "main_breaker", "block_layer"),
+            visibility=_read_text(data, "main_breaker", "visibility"),
+            gap_bus_to_breaker=_read_number(data, "main_breaker", "gap_bus_to_breaker"),
+            gap_breaker_to_input=_read_number(data, "main_breaker", "gap_breaker_to_input"),
+            input_box_height=_read_number(data, "main_breaker", "input_box_height"),
         ),
     )
 

@@ -62,10 +62,21 @@
   },
   "main_bus": {
     "note": "Bus height positions are the B (middle) phase. content_bottom_y = ground bus (20.94) + 10 clearance.",
+    "layer": "BUS",
     "phase_spacing": 5.0,
     "step_width": 10.0,
     "tie_step_height": 70.0,
     "content_top_y": 256.33,
-    "content_bottom_y": 30.94
+    "content_bottom_y": 30.94,
+    "junction_dot_block": "BUS_NODE"
+  },
+  "main_breaker": {
+    "note": "Gaps measured from NTC-013632 / NTT-013628 (breaker 15 from the bus, input about 30 beyond the breaker).",
+    "block": "3P_CB_FM_1",
+    "block_layer": "0",
+    "visibility": "1 BOM",
+    "gap_bus_to_breaker": 15.0,
+    "gap_breaker_to_input": 30.0,
+    "input_box_height": 15.0
   }
 }

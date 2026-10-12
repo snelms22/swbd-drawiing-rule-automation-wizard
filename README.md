@@ -45,20 +45,24 @@ python -m pytest                # run the automated tests
 ```
 Layout numbers come from `config/layout_settings.json`; restart the app after editing it.
 
+**Generate drawing** (button in the app) copies `templates/EW_SWBD_TEMPLATE.dwg` to a new
+file in `output/`, opens it in AutoCAD 2026 (never AutoCAD Electrical), draws every page into
+the ES frames, and saves. Which AutoCAD, the template, and the frame/layout names are in
+`config/autocad_settings.json`. Placeholder boxes for section contents are on the
+non-plotting layer `CFG_PLACEHOLDER` until the real blocks are in.
+
 ## Status
-Milestone 1 (built, awaiting Sammy's review): model, config, layout engine, basic preview
-with placeholder section sizes.
+Built: layout engine (page fitting, page parts, main bus), section contents and editor,
+preview, and a first AutoCAD drawing (bus, dividers, ground bus, labels, placeholders).
+Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.md`.
 
 ## Open items (to decide when the work reaches them)
 - Blocks: waiting on Sammy's Hyper block set for `blocks/` (replaces legacy `SCHEM_*`).
   Then: connection-marker convention, and how dynamic blocks (visibility states) are handled.
 - House standard picks (divider layer/linetype, page-break style, feeder row pitch, section
   label position): to come from Sammy's master reference drawing.
-- Drawing: how bus bars and section dividers (code-drawn lines, not blocks) are drawn.
-- Drawing: title block keep-out position on the page, and page-to-AutoCAD coordinate mapping.
-- Drawing: how the AutoCAD step uses `templates/EW_SWBD_TEMPLATE.dwg`.
+- Drawing: switch the main bus from plain lines to the dynamic bus blocks (BUSSING_3PH_3W_3L).
 - Project file save format.
-- Layout rules still open: tie breaker elevation, vertical bus up/down choice, placement of
-  SPD / fuses / CTs.
-- Reference: study `ES-011511_A_REFERENCE.dxf` (see `docs/SWBD_reference/INDEX.md`).
+- Layout rules still open: when/how a section splits across a page break; placement of
+  SPD / fuses / CTs; multi-bus lineups (IMS-style bypass) in scope or not.
 - Repo: optional `.gitattributes` so git never changes `.dxf` line endings.

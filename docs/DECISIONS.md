@@ -228,6 +228,61 @@ no divider at that break. When to split, and how, is still to be defined.
 **Reason:** That is the only section label the drawing needs.
 **Status:** Approved
 
+### 2026-10-12 — Block library standard (first items)
+**Decision:** In `docs/BLOCK_LIBRARY_STANDARD.md`: 3-phase blocks have their base point on
+the A-phase top terminal (poles at 0 / 5 / 10, A left); revision suffixes (`_R0`, `_R1`, ...)
+are used; layers inside a block are part of its design (attributes on TEXT/TXT, bus bars
+on BUS, etc.) and the configurator never changes them. Connection markers: Sammy is looking
+into them; until then terminals are measured and kept in `catalog/blocks.json`.
+**Reason:** Sammy's review of the draft standard.
+**Status:** Approved (markers and "Visibility1" naming still to confirm)
+
+### 2026-10-12 — Input / output block
+**Decision:** Sammy's input/output block will be based on the library's
+`PHASE_LUGS_3L_R0` (TOP/BOTTOM ENTRY, POWER FLOW IN/OUT states), with his edits. Until it
+is ready, its place is shown as an "INPUT" placeholder box.
+**Reason:** The library block already covers top/bottom entry and power flow direction.
+**Status:** Approved (block in progress)
+
+### 2026-10-11 — Blocks come from the shared block library (Option B)
+**Decision:** The program copies block definitions from Hyper's maintained block library
+drawing (`Symbols-blocks.dwg`, Electrical Team CAD BLOCKS folder) instead of one .dwg file
+per block. Its location is in config. A written standard for adding blocks to the library
+is kept in `docs/BLOCK_LIBRARY_STANDARD.md`.
+**Reason:** The team keeps using and maintaining that library; one source of truth.
+**Status:** Approved
+
+### 2026-10-11 — Input / output bus connection
+**Decision:** An input/output block (with its label) marks where a bus starts on the
+drawing, for sources and for feeders. It sits at the top or bottom of the drawing depending
+on the direction of power flow, usually with a breaker: input block -> bus into the breaker
+-> out of the breaker -> a bend that carries the bus on to the rest of the drawing.
+**Reason:** Matches the references (incoming lugs/labels above or below mains and feeders).
+**Status:** Approved (block in progress by Sammy)
+
+### 2026-10-11 — First AutoCAD drawing reviewed
+**Decision:** Bus, ground bus, dividers, text and spacing in the first generated drawing are
+good for now. Revisit how the bus bars look once real components connect to them.
+**Reason:** Sammy's review of `output/Example 2026-10-11 194634.dwg`.
+**Status:** Approved
+
+### 2026-10-11 — First AutoCAD step
+**Decision:**
+- Each run copies `templates/EW_SWBD_TEMPLATE.dwg` to a new file in `output/` (switchboard
+  name + date/time), opens the copy, draws, and saves. The template is never changed.
+- Use the AutoCAD 2026 that is already open, or start AutoCAD 2026. **Never AutoCAD
+  Electrical.**
+- Page N goes in the frame named ES_0N, at the frame's insertion point. The program first
+  lists the ES frames/layouts in the copy; if there are not enough frames it stops with a
+  clear message.
+- Draws: main bus (each phase its own line, layer BUS), dividers (DEVIDER), ground bus and
+  symbol (GROUND), "GROUND BUS" / "SECTION n" text (layer 0, Hyper_Text, 1.25), and
+  placeholder rectangles for section contents on a non-plotting layer CFG_PLACEHOLDER.
+- Run from a "Generate drawing" button in the app; it reports the saved file and problems.
+- Bus is plain lines for now; later it will use the dynamic bus blocks (BUSSING_3PH_3W_3L).
+**Reason:** Sammy's choices; gives a first real drawing to check before blocks arrive.
+**Status:** Approved
+
 ### 2026-10-09 — What a section holds (Option A)
 **Decision:** Each section has an **above** part (above the main bus) and a **below** part.
 Each part holds one arrangement: Empty, Main breaker (above = fed from top, below = fed

@@ -142,37 +142,23 @@ class PagePreview(QWidget):
         painter.setPen(KEEPOUT_BORDER)
         painter.drawText(keepout_rect, Qt.AlignCenter, "Title block")
 
-        # Sections: one box for what is above the main bus and one for what is below.
-        # (Plain test boxes without a bus are drawn as a single box.)
-        for placed in page.placed_sections:
-            overflowing = placed.right_divider_x > W - page.side_margin
-            painter.setPen(QPen(OVERFLOW_BORDER if overflowing else SECTION_BORDER, 1.2))
-            painter.setBrush(OVERFLOW_FILL if overflowing else SECTION_FILL)
-            for bottom_y, top_y in self._content_boxes(placed):
-                box = self._rect(placed.component_left_x, bottom_y,
-                                 placed.component_right_x, top_y, page_top_px)
-                painter.drawRect(box)
-                painter.setPen(QColor("#1f2933"))
-                painter.drawText(box.adjusted(2, 2, -2, -2),
-                                 Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap,
-                                 f"Section {placed.number}")
+        # Section contents: the layout gives one box above the main bus and one below.
+        if page.parts is not None:
+            edge_of_page = W - page.side_margin
+            for content in page.parts.content_boxes:
+                overflowing = content.right_x > edge_of_page
                 painter.setPen(QPen(OVERFLOW_BORDER if overflowing else SECTION_BORDER, 1.2))
+                painter.setBrush(OVERFLOW_FILL if overflowing else SECTION_FILL)
+                rect = self._rect(content.left_x, content.bottom_y, content.right_x, content.top_y,
+                                  page_top_px)
+                painter.drawRect(rect)
+                painter.setPen(QColor("#1f2933"))
+                painter.drawText(rect.adjusted(2, 2, -2, -2),
+                                 Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap,
+                                 f"Section {content.section_number}")
 
         if page.parts is not None:
             self._draw_page_parts(painter, page, page_top_px)
-
-    def _content_boxes(self, placed):
-        """(bottom_y, top_y) of each content box: above the bus, below the bus."""
-        box = placed.section
-        if box.bus is None:
-            return [(placed.component_bottom_y, placed.component_top_y)]
-        half = self._settings.main_bus.phase_spacing
-        boxes = []
-        if box.above_height > 0:
-            boxes.append((box.bus.body_y + half, box.bus.body_y + half + box.above_height))
-        if box.below_height > 0:
-            boxes.append((box.bus.body_y - half - box.below_height, box.bus.body_y - half))
-        return boxes
 
     def _draw_bus(self, painter: QPainter, path, page_top_px: float):
         """Three phases along the bus centre line: A above / left, B on it, C below / right.
@@ -188,11 +174,40 @@ class PagePreview(QWidget):
                     a, b = (x1, y1 - offset), (x2, y2 - offset)
                 painter.drawLine(self._to_screen(*a, page_top_px), self._to_screen(*b, page_top_px))
 
+    def _draw_main_breaker_parts(self, painter: QPainter, parts, page_top_px: float):
+        """Extra bus runs, library blocks (as their outline box), and waiting-block boxes."""
+        painter.setPen(QPen(BUS_COLOR, 1.2))
+        for line in parts.bus_lines:
+            painter.drawLine(self._to_screen(*line.start, page_top_px),
+                             self._to_screen(*line.end, page_top_px))
+        for block in parts.blocks:
+            left, bottom, right, top = block.extents
+            x, y = block.position
+            rect = self._rect(x + left, y + bottom, x + right, y + top, page_top_px)
+            if block.label:
+                painter.setPen(QPen(SECTION_BORDER, 1.0))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRect(rect)
+                self._draw_drawing_text(painter, block.label, x + right / 2, y + top + 0.5,
+                                        page_top_px, centred=True)
+            else:   # junction dot
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(BUS_COLOR)
+                painter.drawEllipse(rect.adjusted(-1, -1, 1, 1))
+        for box in parts.placeholders:
+            painter.setPen(QPen(MARGIN_LINE, 1, Qt.DashLine))
+            painter.setBrush(Qt.NoBrush)
+            rect = self._rect(box.left_x, box.bottom_y, box.right_x, box.top_y, page_top_px)
+            painter.drawRect(rect)
+            self._draw_drawing_text(painter, box.text, (box.left_x + box.right_x) / 2,
+                                    box.bottom_y + 1, page_top_px, centred=True)
+
     def _draw_page_parts(self, painter: QPainter, page: Page, page_top_px: float):
         """Main bus, dividers, ground bus (with its symbol and label) and section labels."""
         s = self._settings
         parts = page.parts
         self._draw_bus(painter, parts.bus_path, page_top_px)
+        self._draw_main_breaker_parts(painter, parts, page_top_px)
 
         # Dividers: dashed, in the DEVIDER layer's colour (red).
         painter.setPen(QPen(DIVIDER_COLOR, 1.2, Qt.DashLine))

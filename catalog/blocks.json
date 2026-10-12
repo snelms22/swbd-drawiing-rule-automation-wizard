@@ -1,0 +1,21 @@
+{
+  "note": "Connection points and sizes of library blocks, in block coordinates (base point = 0,0). MEASURED 2026-10-11 from Symbols-blocks.dwg because the blocks have no connection markers yet. Replace with values read from markers once the library standard's marker convention is in place (docs/BLOCK_LIBRARY_STANDARD.md).",
+  "blocks": {
+    "3P_CB_FM_1": {
+      "description": "3-pole fixed-mount breaker, poles vertical, A on the left",
+      "top_terminals": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0]],
+      "bottom_terminals": [[0.0, -10.0], [5.0, -10.0], [10.0, -10.0]],
+      "extents": [-0.5, -11.09, 25.2, 3.5]
+    },
+    "3P_CB_DO": {
+      "description": "3-pole draw-out breaker, poles vertical, A on the left",
+      "top_terminals": [[-0.01, -0.01], [4.99, -0.01], [9.99, -0.01]],
+      "bottom_terminals": [[-0.01, -10.01], [4.99, -10.01], [9.99, -10.01]],
+      "extents": [-1.01, -11.09, 25.43, 3.63]
+    },
+    "BUS_NODE": {
+      "description": "Filled junction dot, diameter 1.5, centred on the base point",
+      "extents": [-0.75, -0.75, 0.75, 0.75]
+    }
+  }
+}

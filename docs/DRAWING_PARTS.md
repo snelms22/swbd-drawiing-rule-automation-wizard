@@ -34,8 +34,8 @@ Coordinates are frame-relative drawing units (frame drawable area 419.04 x 269.4
 
 | # | Part | Status | Rule / notes | Source |
 |---|---|---|---|---|
-| S1 | Main breaker | Approved (direction) / Proposed (geometry) | On a vertical riser, fed from top or bottom (engineer's choice) | DECISIONS |
-| S2 | Incoming block | Proposed | PHASE_LUGS_3L_R0, A/B/C letters, "PROVISIONS FOR…" + rating text | all refs |
+| S1 | Main breaker | **Built** (real block 3P_CB_FM_1) | Input end -> bus -> breaker -> bus -> bends into the main bus at lineup start, tees in with BUS_NODE dots elsewhere; breaker 15 from the bus, input 30 beyond | DECISIONS, refs |
+| S2 | Input / output block | Placeholder ("INPUT" box) | Sammy's new input/output block; PHASE_LUGS_3L_R0 has similar TOP/BOTTOM ENTRY states | DECISIONS |
 | S3 | Tie breaker | **Built** (placeholder size) | Vertical, at the section's right edge, any section; bus steps up/down 70 | DECISIONS |
 | S4 | Main–main interlock | Proposed | Dashed line between two mains, "ELECTRICAL INTERLOCK" | NTT-013631 |
 

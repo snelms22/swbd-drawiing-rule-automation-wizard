@@ -19,9 +19,10 @@ Useful facts:
 - Room between standard margins = 480. Between relaxed margins = 490.
 - Sections hang from y = 290 (top margin).
 """
+from src.layout.block_catalog import BlockInfo
 from src.layout.settings import (
     DividerSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
-    MainBusSettings, PlaceholderSizes, SectionLabelSettings, TextSettings,
+    MainBreakerSettings, MainBusSettings, PlaceholderSizes, SectionLabelSettings, TextSettings,
 )
 
 TEST_SETTINGS = LayoutSettings(
@@ -60,8 +61,12 @@ TEST_SETTINGS = LayoutSettings(
         group_mounted_width=145.0, tie_breaker_width=30.0,
     ),
     main_bus=MainBusSettings(
-        phase_spacing=5.0, step_width=10.0, tie_step_height=70.0,
-        content_top_y=280.0, content_bottom_y=30.0,
+        layer="BUS", phase_spacing=5.0, step_width=10.0, tie_step_height=70.0,
+        content_top_y=280.0, content_bottom_y=30.0, junction_dot_block="BUS_NODE",
+    ),
+    main_breaker=MainBreakerSettings(
+        block="TEST_BKR", block_layer="0", visibility="1 BOM",
+        gap_bus_to_breaker=15.0, gap_breaker_to_input=30.0, input_box_height=15.0,
     ),
 )
 
@@ -76,3 +81,15 @@ def make_lineup(*boxes):
 def numbers_per_page(result):
     """Section numbers on each page, e.g. [[1, 2], [3]]."""
     return [[p.number for p in page.placed_sections] for page in result.pages]
+
+
+# A breaker block shaped like the library's 3P_CB_FM_1: poles at x 0 / 5 / 10, 10 long,
+# hanging down from the base point.
+TEST_CATALOG = {
+    "TEST_BKR": BlockInfo(
+        name="TEST_BKR",
+        top_terminals=((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
+        bottom_terminals=((0.0, -10.0), (5.0, -10.0), (10.0, -10.0)),
+        extents=(-0.5, -11.0, 25.0, 3.5),
+    ),
+}

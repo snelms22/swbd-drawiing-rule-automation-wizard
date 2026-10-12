@@ -5,8 +5,8 @@ the current result of the layout rules.
 """
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QHBoxLayout, QListWidget, QMainWindow, QPushButton, QScrollArea, QSplitter,
-    QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QHBoxLayout, QListWidget, QMainWindow, QMessageBox, QPushButton,
+    QScrollArea, QSplitter, QVBoxLayout, QWidget,
 )
 
 from src.layout.page_fitter import fit_pages
@@ -17,10 +17,13 @@ from src.ui.section_editor import SectionEditor
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, settings: LayoutSettings, switchboard: Switchboard):
+    def __init__(self, settings: LayoutSettings, switchboard: Switchboard,
+                 autocad_settings=None, autocad_settings_problem: str = "", catalog=None):
         super().__init__()
+        self._catalog = catalog     # library block sizes/terminals; None = placeholders only
         self._settings = settings
         self._switchboard = switchboard
+        self._autocad_settings = autocad_settings
         self.setWindowTitle(f"Hyper Switchboard Configurator - {switchboard.name}")
         self.resize(1500, 900)
 
@@ -45,6 +48,13 @@ class MainWindow(QMainWindow):
         left_layout.addLayout(list_buttons)
         left_layout.addWidget(self.push_check)
         left_layout.addWidget(self.link_check)
+
+        self.generate_button = QPushButton("Generate drawing")
+        self.generate_button.clicked.connect(self._generate_drawing)
+        if autocad_settings is None:
+            self.generate_button.setEnabled(False)
+            self.generate_button.setToolTip(autocad_settings_problem or "AutoCAD settings not loaded.")
+        left_layout.addWidget(self.generate_button)
 
         # Middle: editor for the selected section.
         self.editor = SectionEditor(settings)
@@ -143,10 +153,34 @@ class MainWindow(QMainWindow):
             self._rebuild_list(other)
             self.refresh()
 
+    # --- AutoCAD ------------------------------------------------------------------------
+
+    def _generate_drawing(self):
+        # Imported here so the app still opens (preview only) where AutoCAD isn't installed.
+        from src.autocad.generate import GenerateError, generate_drawing
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            result = generate_drawing(self._switchboard, self._settings, self._autocad_settings,
+                                      self._catalog)
+        except GenerateError as error:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, "Drawing not made", str(error))
+            return
+        except Exception as error:     # AutoCAD/COM errors: show them rather than crash
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "AutoCAD problem", f"{type(error).__name__}: {error}")
+            return
+        QApplication.restoreOverrideCursor()
+        message = f"Drawing saved:\n{result.drawing_file}"
+        if result.problems:
+            message += "\n\nPlease check:\n" + "\n".join(f"- {p}" for p in result.problems)
+        QMessageBox.information(self, "Drawing made", message)
+
     # --- Layout -------------------------------------------------------------------------
 
     def refresh(self):
-        result = fit_pages(self._switchboard, self._settings)
+        result = fit_pages(self._switchboard, self._settings, self._catalog)
         self.preview.show_layout(result)
         self.warning_list.clear()
         if result.warnings:

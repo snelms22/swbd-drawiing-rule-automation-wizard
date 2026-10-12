@@ -52,6 +52,7 @@ class SectionBox:
     above_height: float = 0.0           # room used above the main bus
     below_height: float = 0.0           # room used below the main bus
     has_tie: bool = False
+    contents: object = None             # the section's SectionContents (for drawing its parts)
 
 
 @dataclass
@@ -91,8 +92,10 @@ class LayoutResult:
     warnings: list[str]
 
 
-def fit_pages(switchboard: Switchboard, settings: LayoutSettings) -> LayoutResult:
-    """Work out each section's size from its contents, then fit the sections onto pages."""
+def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) -> LayoutResult:
+    """Work out each section's size from its contents, then fit the sections onto pages.
+    With a block catalog, main breakers are drawn with their real block; without one they
+    are placeholder boxes."""
     sections = switchboard.sections
     sizes = [section_size(section.contents, settings) for section in sections]
     bus_warnings: list[str] = []
@@ -113,13 +116,14 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings) -> LayoutResul
             above_height=size.above_height,
             below_height=size.below_height,
             has_tie=section.contents.tie is not None,
+            contents=section.contents,
         ))
-    result = fit_boxes(boxes, settings)
+    result = fit_boxes(boxes, settings, catalog)
     result.warnings[:0] = bus_warnings     # bus problems first: they explain later ones
     return result
 
 
-def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings) -> LayoutResult:
+def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings, catalog=None) -> LayoutResult:
     warnings: list[str] = []
     # Sections are known by their position in the lineup ("Section 3"); they have no names.
     numbers = {id(box): n for n, box in enumerate(boxes, start=1)}
@@ -163,7 +167,7 @@ def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings) -> LayoutResult
         pages.append(_build_page(page_number, sections, settings, first_section_number))
         first_section_number += len(sections)
 
-    add_page_parts(pages, settings)
+    add_page_parts(pages, settings, catalog, warnings)
     return LayoutResult(pages=pages, warnings=warnings)
 
 
