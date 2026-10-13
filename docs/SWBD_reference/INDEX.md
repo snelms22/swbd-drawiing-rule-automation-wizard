@@ -299,3 +299,60 @@ exploded geometry**; only annotation blocks (BOM balloons, wire tags, bracket) a
 the most complex lineup seen (multiple buses, bypass loops, crossovers, UPS sources).
 **Questions for Sammy:** see the 2026-10-09 chat summary (scope of multi-bus / bypass
 lineups; page-start divider; split sections; bus height change at a page break).
+
+## FIXED_011511  (Sammy's corrected ES-011511)
+**Files:** .dxf only  **Studied:** 2026-10-12
+**Contents:** ES-011511 with Sammy's corrections. **ES_12** shows the corrected "too tall"
+group-mounted bus and how breaks in a bus are drawn.
+**Measurements (ES_12, frame-relative):**
+- Main bus A/B/C at y 169.05 / 164.05 / 159.05, x 51.18 – 392.85.
+- Column 1 vertical bus x 189.13 / 194.13 / 199.13, from y 13.44 (bottom) to 254.31 (top).
+  Feeder levels on it every 30 (taps 177.78 – 210.47).
+- At its top end: `TILDE_R0` inserted at (189.13, 254.31) = the A-phase end, and
+  `BRACKET_TEXT_R0` at (194.13, 256.56) = over the B phase, 2.25 beyond the end.
+- Column 2 (the continuation) x 292.35 / 297.35 / 302.35, column pitch 103.22. It starts
+  at y 184.56 (15.5 above the main bus's top phase) with `TILDE_R0` at (292.35, 184.56)
+  and `BRACKET_TEXT_R0` at (297.35, 182.44), 2.12 before the start, and runs up to 237.19
+  (A/B/C letters at 238.94). Not connected to the main bus.
+- Both blocks at scale 1, rotation 0, not flipped.
+**Block facts (library, 2026-10-12):** `TILDE_R0` dynamic (HORIZONTAL / VERTICAL, two flips,
+Distance1/2 = 5); `BRACKET_TEXT_R0` dynamic (VERTICAL / HORIZONTAL BRACKET, Distance1/2 =
+10 = A to C, two flips). The bracket's "XXX" label is plain text, not an attribute. Neither
+block has CONN_ markers yet.
+**Proposed rules (pending approval):** see the 2026-10-12 chat: a too-tall vertical bus is
+cut after the last level that fits, marked with tilde + bracket, and continued in a new
+column beside it that starts with tilde + bracket.
+
+## CORRECTED_FIXED_011511  (Sammy's further-corrected ES-011511)
+**Files:** .dxf only (no PDF)  **Studied:** 2026-10-13
+**Contents:** Same as FIXED_011511 plus one new page: **ES_11** (was empty) now holds a full
+2-section 3-line page. ES_12 and everything else are unchanged (only AutoCAD's anonymous
+block names were renumbered).
+- **Section 1** (x 5.9 – 113.9): bottom-fed main 52-MCB-01 (2000AF/2000AT, 3P LSIG). Input
+  lugs at the foot of a vertical incoming bus (x 25.21 / 30.21 / 35.21, from y 37.78), "LUGS
+  (6) 600KCMIL PER PH", A/B/C letters, "480VAC, 3PH, 3W+G / 2,000A", "(BY OTHERS)". The bus
+  turns right at y 171.21 / 166.21 / 161.21 into the main breaker (bus gap x 43.15 – 52.15),
+  runs to x ~124–134, then steps down with a `BUSSING_3PH_3W_3L` corner (rot 90) to the main
+  bus at y 120.44 / 115.44 / 110.44. On the incoming bus: CT1–3 (2,000:5A) with shorting block
+  STB-1, fused taps FA-1 (3A, to PS-1) and FA-2 (1A, to PM-1), SPD1 on 52-SPD (125AF/30AT).
+  These devices are exploded geometry; BOM balloons and WIRE_TAG_R0 are blocks.
+- **Section 2** (x 113.9 – 342.7): group-mounted twin feeders on a vertical bus at
+  x 183.92 / 188.92 / 193.92, breakers at x 168.07 (L) / 209.77 (R). Above the main bus:
+  52-F2 … F7 (250AF), up to y 258.32 (A/B/C letters at 260.07). Below the main bus: 52-F11 …
+  F16 (600AF), levels every 30, down to the cut at y 20.94.
+**Measurements (ES_11, frame-relative), the "too tall" case going DOWN:**
+- Column 1 is cut at its **bottom** end: `TILDE_R0` at (183.92, 20.94) = A-phase end;
+  `BRACKET_TEXT_R0` at (188.92, 18.44) = over B, 2.5 beyond the end.
+- Continuation column at x 278.92 / 283.92 / 288.92 (column pitch **95.0**; ES_12 was
+  103.22). It starts at its **top** y 89.94 (20.5 below the main bus's bottom phase 110.44)
+  with `TILDE_R0` at (278.92, 89.94) and `BRACKET_TEXT_R0` at (283.92, 92.44), 2.5 before
+  the start, and runs down to 44.10. It holds 52-F17 (left) and 52-F18 (right), single mount
+  (800AF, 2-hole lugs).
+- All tilde/bracket blocks at scale 1, rotation 0, not flipped (same as ES_12).
+- Page style (ground bus height, underlined labels) is the old style; the approved ES_01
+  style stays.
+**Rules adopted (2026-10-13):** bracket 2.5 beyond the tilde, over B, at both cut and
+continuation (ES_12 had 2.25 / 2.12); the too-tall split (DECISIONS 2026-10-13).
+**Sammy's notes (2026-10-13):** ES_11 is the typical "too tall" case: the part BELOW the
+main bus is the one that gets split (see DECISIONS 2026-10-13). The sideways main breaker in
+section 1 is a drafting error; that arrangement is not needed.

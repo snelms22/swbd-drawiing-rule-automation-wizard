@@ -8,8 +8,8 @@ Start here: `CLAUDE.md` (working rules) and `docs/DECISIONS.md` (approved design
 | Folder | Job |
 |---|---|
 | `config/` | Editable layout settings (margins, page size, clearances). |
-| `blocks/` | Controlled WBLOCK .dwg files. Inserted at scale 1.0, never exploded. |
-| `catalog/` | Block footprints and connection points, generated from `blocks/`. |
+| `blocks/archived/` | Old block files, kept for reference only. Blocks now come from the shared library `Symbols-blocks.dwg` (see `docs/BLOCK_LIBRARY_STANDARD.md`). |
+| `catalog/` | Library blocks' sizes and connection points (`blocks.json`). |
 | `templates/` | Starting drawings the program builds on (e.g. `EW_SWBD_TEMPLATE.dwg`). |
 | `docs/SWBD_reference/` | Finished switchboard jobs used as "what correct looks like." Not used by the program. |
 | `src/model/` | Project data: switchboard, sections, devices. |

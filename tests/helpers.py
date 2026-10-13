@@ -11,7 +11,8 @@ test is easy to follow:
     (x 391). Section labels at y 15 (or 2 above the title block). Label width estimate:
     9 characters x 1.25 x 0.8 = 9 for "SECTION n".
 
-Main bus (B phase): content between y 30 and 280; phases 5 apart; a step adds 10 width;
+Main bus (B phase): content between y 30 and 280; phases 5 apart; a step adds 20 width
+(10 for the bus's vertical run + 10 clearance);
 a tie moves the bus 70.
 
 Useful facts:
@@ -22,7 +23,8 @@ Useful facts:
 from src.layout.block_catalog import BlockInfo
 from src.layout.settings import (
     DividerSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
-    MainBreakerSettings, MainBusSettings, PlaceholderSizes, SectionLabelSettings, TextSettings,
+    BusBreakSettings, FeederSettings, InputOutputSettings, MainBreakerSettings, MainBusSettings, PlaceholderSizes,
+    SectionLabelSettings, TextSettings,
 )
 
 TEST_SETTINGS = LayoutSettings(
@@ -54,6 +56,7 @@ TEST_SETTINGS = LayoutSettings(
     group_mounted=GroupMountedSettings(
         gap_to_first_level=15.0, level_pitch=25.0, level_height=10.0,
         vertical_bus_overhang=10.0, single_mount_first_side="left",
+        column_pitch=100.0, continuation_start_gap=15.0, column_clearance=10.0,
     ),
     placeholder_sizes=PlaceholderSizes(
         main_breaker_width=30.0, main_breaker_height=75.0,
@@ -61,12 +64,38 @@ TEST_SETTINGS = LayoutSettings(
         group_mounted_width=145.0, tie_breaker_width=30.0,
     ),
     main_bus=MainBusSettings(
-        layer="BUS", phase_spacing=5.0, step_width=10.0, tie_step_height=70.0,
+        layer="BUS", phase_spacing=5.0, step_width=10.0, step_clearance=10.0,
+        tie_step_height=70.0,
+        page_break_overrun_max=30.0, page_break_overrun_min=0.0, page_break_label_space=0.0,
         content_top_y=280.0, content_bottom_y=30.0, junction_dot_block="BUS_NODE",
     ),
     main_breaker=MainBreakerSettings(
-        block="TEST_BKR", block_layer="0", visibility="1 BOM",
+        blocks={"fixed": "TEST_BKR", "draw-out": "TEST_BKR_DO"}, block_layer="0",
+        label_attribute="BREAKER_NAME",
+        visibility="1 BOM",
         gap_bus_to_breaker=15.0, gap_breaker_to_input=30.0, input_box_height=15.0,
+        u_turn_depth=30.0, u_turn_width=35.0,
+    ),
+    input_output=InputOutputSettings(
+        block="TEST_LUGS", neutral_block="TEST_LUGS_N", layer="0",
+        input_state="INPUT", output_state="OUTPUT",
+    ),
+    feeder=FeederSettings(
+        block="TEST_FEEDER", layer="0", visibility="3 PHASE-3 WIRE",
+        mirror_parameter="MIRROR-3W", label_attribute="DEVICE_ID", tap_length=10.0,
+        provision_heading="PROVISION FOR", provision_heading_without_info="PROVISION",
+        provision_text_gap=10.0,
+    ),
+    bus_break=BusBreakSettings(
+        layer="0", tilde_block="TEST_TILDE", tilde_state_horizontal_bus="HORIZONTAL",
+        tilde_state_vertical_bus="VERTICAL", bracket_block="TEST_BRACKET",
+        bracket_state_horizontal_bus="VERTICAL BRACKET",
+        bracket_state_vertical_bus="HORIZONTAL BRACKET", bracket_gap=2.0,
+        label_attribute_horizontal_bus="VERTICAL_LABLE",
+        label_attribute_vertical_bus="HORIZONTAL_LABLE", page_reference="ES_{number:02d}",
+        to_label="TO {page}", from_label="FROM {page}",
+        column_cut_label="BUS CONTINUES", continued_from_below_label="FROM BELOW",
+        continued_from_above_label="FROM ABOVE",
     ),
 )
 
@@ -91,5 +120,41 @@ TEST_CATALOG = {
         top_terminals=((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
         bottom_terminals=((0.0, -10.0), (5.0, -10.0), (10.0, -10.0)),
         extents=(-0.5, -11.0, 25.0, 3.5),
+    ),
+    "TEST_BKR_DO": BlockInfo(
+        name="TEST_BKR_DO",
+        top_terminals=((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
+        bottom_terminals=((0.0, -10.0), (5.0, -10.0), (10.0, -10.0)),
+        extents=(-1.0, -11.0, 25.5, 3.5),
+    ),
+    # Shaped like PHASE_LUGS_3L_R0: connections 5 above the base point when not flipped
+    # (block below the bus end), 5 below it when flipped (block above).
+    "TEST_LUGS": BlockInfo(
+        name="TEST_LUGS",
+        top_terminals=(), bottom_terminals=(),
+        extents=(-3.0, -10.0, 18.0, 5.0),
+        connections={
+            "not_flipped": {"A": (0.0, 5.0), "B": (5.0, 5.0), "C": (10.0, 5.0), "N": (15.0, 5.0)},
+            "flipped": {"A": (0.0, -5.0), "B": (5.0, -5.0), "C": (10.0, -5.0), "N": (15.0, -5.0)},
+        },
+        extents_flipped=(-3.0, -5.0, 18.0, 10.0),
+    ),
+    # Shaped like 3P_TIDE_R0 and BRACKET_TEXT_R0.
+    "TEST_TILDE": BlockInfo(
+        name="TEST_TILDE", top_terminals=(), bottom_terminals=(),
+        extents=(-1.25, -11.25, 11.25, 2.3),
+        connections={"not_flipped": {"A": (0.0, 0.0)}},
+    ),
+    # Shaped like SIE_BKR_3P_3L_ASSY_R0: connections at x 0 (A 10, B 5, C 0), body and
+    # text to the left, up to 23 above C.
+    "TEST_FEEDER": BlockInfo(
+        name="TEST_FEEDER", top_terminals=(), bottom_terminals=(),
+        extents=(-23.0, -1.0, 0.0, 23.0), extents_flipped=(0.0, -1.0, 23.0, 23.0),
+        connections={"not_flipped": {"A": (0.0, 10.0), "B": (0.0, 5.0), "C": (0.0, 0.0)},
+                     "flipped": {"A": (0.0, 10.0), "B": (0.0, 5.0), "C": (0.0, 0.0)}},
+    ),
+    "TEST_BRACKET": BlockInfo(
+        name="TEST_BRACKET", top_terminals=(), bottom_terminals=(),
+        extents=(-6.0, -6.0, 6.7, 6.0),
     ),
 }

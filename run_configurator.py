@@ -15,7 +15,7 @@ from src.autocad.settings import load_autocad_settings
 from src.layout.block_catalog import load_block_catalog
 from src.layout.settings import SettingsError, load_settings
 from src.model.section_contents import (
-    Breaker, GroupMounted, MainBreaker, SectionContents, SingleBreaker, SingleLevel, Space,
+    Breaker, GroupMounted, MainBreaker, SectionContents, SingleBreaker, SingleLevel, Provision,
     TieBreaker, TwinLevel,
 )
 from src.model.switchboard import Section, Switchboard
@@ -27,8 +27,14 @@ AUTOCAD_SETTINGS_FILE = PROJECT_ROOT / "config" / "autocad_settings.json"
 BLOCK_CATALOG_FILE = PROJECT_ROOT / "catalog" / "blocks.json"
 
 
+def new_switchboard() -> Switchboard:
+    """What the app opens with: one empty section (decision 2026-10-12). Example and old
+    projects come later."""
+    return Switchboard(name="New switchboard", sections=[Section()])
+
+
 def example_switchboard() -> Switchboard:
-    """A made-up starting board so the preview isn't empty. Edit it freely in the app."""
+    """A made-up board used for testing during development (not opened by the app)."""
     def bkr(label):
         return Breaker(label)
 
@@ -42,7 +48,7 @@ def example_switchboard() -> Switchboard:
             Section(SectionContents(
                 above=GroupMounted([
                     TwinLevel(bkr("52-F5"), bkr("52-F6")),
-                    TwinLevel(Space("PROVISION FOR 3VA41"), bkr("52-F4")),
+                    TwinLevel(Provision("3VA41"), bkr("52-F4")),
                     SingleLevel(bkr("52-F3")),
                     SingleLevel(bkr("52-F2")),
                     SingleLevel(bkr("52-F1")),
@@ -58,8 +64,8 @@ def example_switchboard() -> Switchboard:
                 below=SingleBreaker(bkr("52-F12")),
                 tie=TieBreaker(bkr("52-TB01"), bus_steps="up"),
             )),
-            # Section 4: main fed from the bottom.
-            Section(SectionContents(below=MainBreaker(bkr("52-MCB-02")))),
+            # Section 4: draw-out main fed from the bottom.
+            Section(SectionContents(below=MainBreaker(bkr("52-MCB-02"), mounting="draw-out"))),
         ],
     )
 
@@ -83,8 +89,8 @@ def main() -> int:
         QMessageBox.warning(None, "Block catalog problem",
                             f"{error}\n\nMain breakers will be shown as placeholder boxes.")
         catalog = None
-    window = MainWindow(settings, example_switchboard(), autocad_settings, autocad_problem,
-                        catalog)
+    window = MainWindow(settings, new_switchboard(), autocad_settings, autocad_problem,
+                        catalog, BLOCK_CATALOG_FILE)
     window.show()
     return app.exec()
 

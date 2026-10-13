@@ -27,6 +27,7 @@ GROUND_COLOR = QColor("#2f9e44")    # GROUND layer is green in AutoCAD
 BUS_COLOR = QColor("#b8860b")       # BUS layer is yellow in AutoCAD (darkened to show on white)
 TEXT_COLOR = QColor("#1f2933")
 MIN_TEXT_PX = 9                     # smallest readable font size on screen
+NOTE_LINE_SPACING = 1.67            # MText line spacing, in text heights (AutoCAD default)
 SECTION_FILL = QColor("#cfe3fa")
 SECTION_BORDER = QColor("#2f6db5")
 OVERFLOW_FILL = QColor("#f8d0cc")   # a section sticking out past the page edge
@@ -184,16 +185,19 @@ class PagePreview(QWidget):
             left, bottom, right, top = block.extents
             x, y = block.position
             rect = self._rect(x + left, y + bottom, x + right, y + top, page_top_px)
-            if block.label:
-                painter.setPen(QPen(SECTION_BORDER, 1.0))
-                painter.setBrush(Qt.NoBrush)
-                painter.drawRect(rect)
-                self._draw_drawing_text(painter, block.label, x + right / 2, y + top + 0.5,
-                                        page_top_px, centred=True)
-            else:   # junction dot
+            if block.block == self._settings.main_bus.junction_dot_block:
                 painter.setPen(Qt.NoPen)
                 painter.setBrush(BUS_COLOR)
                 painter.drawEllipse(rect.adjusted(-1, -1, 1, 1))
+            else:   # any other block: its outline, named by its label or state
+                painter.setPen(QPen(SECTION_BORDER, 1.0))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRect(rect)
+                self._draw_drawing_text(painter, block.label or block.visibility or block.block,
+                                        x + (left + right) / 2, y + top + 0.5,
+                                        page_top_px, centred=True)
+        for note in parts.notes:
+            self._draw_note(painter, note, page_top_px)
         for box in parts.placeholders:
             painter.setPen(QPen(MARGIN_LINE, 1, Qt.DashLine))
             painter.setBrush(Qt.NoBrush)
@@ -206,7 +210,8 @@ class PagePreview(QWidget):
         """Main bus, dividers, ground bus (with its symbol and label) and section labels."""
         s = self._settings
         parts = page.parts
-        self._draw_bus(painter, parts.bus_path, page_top_px)
+        for path in parts.bus_paths:
+            self._draw_bus(painter, path, page_top_px)
         self._draw_main_breaker_parts(painter, parts, page_top_px)
 
         # Dividers: dashed, in the DEVIDER layer's colour (red).
@@ -249,7 +254,20 @@ class PagePreview(QWidget):
                 painter, label.text, label.center_x, label.bottom_y, page_top_px, centred=True
             )
 
-    def _draw_drawing_text(self, painter, text, x, bottom_y, page_top_px, centred):
+    def _draw_note(self, painter, note, page_top_px):
+        """A note's lines, stacked around its middle, running away from its x."""
+        line_spacing = self._settings.text.height * NOTE_LINE_SPACING
+        top_bottom_y = note.middle_y + (len(note.lines) - 2) * line_spacing / 2
+        for index, line in enumerate(note.lines):
+            bottom_y = top_bottom_y - index * line_spacing
+            if note.align == "middle_right":
+                self._draw_drawing_text(painter, line, note.x, bottom_y, page_top_px,
+                                        centred=False, right_aligned=True)
+            else:
+                self._draw_drawing_text(painter, line, note.x, bottom_y, page_top_px, centred=False)
+
+    def _draw_drawing_text(self, painter, text, x, bottom_y, page_top_px, centred,
+                           right_aligned=False):
         """Draw text at its drawing position. At preview scale the real text height would
         be unreadably small, so the preview uses a minimum font size."""
         painter.save()   # so the font change below doesn't leak into later drawing
@@ -258,8 +276,10 @@ class PagePreview(QWidget):
         painter.setFont(font)
         painter.setPen(TEXT_COLOR)
         anchor = self._to_screen(x, bottom_y, page_top_px)
+        width = painter.fontMetrics().horizontalAdvance(text)
         if centred:
-            width = painter.fontMetrics().horizontalAdvance(text)
             anchor = QPointF(anchor.x() - width / 2, anchor.y())
+        elif right_aligned:
+            anchor = QPointF(anchor.x() - width, anchor.y())
         painter.drawText(anchor, text)
         painter.restore()

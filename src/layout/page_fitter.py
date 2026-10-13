@@ -26,10 +26,11 @@ Rules applied (each one is recorded in docs/DECISIONS.md):
 """
 from dataclasses import dataclass, field
 
+from src.layout.feeders import feeder_block
 from src.layout.page_parts import PageParts, add_page_parts
 from src.layout.settings import LayoutSettings
-from src.layout.main_bus import BusPlan, plan_bus
-from src.layout.section_builder import section_size
+from src.layout.main_bus import BusPlan, plan_bus, step_zone_width
+from src.layout.section_builder import plan_columns, section_size
 from src.model.switchboard import Switchboard
 
 # Allowance for floating-point rounding when comparing positions, so that a section
@@ -97,18 +98,39 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) 
     With a block catalog, main breakers are drawn with their real block; without one they
     are placeholder boxes."""
     sections = switchboard.sections
-    sizes = [section_size(section.contents, settings) for section in sections]
+    feeder = feeder_block(settings, catalog)      # None = group-mounted widths are placeholders
+    sizes = [section_size(section.contents, settings, feeder) for section in sections]
     bus_warnings: list[str] = []
-    plans = plan_bus(sizes, [s.contents.tie for s in sections], settings, bus_warnings)
+    uses_bus = [_holds_something(section.contents) for section in sections]
+    plans = plan_bus(sizes, [s.contents.tie for s in sections], uses_bus, settings, bus_warnings)
+    # A split section is drawn fine; the engineer is only told it happened (2026-10-12).
+    for number, section in enumerate(sections, start=1):
+        columns = plan_columns(section.contents, settings, feeder)
+        if columns is not None and len(columns.columns) > 1:
+            bus_warnings.append(
+                f"NOTICE: Section {number} is too tall for the page, so its group-mounted "
+                f"feeders continue in a column beside it.")
 
     half_bundle = settings.main_bus.phase_spacing    # B phase to A (top) or C (bottom)
     boxes = []
     for section, size, plan in zip(sections, sizes, plans):
-        # The section that makes the bus change height pays for the step in width.
-        step_width = settings.main_bus.step_width if plan.steps_at_entry else 0.0
+        if plan is None:
+            # Empty section before or after the bus: nothing to draw but its labels and
+            # dividers. (Empty sections are fine; no warning.)
+            boxes.append(SectionBox(width=0.0, height=0.0,
+                                    push_to_next_page=section.push_to_next_page,
+                                    link_with_next=section.link_with_next,
+                                    contents=section.contents))
+            continue
+        # The section that makes the bus change height pays for the step zone in width.
+        step_width = step_zone_width(settings) if plan.steps_at_entry else 0.0
+        # Lowest point: its contents below the bus, or the bus itself where a tie breaker
+        # steps it down as it leaves (so the title block check sees that too).
+        top = plan.body_y + half_bundle + size.above_height
+        bottom = min(plan.body_y - half_bundle - size.below_height, plan.exit_y - half_bundle)
         boxes.append(SectionBox(
             width=size.width + step_width,
-            height=size.above_height + 2 * half_bundle + size.below_height,
+            height=top - bottom,
             push_to_next_page=section.push_to_next_page,
             link_with_next=section.link_with_next,
             top_y=plan.body_y + half_bundle + size.above_height,
@@ -121,6 +143,10 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) 
     result = fit_boxes(boxes, settings, catalog)
     result.warnings[:0] = bus_warnings     # bus problems first: they explain later ones
     return result
+
+
+def _holds_something(contents) -> bool:
+    return contents.above is not None or contents.below is not None or contents.tie is not None
 
 
 def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings, catalog=None) -> LayoutResult:
@@ -177,8 +203,6 @@ def _check_section_sizes(sections, settings, warnings):
     tallest_allowed = settings.drawable_height - 2 * settings.margin_standard
     for number, section in enumerate(sections, start=1):
         name = f"Section {number}"
-        if section.width <= 0 or section.height <= 0:
-            warnings.append(f"{name} has no size. Is it empty?")
         footprint = section.width + 2 * settings.divider_clearance
         if footprint > widest_allowed + ROUNDING_TOLERANCE:
             warnings.append(
@@ -249,10 +273,31 @@ def _place_sections(sections, side_margin, settings, first_number=1) -> list[Pla
 def _placement_fits(placed, side_margin, settings) -> bool:
     if not placed:
         return True
+    last = placed[-1]
     right_limit = settings.drawable_width - side_margin
-    if placed[-1].right_divider_x > right_limit + ROUNDING_TOLERANCE:
+    # Option A (2026-10-12): if the bus carries on past the last section, always keep room
+    # for its minimum run past the divider plus the break label, in case the page ends here.
+    reserve = page_break_reserve(last, settings)
+    if reserve and _bus_beside_title_block(last, settings):
+        right_limit = min(right_limit, settings.keepout_left_x)
+    if last.right_divider_x + reserve > right_limit + ROUNDING_TOLERANCE:
         return False
     return not any(_overlaps_title_block(p, settings) for p in placed)
+
+
+def page_break_reserve(placed: PlacedSection, settings) -> float:
+    """Room kept after a section whose bus carries on to the right (0 if it doesn't)."""
+    plan = placed.section.bus
+    if plan is None or plan.ends_bus:
+        return 0.0
+    bus = settings.main_bus
+    return bus.page_break_overrun_min + bus.page_break_label_space
+
+
+def _bus_beside_title_block(placed: PlacedSection, settings) -> bool:
+    """The bus leaving this section is low enough to run into the title block."""
+    plan = placed.section.bus
+    return plan.exit_y - settings.main_bus.phase_spacing < settings.keepout_height - ROUNDING_TOLERANCE
 
 
 def _overlaps_title_block(placed: PlacedSection, settings) -> bool:

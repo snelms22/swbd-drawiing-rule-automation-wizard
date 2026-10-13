@@ -8,6 +8,7 @@ Keeping the two apart means this part can be tested without AutoCAD.
 from dataclasses import dataclass
 
 ROUNDING_TOLERANCE = 1e-9
+MTEXT_NEW_LINE = "\\P"      # AutoCAD MText's code for "start a new line"
 
 
 @dataclass
@@ -30,32 +31,37 @@ class BlockInsert:
     block: str
     position: tuple[float, float]           # base point; always scale 1, no rotation
     attributes: dict[str, str]
-    visibility: str = ""                    # dynamic "Visibility1" state; "" = leave as is
+    visibility: str = ""                    # dynamic visibility state; "" = leave as is
+    flipped: bool = False                   # set the block's flip parameters
+    flip_parameter: str = ""                # only this one when flipped; "" = all of them
 
 
 @dataclass
 class Text:
     layer: str
     text: str
-    position: tuple[float, float]   # bottom-left or bottom-centre, see `align`
+    position: tuple[float, float]   # the point named by `align`
     height: float
     style: str
-    align: str                      # "bottom_left" or "bottom_center"
+    align: str                      # "bottom_left", "bottom_center", "middle_left", "middle_right"
 
 
 def page_shapes(page, settings, placeholder_layer: str) -> list:
     """All shapes for one page. `settings` is the LayoutSettings."""
     parts = page.parts
     shapes = []
-    shapes += _bus_shapes(parts.bus_path, settings)
+    for path in parts.bus_paths:
+        shapes += _bus_shapes(path, settings)
     shapes += _divider_shapes(parts.dividers, settings)
     shapes += _ground_shapes(parts.ground_bus, settings)
     shapes += _section_label_shapes(parts.section_labels, settings)
     shapes += _placeholder_shapes(parts.content_boxes, placeholder_layer)
     shapes += [Line(settings.main_bus.layer, line.start, line.end) for line in parts.bus_lines]
-    shapes += [BlockInsert(b.layer, b.block, b.position, dict(b.attributes), b.visibility)
+    shapes += [BlockInsert(b.layer, b.block, b.position, dict(b.attributes), b.visibility,
+                           b.flipped, b.flip_parameter)
                for b in parts.blocks]
     shapes += _waiting_block_shapes(parts.placeholders, placeholder_layer, settings)
+    shapes += _note_shapes(parts.notes, settings)
     return shapes
 
 
@@ -134,6 +140,13 @@ def _section_label_shapes(labels, settings):
     t = settings.text
     return [Text(t.layer, label.text, (label.center_x, label.bottom_y), t.height, t.style,
                  "bottom_center") for label in labels]
+
+
+def _note_shapes(notes, settings):
+    """Plain notes (e.g. provisions): one MText each. MText starts a new line at "\\P"."""
+    t = settings.text
+    return [Text(t.layer, MTEXT_NEW_LINE.join(note.lines), (note.x, note.middle_y), t.height, t.style,
+                 note.align) for note in notes]
 
 
 def _waiting_block_shapes(placeholders, layer, settings):

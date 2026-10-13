@@ -8,7 +8,7 @@ from src.layout.page_fitter import fit_pages
 from src.layout.section_builder import section_size, single_level_sides
 from src.model.switchboard import Section, Switchboard
 from src.model.section_contents import (
-    Breaker, GroupMounted, MainBreaker, SectionContents, SingleBreaker, SingleLevel, Space,
+    Breaker, GroupMounted, MainBreaker, SectionContents, SingleBreaker, SingleLevel, Provision,
     TieBreaker, TwinLevel,
 )
 from tests.helpers import TEST_SETTINGS
@@ -71,9 +71,9 @@ def test_page_fitting_uses_sizes_worked_out_from_contents():
     assert placed.component_top_y == 30 + 45 + 10 + 75
 
 
-def test_empty_section_is_flagged():
+def test_empty_section_gets_no_warning():
     board = Switchboard("Test", [Section()])
-    assert any("is it empty" in w.lower() for w in fit_pages(board, TEST_SETTINGS).warnings)
+    assert fit_pages(board, TEST_SETTINGS).warnings == []
 
 
 # --- Single-mount sides ---------------------------------------------------------------
@@ -87,7 +87,7 @@ def test_twin_levels_have_no_side_and_do_not_break_the_alternation():
     # Like ES_12 above the bus: twin, twin (SPACE | F4), then singles F3, F2, F1.
     group = GroupMounted([
         TwinLevel(bkr("F5"), bkr("F6")),
-        TwinLevel(Space("PROVISION FOR 3VA41"), bkr("F4")),
+        TwinLevel(Provision("3VA41"), bkr("F4")),
         SingleLevel(bkr("F3")),
         SingleLevel(bkr("F2")),
         SingleLevel(bkr("F1")),

@@ -3,7 +3,11 @@
 It does what it is told: open a drawing, find frames, make layers, add the shapes from
 draw_page.py, save. It makes no layout decisions.
 """
+import os
+import shutil
+import tempfile
 import time
+from pathlib import Path
 
 import pythoncom
 import pywintypes
@@ -17,23 +21,45 @@ CALL_REJECTED = -2147418111
 RETRIES = 20
 RETRY_PAUSE_SECONDS = 0.25
 
+# A block's flip settings are found by name: AutoCAD's default "Flip state1", ..., or
+# "MIRROR-3W" / "MIRROR-4W" on the feeder breaker. All of them are turned on together,
+# unless config names the one to use (the feeder: one mirror per visibility state).
+FLIP_NAME_STARTS = ("flip", "mirror")
+
+
+def is_flip_setting(property_name: str) -> bool:
+    return property_name.lower().startswith(FLIP_NAME_STARTS)
+
+
 # AutoCAD's numbers for MText attachment points.
-ATTACH = {"bottom_left": 7, "bottom_center": 8}
+ATTACH = {"middle_left": 4, "middle_right": 6, "bottom_left": 7, "bottom_center": 8}
+
+
+class AutocadBusyError(RuntimeError):
+    """AutoCAD kept refusing calls: it is waiting on something the user has open."""
+
+
+BUSY_MESSAGE = ("AutoCAD is busy and won't take commands. Usually a command is still running, "
+                "a dialog box is open, or the Block Editor is open. Press Esc in AutoCAD, close "
+                "any dialogs or the Block Editor, then try again.")
 
 
 def _retry(action):
+    last_error = None
     for attempt in range(RETRIES):
         try:
             return action()
         except pywintypes.com_error as error:
-            if error.hresult != CALL_REJECTED or attempt == RETRIES - 1:
+            if error.hresult != CALL_REJECTED:
                 raise
-        except AttributeError:
-            # Right after opening a drawing, AutoCAD is still busy and Python briefly can't
-            # see an object's properties ("<unknown>.Count"). That also passes on its own.
-            if attempt == RETRIES - 1:
-                raise
+            last_error = error
+        except AttributeError as error:
+            # While AutoCAD is busy, Python briefly can't see an object's properties
+            # ("<unknown>.Count"). That passes on its own once AutoCAD is free.
+            last_error = error
         time.sleep(RETRY_PAUSE_SECONDS)
+    # The original error is kept in the message in case it was something else.
+    raise AutocadBusyError(f"{BUSY_MESSAGE}\n(Details: {last_error})")
 
 
 def _point(x, y):
@@ -122,8 +148,12 @@ class Drawing:
         needed = sorted(set(names) - self.block_names())
         if not needed:
             return []
+        # Read a temporary copy of the saved library: AutoCAD can't read the library file
+        # itself while someone has it open for editing.
+        library_copy = Path(tempfile.gettempdir()) / f"hyper_configurator_library_{os.getpid()}.dwg"
+        shutil.copy2(library_file, library_copy)
         library = _retry(lambda: self.app.GetInterfaceObject(objectdbx_program_id))
-        _retry(lambda: library.Open(str(library_file)))
+        _retry(lambda: library.Open(str(library_copy)))
         library_names = {_retry(lambda: library.Blocks.Item(i).Name)
                          for i in range(_retry(lambda: library.Blocks.Count))}
         found = [name for name in needed if name in library_names]
@@ -179,14 +209,31 @@ class Drawing:
         """Set the block's visibility state and attribute values. Never scales or explodes."""
         problems = []
         if shape.visibility and _retry(lambda: reference.IsDynamicBlock):
+            # Blocks name their visibility setting differently, so find the setting by the
+            # state we want (decision 2026-10-12: a state is just what it is called).
+            states_seen = []
             for prop in _retry(lambda: reference.GetDynamicBlockProperties()):
-                if _retry(lambda: prop.PropertyName) == "Visibility1":
-                    allowed = list(_retry(lambda: prop.AllowedValues) or [])
-                    if shape.visibility in allowed:
-                        _retry(lambda: setattr(prop, "Value", shape.visibility))
-                    else:
-                        problems.append(f'Block {shape.block} has no visibility state '
-                                        f'"{shape.visibility}" (it has: {", ".join(allowed)}).')
+                allowed = [value for value in (_retry(lambda: prop.AllowedValues) or [])
+                           if isinstance(value, str)]
+                states_seen += allowed
+                if shape.visibility in allowed:
+                    _retry(lambda: setattr(prop, "Value", shape.visibility))
+                    break
+            else:
+                problems.append(f'Block {shape.block} has no visibility state '
+                                f'"{shape.visibility}" (it has: {", ".join(states_seen) or "none"}).')
+        if shape.flipped:
+            # AutoCAD only accepts a "short" whole number for flip settings.
+            flip_on = win32com.client.VARIANT(pythoncom.VT_I2, 1)
+            flips = [prop for prop in _retry(lambda: reference.GetDynamicBlockProperties())
+                     if (_retry(lambda: prop.PropertyName) == shape.flip_parameter
+                         if shape.flip_parameter
+                         else is_flip_setting(_retry(lambda: prop.PropertyName)))]
+            if not flips:
+                wanted = f'"{shape.flip_parameter}"' if shape.flip_parameter else "flip"
+                problems.append(f"Block {shape.block} should be flipped but has no {wanted} parameter.")
+            for prop in flips:
+                _retry(lambda: setattr(prop, "Value", flip_on))
         if shape.attributes and _retry(lambda: reference.HasAttributes):
             for attribute in _retry(lambda: reference.GetAttributes()):
                 tag = _retry(lambda: attribute.TagString)

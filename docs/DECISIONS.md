@@ -228,6 +228,234 @@ no divider at that break. When to split, and how, is still to be defined.
 **Reason:** That is the only section label the drawing needs.
 **Status:** Approved
 
+### 2026-10-13 — Approved styles win over reference drawings
+**Decision:** The styles already approved here (e.g. Sammy's restyled ES_01 page style) are
+kept. Most reference drawings are in the old style; they are only raised when they add
+something new to the rule set. Arrangements in a reference can be drafting errors (the
+sideways main breaker in CORRECTED_FIXED_011511 ES_11 is wrong and will not be supported).
+**Reason:** Sammy, 2026-10-13.
+**Status:** Approved
+
+### 2026-10-13 — Too tall: split the part below the main bus first
+**Decision:** When a section's above and below parts don't both fit on the page, room is
+made for the ABOVE part first, and the BELOW part's group-mounted column is split (cut at its
+bottom, continued in a new column beside it that starts just below the main bus and runs
+down), as in CORRECTED_FIXED_011511 ES_11. Only if the above part alone is too tall is it
+split too (rare). Refines "Break blocks, neutral block, prompts, too-tall notice" (2026-10-12).
+Details approved the same day:
+- Room is reserved below for one level on each of its columns (a continuation needs more
+  than column 1, since it starts `continuation_start_gap` from the bus); the above part
+  gets the rest. Its continuation shares column 2 with the below part's.
+- A continuation that is still too tall goes on in column 3, and so on. Only group-mounted
+  parts split; the section's width grows to hold the columns.
+- Column 1 is cut `vertical_bus_overhang` past its last level; a continuation column starts
+  `continuation_start_gap` (15.5) from the main bus and is not connected to it. Both ends get
+  the tilde (A-phase end, VERTICAL) and bracket (over B, HORIZONTAL BRACKET, not flipped).
+- Numbers kept from the 2026-10-12 rule (measured ES_12): column pitch 103.22, start gap
+  15.5. Columns move further apart if neighbouring breakers would come closer than
+  `column_clearance` (10). Bracket gap 2.5 from ES_11 (also used at page breaks).
+- The app shows a NOTICE when a section is split.
+- Bracket labels: "BUS CONTINUES" where a column is cut; "FROM BELOW" (part below the
+  main bus) or "FROM ABOVE" (part above) where the next column starts. Text in config.
+**Reason:** Sammy, 2026-10-13.
+**Status:** Approved
+
+### 2026-10-13 — Breaker and termination feed directions
+**Decision:** Main breakers and single breakers get two editor options, "Breaker Feed
+Direction" and "Termination Feed Direction", each **top** or **bottom** (never up / down).
+Breaker feed = which end of the breaker the cables connect to ("a bottom-fed breaker");
+termination feed = which side of the cabinet they come in from ("fed from a top
+termination"). Defaults: the side away from the bus (top above, bottom below). When the two
+differ, the bus U-turns between the breaker and the termination, as in NTT-013630 section 1:
+out of the breaker, on away from the bus `u_turn_depth` (28.43, A; B and C 5 and 10 more),
+`u_turn_width` (35) to the RIGHT, and back to the breaker's far-terminal height, where the
+termination block sits (flipped when fed from the top). Every U-turn follows the main bus's
+phase rule (A left of B on vertical runs, above it on horizontal runs): staggered corners,
+crossings without dots. The U adds its width to the section. Both values will later feed
+a breaker part-number configurator.
+**Bus-side feeding** (e.g. bottom-fed above the bus) is allowed: the configurator lets the
+engineer pick any combination ("it does everything"). Drawn as approved the same day: the
+bus comes up beside the breaker on the right (35) and U-turns over it into its top; the
+cables leave its bottom, either straight to a termination block between the breaker and
+the main bus (termination fed from the bottom; breaker 15 + 30 + 15 from the bus) or in a
+U-turn to the LEFT and back up past the breaker (termination fed from the top; breaker
+15 + 28.43 + 10 from the bus). Each U-turn adds 35 to the section width; the bus's U-turn
+adds its depth to the part's height. It also gets a warning so the engineer checks it can
+be built (Sammy may drop the warning later).
+**Reason:** Sammy, 2026-10-13.
+**Status:** Approved
+
+### 2026-10-13 — Provisions replace "Space"
+**Decision:** A group-mounted slot is a breaker or a **Provision** (the editor's checkbox
+says "Provision"). The engineer types one line of info. It is drawn as in IMS-REFERENCE:
+taps (with dots) from the vertical bus out to where a breaker would connect, ending there,
+then a note `provision_text_gap` (10) beyond, centred on B: "PROVISION FOR" and the
+engineer's line (just "PROVISION" when the line is empty). Text in config (`feeder`).
+**Reason:** Sammy, 2026-10-13; matches the IMS SWBD.
+**Status:** Approved
+
+### 2026-10-13 — Every placed block gets editor fields from its attributes
+**Decision:** Each library block the configurator places gets one editor field per
+attribute, labelled with the attribute's prompt, read from the catalog that Audit Blocks
+writes. Feeder breakers (group-mounted) and single-breaker feeders (breaker + output block)
+now have fields like main breakers. The attribute the breaker's Label fills is not repeated;
+attributes sharing a tag get one field. A new block needs no code for its fields: give its
+attributes prompts, run Audit Blocks. This is the standard for new blocks.
+**Reason:** Sammy, 2026-10-13.
+**Status:** Approved
+
+### 2026-10-13 — Single-breaker feeders and group-mounted feeders as drawn
+**Decision:** Single-breaker feeder: the fixed-mount breaker block on a riser off the main
+bus (15 from the bus) with the input/output block in its OUTPUT state, as in the
+2026-10-12 test drawing. Group-mounted feeders use `SIE_BKR_3P_3L_ASSY_R0` on a vertical bus
+(A on the left), taps to each breaker's CONN_A/B/C, nearest tap 10, dots where taps meet
+the vertical bus, tees into the main bus with dots (bends where the main bus starts/ends).
+Right-side breakers turn on only the mirror that goes with the visibility state in use
+(config `feeder.mirror_parameter`, MIRROR-3W); the block mirrors about the vertical bus's
+B phase, as in ES_12. Audit Blocks reads the block in that state and mirror, and reports
+connection markers that end up outside the block. Measured from ES_12.
+**Reason:** Sammy reviewed the 2026-10-12 test drawing ("it's right in your drawing").
+**Status:** Approved
+
+### 2026-10-12 — Connection markers are named point parameters
+**Decision:** Blocks mark their terminals with dynamic-block point parameters named
+`CONN_A`, `CONN_B`, `CONN_C`, `CONN_N`, included in flip/stretch actions. The configurator
+reads them (per state and flip) into `catalog/blocks.json` and lines the bus up with them.
+**Reason:** Sammy built `PHASE_LUGS_3L_R0` this way; point parameters move with the block's
+actions and can be read from any inserted block.
+**Status:** Approved (replaces the HS_CONN point-object proposal)
+
+### 2026-10-12 — Room for tie breakers
+**Decision:** A tie breaker stepping the bus DOWN needs the bus high enough to drop
+`tie_step_height` and stay clear of the ground bus (stepping UP: low enough to rise and stay
+under the top). The program makes that room itself:
+1. First it raises (or lowers) the bus in the sections before the tie, as far back as they
+   allow, so the bus runs level into the tie.
+2. Where a section can't move that far, the bus wraps: it steps up (or down) after that
+   section, then the tie steps it back.
+It never suggests changing the tie's direction (that is a design choice). Only if the tie's
+own section has no room is there a warning.
+**Reason:** Sammy's rule (2026-10-12).
+**Status:** Approved
+
+### 2026-10-12 — Break blocks, neutral block, prompts, too-tall notice
+**Decision:**
+- Bus breaks (page breaks and too-tall continuations) use `3P_TIDE_R0` (3-phase tilde;
+  HORIZONTAL / VERTICAL state, flips; CONN_A on the A phase, B and C follow 5 apart to the
+  right or downward) plus `BRACKET_TEXT_R0` (to/from label in its LABLE attribute).
+- The input/output block with neutral is `PHASE_LUGS_3L_N_R0` (states INPUT W/ NEUTRAL,
+  OUTPUT W/ NEUTRAL; CONN_A/B/C/N). `PHASE_LUGS_3L_R0` is now 3-phase only.
+- Prompts may repeat their default value on purpose (shows the engineer the expected
+  format). The audit no longer reports that; it only reports empty prompts.
+- Too-tall rule approved: a vertical bus that would run past the drawing area is cut after
+  the last level that fits (tilde + bracket) and continued in a new column beside it
+  (tilde + bracket), column pitch ~103, starting ~15 past the main bus (config). The app
+  shows a NOTICE when it does this; it never stops the drawing.
+**Reason:** Sammy's blocks and answers (2026-10-12).
+**Status:** Approved
+
+### 2026-10-12 — Bus at a page break
+**Decision:** Where the bus leaves a page it runs past the page's last divider: 30 when
+there is room, less when tight but never under 10, plus room for the break block's to/from
+label. Room = up to the side margin, or up to the title block if the bus is beside it.
+**Option A:** page fitting always keeps at least the minimum (10 + label space) free at the
+end of every page. On the next page the bus starts right away at the left margin (b).
+Numbers in config (`main_bus.page_break_*`); label space is a placeholder until the break
+block exists.
+**Reason:** Looks better and is predictable; the drawing should start right away on a new page.
+**Status:** Approved
+
+### 2026-10-12 — Bus only where it is used; step clearance; tie breaker block
+**Decision:**
+- The main bus runs from the first section that holds something to the last. Empty
+  sections before/after have no bus; empty sections in between are passed through. Where
+  the bus begins or ends at a main breaker it bends into it (no dots); elsewhere mains tee in.
+- Where the bus changes height, its vertical run (10) keeps 10 clear of everything else:
+  the step zone is 20 wide (config `step_width` + `step_clearance`).
+- Tie breakers are drawn with the breaker blocks (fixed or draw-out, chosen in the
+  editor), centred on the bus's vertical run at the section's right edge.
+- A bus lowered by a tie counts toward the title block check.
+**Reason:** Sammy's review of test drawings (bus ran over input text; bus drawn through an
+empty first section).
+**Status:** Approved
+
+### 2026-10-12 — App behaviour from first use
+**Decision:** The app opens with one empty section. Empty sections give no warning.
+Group-mounted levels are all shown at once (no scrolling) and can be duplicated (copy keeps
+everything but the breaker names). Warnings are plain text.
+**Reason:** Sammy's first use of the app; a warning symbol caused ~0.7 s lag on Windows.
+**Status:** Approved
+
+### 2026-10-12 — Coming from Sammy
+**Decision:** (1) Input/output block split into a 3-phase block and a 3-phase + neutral
+block (being added to the tool palette). (2) Feeder breaker block. (3) "Too tall" means too
+tall for the drawing, not the product: the run is cut and continued alongside with a
+marker; Sammy will correct a reference drawing to show how. (4) A "break" block that
+attaches to the end of a bus line at a page break and carries the to/from label.
+**Reason:** Next pieces of the drawing.
+**Status:** Approved (waiting on Sammy)
+
+### 2026-10-12 — Audit Blocks also checks the blocks
+**Decision:** Besides updating the catalog, Audit Blocks lists problems in plain words:
+library open with unsaved changes (the audit read the last saved version), missing
+connection markers, markers not 5 apart or not level, prompts that are empty or just the
+default value, attribute text that doesn't move when the block flips, and blocks missing
+from the library. It never changes the library or any drawing.
+**Reason:** Engineers will rely on it to keep blocks usable.
+**Status:** Approved
+
+### 2026-10-12 — Existing drawings are not changed (out of scope)
+**Decision:** The configurator does not update or change drawings that were already
+generated (no redefining blocks or syncing attributes in old drawings). Out of scope for now.
+**Reason:** Sammy does not want old drawings changed at this stage.
+**Status:** Approved
+
+### 2026-10-12 — Audit Blocks, and block attributes in the editor
+**Decision:** An "Audit Blocks" button (first called "Refresh block catalog") re-reads every block the configurator uses
+from the library (a temporary copy, in the background) and rewrites `catalog/blocks.json`:
+connection markers per flip, sizes, visibility states, and attributes (tag, prompt,
+default). The section editor shows one field per block attribute for main breakers and
+their input block, labelled with the attribute's prompt from the block. An empty field
+keeps the block's default. The breaker's Label fills `BREAKER_NAME` (config
+`main_breaker.label_attribute`), so that attribute isn't shown twice.
+**Reason:** Keeps the configurator in step with the library with one click; Sammy will
+write clear prompts in the blocks.
+**Status:** Approved
+
+### 2026-10-12 — Markers on blocks with two ends
+**Decision:** Blocks with terminals at both ends name their markers `CONN_A_TOP`,
+`CONN_A_BOTTOM`, `CONN_B_TOP`, ... (breakers `3P_CB_FM_1` and `3P_CB_DO` done). Verified in a
+generated drawing: every marker on every placed block lands exactly on a bus end.
+**Reason:** A breaker has an A, B and C connection at the top and again at the bottom.
+**Status:** Approved
+
+### 2026-10-12 — Input block on main breakers
+**Decision:** Main breakers use Sammy's input/output block `PHASE_LUGS_3L_R0` (state
+"INPUT"), placed so CONN_A sits on the A-phase bus end. Top-fed mains use it flipped
+("from the top"); bottom-fed mains use it as is ("from the bottom", the block's default).
+Its base point sits at the base of the A-phase triangle; that is accepted for this block.
+The library is always read from a temporary copy, so generating works while the library
+is open in AutoCAD.
+**Reason:** Sammy's block and answers (2026-10-12).
+**Status:** Approved
+
+### 2026-10-12 — Visibility states are picked by name
+**Decision:** Blocks' visibility parameters can be named anything. The configurator chooses a
+state by its name (e.g. "INPUT W/ NEUTRAL"), finding whichever parameter offers it.
+**Reason:** Standardising parameter names is too much to keep track of.
+**Status:** Approved
+
+### 2026-10-12 — Main breaker mounting from the library
+**Decision:** A main breaker is "fixed" or "draw-out" (chosen per breaker in the editor),
+using the library blocks `3P_CB_FM_1` and `3P_CB_DO` (set in config, `main_breaker.blocks`).
+**Reason:** Use the maintained library blocks.
+**Status:** Approved
+
+### 2026-10-12 — Old block files archived
+**Decision:** Everything that was in `blocks/` moved to `blocks/archived/` (reference only).
+**Reason:** Blocks now come from the shared library.
+**Status:** Approved
+
 ### 2026-10-12 — Block library standard (first items)
 **Decision:** In `docs/BLOCK_LIBRARY_STANDARD.md`: 3-phase blocks have their base point on
 the A-phase top terminal (poles at 0 / 5 / 10, A left); revision suffixes (`_R0`, `_R1`, ...)

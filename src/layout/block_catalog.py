@@ -13,6 +13,13 @@ Point = tuple[float, float]
 
 
 @dataclass(frozen=True)
+class AttributeInfo:
+    tag: str        # e.g. "BREAKER_NAME"
+    prompt: str     # written in the block by Sammy; shown as the field label in the app
+    default: str
+
+
+@dataclass(frozen=True)
 class BlockInfo:
     name: str
     # A, B, C terminals at the top and bottom of the block as drawn. Which one is "line"
@@ -20,6 +27,18 @@ class BlockInfo:
     top_terminals: tuple[Point, ...]
     bottom_terminals: tuple[Point, ...]
     extents: tuple[float, float, float, float]   # left, bottom, right, top (block coords)
+    # Connection points read from the block's markers, per flip: {"not_flipped": {"A": (x, y),
+    # ...}, "flipped": {...}}. Empty for blocks without markers.
+    connections: dict = None
+    extents_flipped: tuple | None = None          # extents when flipped (if it can flip)
+    visibility_states: tuple = ()
+    attributes: tuple = ()                        # AttributeInfo, in the block's order
+
+    def connection(self, phase: str, flipped: bool) -> Point:
+        return tuple(self.connections["flipped" if flipped else "not_flipped"][phase])
+
+    def oriented_extents(self, flipped: bool):
+        return self.extents_flipped if flipped and self.extents_flipped else self.extents
 
     @property
     def width(self) -> float:
@@ -43,6 +62,11 @@ def load_block_catalog(path) -> dict[str, BlockInfo]:
                 top_terminals=tuple(tuple(p) for p in entry.get("top_terminals", [])),
                 bottom_terminals=tuple(tuple(p) for p in entry.get("bottom_terminals", [])),
                 extents=tuple(entry["extents"]),
+                connections=entry.get("connections") or {},
+                extents_flipped=tuple(entry["extents_flipped"]) if "extents_flipped" in entry else None,
+                visibility_states=tuple(entry.get("visibility_states", [])),
+                attributes=tuple(AttributeInfo(a["tag"], a.get("prompt", ""), a.get("default", ""))
+                                 for a in entry.get("attributes", [])),
             )
         except (KeyError, TypeError) as error:
             raise SettingsError(f'Block "{name}" in {path.name} is incomplete: {error}')

@@ -35,7 +35,8 @@ Coordinates are frame-relative drawing units (frame drawable area 419.04 x 269.4
 | # | Part | Status | Rule / notes | Source |
 |---|---|---|---|---|
 | S1 | Main breaker | **Built** (real block 3P_CB_FM_1) | Input end -> bus -> breaker -> bus -> bends into the main bus at lineup start, tees in with BUS_NODE dots elsewhere; breaker 15 from the bus, input 30 beyond | DECISIONS, refs |
-| S2 | Input / output block | Placeholder ("INPUT" box) | Sammy's new input/output block; PHASE_LUGS_3L_R0 has similar TOP/BOTTOM ENTRY states | DECISIONS |
+| S2 | Input / output block | **Built** for main breakers (PHASE_LUGS_3L_R0) | State INPUT; flipped for top-fed, as is for bottom-fed; CONN_A on the bus end. Output (feeders) and neutral come later | DECISIONS |
+| S5 | Feed directions + U-turn | **Built** | Breaker Feed Direction / Termination Feed Direction (top / bottom) on main and single breakers; when they differ the bus U-turns to the right (depth 28.43, width 35) into the termination; bus-side feeding: bus U-turns over the breaker on the right, cables straight or U-turn left (warning kept); each U adds 35 to section width | NTT-013630, DECISIONS 2026-10-13 |
 | S3 | Tie breaker | **Built** (placeholder size) | Vertical, at the section's right edge, any section; bus steps up/down 70 | DECISIONS |
 | S4 | Main–main interlock | Proposed | Dashed line between two mains, "ELECTRICAL INTERLOCK" | NTT-013631 |
 
@@ -43,13 +44,14 @@ Coordinates are frame-relative drawing units (frame drawable area 419.04 x 269.4
 
 | # | Part | Status | Rule / notes | Source |
 |---|---|---|---|---|
-| F1 | Single breaker | Approved (concept) / Proposed (geometry) | One breaker on a riser off the main bus, up or down | DECISIONS |
-| F2 | Group Mounted Distribution | **Built** (sizes) | Levels outward from bus; gap 15, pitch 25, overhang 10; editor done | NTT-013627, ES_12 |
+| F1 | Single breaker | **Built** | Fixed-mount breaker on a riser off the main bus, up or down, with the output block (OUTPUT); editor fields for both blocks | DECISIONS 2026-10-13 |
+| F2 | Group Mounted Distribution | **Built** | SIE_BKR_3P_3L_ASSY_R0 on a vertical bus; levels outward from bus, gap 15, pitch 25, overhang 10, nearest tap 10; editor fields per breaker | NTT-013627, ES_12 |
 | F3 | Twin mount | Approved | Two breakers on one level, right one flipped | DECISIONS |
 | F4 | Single mount | Approved | One breaker per level, alternating sides | DECISIONS |
 | F5 | Mixed twin + single | Approved | Allowed on one vertical bus | DECISIONS, ES_12 |
 | F6 | Combination | Approved | Above-bus and below-bus parts of a section can differ | DECISIONS |
-| F7 | SPACE / provision slot | Proposed | Tap stub with no breaker + "PROVISION FOR…" text | NTT-013627, ES_12 |
+| F7 | Provision slot | **Built** | Taps out to where a breaker would connect + note "PROVISION FOR" / engineer's line | IMS-REFERENCE, DECISIONS 2026-10-13 |
+| F9 | Too-tall split | **Built** | Below part split first: column 1 cut (tilde + bracket), continues in a column beside it starting 15.5 from the bus; above split only if it alone is too tall; column pitch 103.22 | CORRECTED_FIXED_011511 ES_11, DECISIONS 2026-10-13 |
 | F8 | Load-end lugs + text | Proposed | SIE_LUGS_3P_3L_R0 with wire-range text | NTT-013627, ES_12 |
 
 ## Annotation parts

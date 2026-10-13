@@ -18,9 +18,11 @@ from src.ui.section_editor import SectionEditor
 
 class MainWindow(QMainWindow):
     def __init__(self, settings: LayoutSettings, switchboard: Switchboard,
-                 autocad_settings=None, autocad_settings_problem: str = "", catalog=None):
+                 autocad_settings=None, autocad_settings_problem: str = "", catalog=None,
+                 catalog_file=None):
         super().__init__()
         self._catalog = catalog     # library block sizes/terminals; None = placeholders only
+        self._catalog_file = catalog_file
         self._settings = settings
         self._switchboard = switchboard
         self._autocad_settings = autocad_settings
@@ -56,8 +58,18 @@ class MainWindow(QMainWindow):
             self.generate_button.setToolTip(autocad_settings_problem or "AutoCAD settings not loaded.")
         left_layout.addWidget(self.generate_button)
 
+        # Audit Blocks: re-read every library block in use (markers, sizes, visibility
+        # states, attributes and prompts) into the catalog, in one click.
+        self.audit_blocks_button = QPushButton("Audit Blocks")
+        self.audit_blocks_button.setToolTip(
+            "Re-read every block the configurator uses from the block library: connection "
+            "markers, sizes, visibility states, attributes and prompts.")
+        self.audit_blocks_button.clicked.connect(self._audit_blocks)
+        self.audit_blocks_button.setEnabled(autocad_settings is not None and catalog_file is not None)
+        left_layout.addWidget(self.audit_blocks_button)
+
         # Middle: editor for the selected section.
-        self.editor = SectionEditor(settings)
+        self.editor = SectionEditor(settings, catalog)
         self.editor.changed.connect(self.refresh)
         editor_scroll = QScrollArea()
         editor_scroll.setWidgetResizable(True)
@@ -177,6 +189,32 @@ class MainWindow(QMainWindow):
             message += "\n\nPlease check:\n" + "\n".join(f"- {p}" for p in result.problems)
         QMessageBox.information(self, "Drawing made", message)
 
+    def _audit_blocks(self):
+        # Imported here so the app still opens (preview only) where AutoCAD isn't installed.
+        from src.autocad.catalog_refresh import audit_blocks
+        from src.autocad.connection import AutocadSession
+        from src.layout.block_catalog import load_block_catalog
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            app = AutocadSession(self._autocad_settings.program_id).app
+            changes, problems = audit_blocks(app, self._settings, self._autocad_settings,
+                                             self._catalog_file)
+            self._catalog = load_block_catalog(self._catalog_file)
+        except Exception as error:     # AutoCAD/COM or file errors: show them rather than crash
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Block audit failed", f"{type(error).__name__}: {error}")
+            return
+        QApplication.restoreOverrideCursor()
+        self.editor.set_catalog(self._catalog)
+        self.refresh()
+        report = "Catalog updated:\n" + "\n".join(f"- {line}" for line in changes)
+        if problems:
+            report += "\n\nProblems found:\n" + "\n".join(f"- {line}" for line in problems)
+            QMessageBox.warning(self, "Block audit", report)
+        else:
+            QMessageBox.information(self, "Block audit", report + "\n\nNo problems found.")
+
     # --- Layout -------------------------------------------------------------------------
 
     def refresh(self):
@@ -184,6 +222,8 @@ class MainWindow(QMainWindow):
         self.preview.show_layout(result)
         self.warning_list.clear()
         if result.warnings:
-            self.warning_list.addItems(["⚠ " + text for text in result.warnings])
+            # Plain text on purpose: a warning symbol here made Windows search its fonts
+            # the first time a warning appeared (about 0.7 s of lag).
+            self.warning_list.addItems(result.warnings)
         else:
             self.warning_list.addItem("No warnings.")

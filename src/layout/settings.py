@@ -62,6 +62,10 @@ class GroupMountedSettings:
     level_height: float           # one level (a breaker's three poles)
     vertical_bus_overhang: float  # vertical bus continues this far past the last level
     single_mount_first_side: str  # "left" or "right": side of the first single level
+    # A part too tall for the page continues in a column beside it (decision 2026-10-13).
+    column_pitch: float           # column to column, A phase to A phase
+    continuation_start_gap: float # main bus (nearest phase) to where a continuation column starts
+    column_clearance: float       # least room between the breakers of neighbouring columns
 
 
 @dataclass(frozen=True)
@@ -79,8 +83,12 @@ class PlaceholderSizes:
 class MainBusSettings:
     layer: str
     phase_spacing: float     # A-B and B-C; A to C is twice this
-    step_width: float        # extra section width when the bus changes height there
+    step_width: float        # width of the bus's vertical run (A to C) where it changes height
+    step_clearance: float    # space kept between that vertical run and anything else
     tie_step_height: float   # how far the bus moves up or down at a tie breaker
+    page_break_overrun_max: float   # bus runs this far past the last divider when there's room
+    page_break_overrun_min: float   # ...and never less than this
+    page_break_label_space: float   # room after that for the break block's to/from label
     content_top_y: float     # nothing in a section goes above this
     content_bottom_y: float  # nothing in a section goes below this (clear of the ground bus)
     junction_dot_block: str  # library block for bus junction dots ("BUS_NODE")
@@ -88,12 +96,70 @@ class MainBusSettings:
 
 @dataclass(frozen=True)
 class MainBreakerSettings:
-    block: str                  # library block for the breaker (e.g. "3P_CB_FM_1")
+    blocks: dict                # library block per mounting: {"fixed": ..., "draw-out": ...}
     block_layer: str
-    visibility: str             # the block's "Visibility1" state to use (e.g. "1 BOM")
+    label_attribute: str        # the attribute the breaker's Label fills (e.g. "BREAKER_NAME")
+    visibility: str             # the block's visibility state to use (e.g. "1 BOM")
     gap_bus_to_breaker: float   # main bus (nearest phase) to the breaker's near terminals
     gap_breaker_to_input: float # breaker's far terminals to the input end of the bus
     input_box_height: float     # room kept for the input block and its label
+    # U-turn when the termination is fed from the other side than the breaker (2026-10-13).
+    u_turn_depth: float         # breaker's far terminal (A) to the bottom of the U
+    u_turn_width: float         # from the breaker's leg to the termination's leg
+
+
+@dataclass(frozen=True)
+class BusBreakSettings:
+    """Tilde + bracket marking where a bus is cut (page break or too-tall column)."""
+    layer: str
+    tilde_block: str
+    tilde_state_horizontal_bus: str
+    tilde_state_vertical_bus: str
+    bracket_block: str
+    bracket_state_horizontal_bus: str
+    bracket_state_vertical_bus: str
+    bracket_gap: float          # from the bus end to the bracket's base point
+    label_attribute_horizontal_bus: str   # bracket label tag in its horizontal-bus state
+    label_attribute_vertical_bus: str     # ...and in its vertical-bus state
+    page_reference: str         # how a page is named in labels, e.g. "ES_{number:02d}"
+    to_label: str               # e.g. "TO {page}"
+    from_label: str             # e.g. "FROM {page}"
+    # Too-tall split: where a column is cut, and where the next column starts.
+    column_cut_label: str           # e.g. "BUS CONTINUES"
+    continued_from_below_label: str # e.g. "FROM BELOW" (a part below the main bus)
+    continued_from_above_label: str # e.g. "FROM ABOVE" (a part above the main bus)
+
+    def label(self, direction: str, page_number: int) -> str:
+        page = self.page_reference.format(number=page_number)
+        return (self.to_label if direction == "to" else self.from_label).format(page=page)
+
+
+@dataclass(frozen=True)
+class FeederSettings:
+    """Group-mounted feeder breakers."""
+    block: str              # library block, drawn as a left-side breaker
+    layer: str
+    visibility: str         # e.g. "3 PHASE-3 WIRE"
+    mirror_parameter: str   # the ONE mirror setting for right-side breakers in that state
+    label_attribute: str    # the attribute the breaker's Label fills (e.g. "DEVICE_ID")
+    tap_length: float       # tap from the nearest vertical-bus phase to the breaker
+    provision_heading: str                # first line of a provision note, e.g. "PROVISION FOR"
+    provision_heading_without_info: str   # ...when the engineer gave no info, e.g. "PROVISION"
+    provision_text_gap: float             # from the provision's tap ends to its note
+
+    def provision_lines(self, info: str) -> list[str]:
+        """The lines of a provision's note."""
+        info = info.strip()
+        return [self.provision_heading, info] if info else [self.provision_heading_without_info]
+
+
+@dataclass(frozen=True)
+class InputOutputSettings:
+    block: str          # library block for the input/output bus connection
+    neutral_block: str  # the same with a neutral (not placed yet; checked by Audit Blocks)
+    layer: str
+    input_state: str    # visibility state for power coming in (e.g. "INPUT")
+    output_state: str   # visibility state for power going out (e.g. "OUTPUT")
 
 
 @dataclass(frozen=True)
@@ -113,6 +179,9 @@ class LayoutSettings:
     placeholder_sizes: PlaceholderSizes
     main_bus: MainBusSettings
     main_breaker: MainBreakerSettings
+    input_output: InputOutputSettings
+    bus_break: BusBreakSettings
+    feeder: FeederSettings
 
     @property
     def keepout_left_x(self) -> float:
@@ -189,6 +258,9 @@ def load_settings(path) -> LayoutSettings:
             level_pitch=_read_number(data, "group_mounted", "level_pitch"),
             level_height=_read_number(data, "group_mounted", "level_height"),
             vertical_bus_overhang=_read_number(data, "group_mounted", "vertical_bus_overhang"),
+            column_pitch=_read_number(data, "group_mounted", "column_pitch"),
+            continuation_start_gap=_read_number(data, "group_mounted", "continuation_start_gap"),
+            column_clearance=_read_number(data, "group_mounted", "column_clearance"),
             single_mount_first_side=first_side,
         ),
         placeholder_sizes=PlaceholderSizes(
@@ -203,20 +275,73 @@ def load_settings(path) -> LayoutSettings:
             layer=_read_text(data, "main_bus", "layer"),
             phase_spacing=_read_number(data, "main_bus", "phase_spacing"),
             step_width=_read_number(data, "main_bus", "step_width"),
+            step_clearance=_read_number(data, "main_bus", "step_clearance"),
             tie_step_height=_read_number(data, "main_bus", "tie_step_height"),
+            page_break_overrun_max=_read_number(data, "main_bus", "page_break_overrun_max"),
+            page_break_overrun_min=_read_number(data, "main_bus", "page_break_overrun_min"),
+            page_break_label_space=_read_number(data, "main_bus", "page_break_label_space"),
             content_top_y=_read_number(data, "main_bus", "content_top_y"),
             content_bottom_y=_read_number(data, "main_bus", "content_bottom_y"),
             junction_dot_block=_read_text(data, "main_bus", "junction_dot_block"),
         ),
         main_breaker=MainBreakerSettings(
-            block=_read_text(data, "main_breaker", "block"),
+            blocks=_read_mounting_blocks(data),
             block_layer=_read_text(data, "main_breaker", "block_layer"),
+            label_attribute=_read_text(data, "main_breaker", "label_attribute"),
             visibility=_read_text(data, "main_breaker", "visibility"),
             gap_bus_to_breaker=_read_number(data, "main_breaker", "gap_bus_to_breaker"),
             gap_breaker_to_input=_read_number(data, "main_breaker", "gap_breaker_to_input"),
             input_box_height=_read_number(data, "main_breaker", "input_box_height"),
+            u_turn_depth=_read_number(data, "main_breaker", "u_turn_depth"),
+            u_turn_width=_read_number(data, "main_breaker", "u_turn_width"),
+        ),
+        input_output=InputOutputSettings(
+            block=_read_text(data, "input_output", "block"),
+            neutral_block=_read_text(data, "input_output", "neutral_block"),
+            layer=_read_text(data, "input_output", "layer"),
+            input_state=_read_text(data, "input_output", "input_state"),
+            output_state=_read_text(data, "input_output", "output_state"),
+        ),
+        feeder=FeederSettings(
+            block=_read_text(data, "feeder", "block"),
+            layer=_read_text(data, "feeder", "layer"),
+            visibility=_read_text(data, "feeder", "visibility"),
+            mirror_parameter=_read_text(data, "feeder", "mirror_parameter"),
+            label_attribute=_read_text(data, "feeder", "label_attribute"),
+            tap_length=_read_number(data, "feeder", "tap_length"),
+            provision_heading=_read_text(data, "feeder", "provision_heading"),
+            provision_heading_without_info=_read_text(data, "feeder", "provision_heading_without_info"),
+            provision_text_gap=_read_number(data, "feeder", "provision_text_gap"),
+        ),
+        bus_break=BusBreakSettings(
+            layer=_read_text(data, "bus_break", "layer"),
+            tilde_block=_read_text(data, "bus_break", "tilde_block"),
+            tilde_state_horizontal_bus=_read_text(data, "bus_break", "tilde_state_horizontal_bus"),
+            tilde_state_vertical_bus=_read_text(data, "bus_break", "tilde_state_vertical_bus"),
+            bracket_block=_read_text(data, "bus_break", "bracket_block"),
+            bracket_state_horizontal_bus=_read_text(data, "bus_break", "bracket_state_horizontal_bus"),
+            bracket_state_vertical_bus=_read_text(data, "bus_break", "bracket_state_vertical_bus"),
+            bracket_gap=_read_number(data, "bus_break", "bracket_gap"),
+            label_attribute_horizontal_bus=_read_text(data, "bus_break", "label_attribute_horizontal_bus"),
+            column_cut_label=_read_text(data, "bus_break", "column_cut_label"),
+            continued_from_below_label=_read_text(data, "bus_break", "continued_from_below_label"),
+            continued_from_above_label=_read_text(data, "bus_break", "continued_from_above_label"),
+            label_attribute_vertical_bus=_read_text(data, "bus_break", "label_attribute_vertical_bus"),
+            page_reference=_read_text(data, "bus_break", "page_reference"),
+            to_label=_read_text(data, "bus_break", "to_label"),
+            from_label=_read_text(data, "bus_break", "from_label"),
         ),
     )
+
+
+def _read_mounting_blocks(data) -> dict:
+    blocks = _read_value(data, "main_breaker", "blocks")
+    if not isinstance(blocks, dict):
+        raise SettingsError('Setting "main_breaker.blocks" must list a block per mounting.')
+    for mounting in ("fixed", "draw-out"):
+        if not isinstance(blocks.get(mounting), str) or not blocks[mounting]:
+            raise SettingsError(f'Setting "main_breaker.blocks" needs a block for "{mounting}".')
+    return dict(blocks)
 
 
 def _read_value(data, group, key):

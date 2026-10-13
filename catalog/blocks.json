@@ -1,21 +1,506 @@
 {
-  "note": "Connection points and sizes of library blocks, in block coordinates (base point = 0,0). MEASURED 2026-10-11 from Symbols-blocks.dwg because the blocks have no connection markers yet. Replace with values read from markers once the library standard's marker convention is in place (docs/BLOCK_LIBRARY_STANDARD.md).",
+  "note": "Library blocks the configurator uses: connection points (from CONN_ point parameters), sizes, visibility states and attributes. Written by 'Audit Blocks' in the app; do not edit by hand except 'description'.",
   "blocks": {
     "3P_CB_FM_1": {
       "description": "3-pole fixed-mount breaker, poles vertical, A on the left",
-      "top_terminals": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0]],
-      "bottom_terminals": [[0.0, -10.0], [5.0, -10.0], [10.0, -10.0]],
-      "extents": [-0.5, -11.09, 25.2, 3.5]
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.0,
+          0.0
+        ],
+        [
+          10.0,
+          0.0
+        ]
+      ],
+      "bottom_terminals": [
+        [
+          -0.0,
+          -10.0
+        ],
+        [
+          5.0,
+          -10.0
+        ],
+        [
+          10.0,
+          -10.0
+        ]
+      ],
+      "extents": [
+        -0.5,
+        -11.0858,
+        25.1988,
+        3.5
+      ],
+      "visibility_states": [
+        "3 BOM",
+        "2 BOM",
+        "1 BOM"
+      ],
+      "attributes": [
+        {
+          "tag": "BREAKER_NAME",
+          "prompt": "52-YY",
+          "default": "52-YY"
+        },
+        {
+          "tag": "SIZE/POLLS",
+          "prompt": "##AF/##AT,#P",
+          "default": "##AF/##AT,#P"
+        },
+        {
+          "tag": "ETU/DAS",
+          "prompt": "LI, LSI, LSIG/DAS",
+          "default": "XYZ"
+        },
+        {
+          "tag": "BREAKER_TYPE",
+          "prompt": "(E/M)OFM ",
+          "default": "(E/M)OFM "
+        },
+        {
+          "tag": "RAITING",
+          "prompt": "80% or 100%",
+          "default": "100%"
+        },
+        {
+          "tag": "1BOM1",
+          "prompt": "ITEM#",
+          "default": "##"
+        },
+        {
+          "tag": "1BOM2",
+          "prompt": "ITEM#",
+          "default": "##"
+        },
+        {
+          "tag": "1BOM3",
+          "prompt": "ITEM#",
+          "default": "##"
+        }
+      ]
     },
     "3P_CB_DO": {
       "description": "3-pole draw-out breaker, poles vertical, A on the left",
-      "top_terminals": [[-0.01, -0.01], [4.99, -0.01], [9.99, -0.01]],
-      "bottom_terminals": [[-0.01, -10.01], [4.99, -10.01], [9.99, -10.01]],
-      "extents": [-1.01, -11.09, 25.43, 3.63]
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.0,
+          0.0
+        ],
+        [
+          10.0,
+          0.0
+        ]
+      ],
+      "bottom_terminals": [
+        [
+          0.0,
+          -10.0
+        ],
+        [
+          5.0,
+          -10.0
+        ],
+        [
+          10.0,
+          -10.0
+        ]
+      ],
+      "extents": [
+        -1.0,
+        -11.0762,
+        25.4352,
+        3.6379
+      ],
+      "visibility_states": [
+        "3 BOM",
+        "2 BOM",
+        "1 BOM"
+      ],
+      "attributes": [
+        {
+          "tag": "1BOM1",
+          "prompt": "ITEM#",
+          "default": "##"
+        },
+        {
+          "tag": "BREAKER_NAME",
+          "prompt": "52-YY",
+          "default": "52-YY"
+        },
+        {
+          "tag": "SIZE/POLLS",
+          "prompt": "##AF/##AT,#P",
+          "default": "##AF/##AT,#P"
+        },
+        {
+          "tag": "ETU/DAS",
+          "prompt": "LI or LSI or LSIG/ DAS",
+          "default": "XYZ"
+        },
+        {
+          "tag": "BREAKER_TYPE",
+          "prompt": "(E/M)ODO",
+          "default": "(E/M)ODO"
+        },
+        {
+          "tag": "RAITING",
+          "prompt": "80% or 100%",
+          "default": "100%"
+        },
+        {
+          "tag": "1BOM2",
+          "prompt": "ITEM#",
+          "default": "##"
+        },
+        {
+          "tag": "1BOM3",
+          "prompt": "ITEM#",
+          "default": "##"
+        }
+      ]
     },
     "BUS_NODE": {
       "description": "Filled junction dot, diameter 1.5, centred on the base point",
-      "extents": [-0.75, -0.75, 0.75, 0.75]
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "extents": [
+        -0.375,
+        -0.375,
+        0.375,
+        0.375
+      ],
+      "visibility_states": [],
+      "attributes": []
+    },
+    "PHASE_LUGS_3L_R0": {
+      "description": "Input/output bus connection. States: INPUT, OUTPUT, INPUT W/ NEUTRAL, OUTPUT W/ NEUTRAL. Not flipped = from/to the BOTTOM; flipped = from/to the TOP. Base point at the base of the A-phase triangle (accepted for this block).",
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "connections": {
+        "not_flipped": {
+          "A": [
+            0.0,
+            5.0
+          ],
+          "B": [
+            5.0,
+            5.0
+          ],
+          "C": [
+            10.0,
+            5.0
+          ]
+        },
+        "flipped": {
+          "A": [
+            0.0,
+            -5.0
+          ],
+          "B": [
+            5.0,
+            -5.0
+          ],
+          "C": [
+            10.0,
+            -5.0
+          ]
+        }
+      },
+      "extents": [
+        -3.0,
+        -8.42,
+        13.0,
+        5.0
+      ],
+      "extents_flipped": [
+        -3.0,
+        -5.0,
+        13.0,
+        8.46
+      ],
+      "visibility_states": [
+        "INPUT",
+        "OUTPUT"
+      ],
+      "attributes": [
+        {
+          "tag": "LOCATION",
+          "prompt": "Where is it coming from or going to?",
+          "default": "TO/FROM"
+        },
+        {
+          "tag": "TERMINATION",
+          "prompt": "Info on termination",
+          "default": ""
+        }
+      ]
+    },
+    "3P_TIDE_R0": {
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "connections": {
+        "not_flipped": {
+          "A": [
+            -0.0,
+            0.0
+          ]
+        },
+        "flipped": {
+          "A": [
+            -0.0,
+            0.0
+          ]
+        }
+      },
+      "extents": [
+        -6.2159,
+        -11.25,
+        16.2159,
+        2.3129
+      ],
+      "extents_flipped": [
+        -13.4317,
+        -11.25,
+        16.2159,
+        1.25
+      ],
+      "visibility_states": [
+        "HORIZONTAL",
+        "VERTICAL"
+      ],
+      "attributes": []
+    },
+    "BRACKET_TEXT_R0": {
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "extents": [
+        -6.0089,
+        -6.0089,
+        6.679,
+        6.0089
+      ],
+      "extents_flipped": [
+        -6.8333,
+        -6.0089,
+        6.0089,
+        6.0089
+      ],
+      "visibility_states": [
+        "VERTICAL BRACKET",
+        "HORIZONTAL BRACKET"
+      ],
+      "attributes": [
+        {
+          "tag": "VERTICAL_LABLE",
+          "prompt": "",
+          "default": "XXX"
+        },
+        {
+          "tag": "HORIZONTAL_LABLE",
+          "prompt": "",
+          "default": ""
+        }
+      ]
+    },
+    "PHASE_LUGS_3L_N_R0": {
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "connections": {
+        "not_flipped": {
+          "A": [
+            0.0,
+            5.0
+          ],
+          "B": [
+            5.0,
+            5.0
+          ],
+          "C": [
+            10.0,
+            5.0
+          ],
+          "N": [
+            15.0,
+            5.0
+          ]
+        },
+        "flipped": {
+          "A": [
+            0.0,
+            -5.0
+          ],
+          "B": [
+            5.0,
+            -5.0
+          ],
+          "C": [
+            10.0,
+            -5.0
+          ],
+          "N": [
+            15.0,
+            -5.0
+          ]
+        }
+      },
+      "extents": [
+        -3.0,
+        -8.42,
+        18.0,
+        5.0
+      ],
+      "extents_flipped": [
+        -3.0,
+        -5.0,
+        18.0,
+        8.46
+      ],
+      "visibility_states": [
+        "INPUT W/ NEUTRAL",
+        "OUTPUT W/ NEUTRAL"
+      ],
+      "attributes": [
+        {
+          "tag": "LOCATION",
+          "prompt": "Where is it coming from or going to?",
+          "default": "TO/FROM"
+        },
+        {
+          "tag": "TERMINATION",
+          "prompt": "Info on termination",
+          "default": ""
+        }
+      ]
+    },
+    "SIE_BKR_3P_3L_ASSY_R0": {
+      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "connections": {
+        "not_flipped": {
+          "A": [
+            0.0,
+            10.0
+          ],
+          "B": [
+            0.0,
+            5.0
+          ],
+          "C": [
+            0.0,
+            0.0
+          ]
+        },
+        "flipped": {
+          "A": [
+            0.0,
+            10.0
+          ],
+          "B": [
+            0.0,
+            5.0
+          ],
+          "C": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "extents": [
+        -32.1667,
+        -6.5,
+        4.5577,
+        23.3751
+      ],
+      "extents_flipped": [
+        -5.859,
+        -6.5,
+        32.1667,
+        23.3751
+      ],
+      "visibility_states": [
+        "3 PHASE-3 WIRE",
+        "3 PHASE-4 WIRE"
+      ],
+      "attributes": [
+        {
+          "tag": "DEVICE_ID",
+          "prompt": "DEVICE ID?",
+          "default": "52-XXX"
+        },
+        {
+          "tag": "BKR_RATINGS",
+          "prompt": "AF/AS/AT",
+          "default": "###AF/###AS/###AT"
+        },
+        {
+          "tag": "ETU_RATINGS",
+          "prompt": "ETU ? / %?",
+          "default": "ETUXXX/100%"
+        },
+        {
+          "tag": "FRAME",
+          "prompt": "",
+          "default": ""
+        },
+        {
+          "tag": "TRIP_TYPE",
+          "prompt": "",
+          "default": ""
+        },
+        {
+          "tag": "AMP_RATING",
+          "prompt": "",
+          "default": ""
+        },
+        {
+          "tag": "SERIES",
+          "prompt": "",
+          "default": ""
+        },
+        {
+          "tag": "WIRE_RANGE",
+          "prompt": "Wire Information",
+          "default": ""
+        },
+        {
+          "tag": "AMP_RANGE",
+          "prompt": "",
+          "default": ""
+        },
+        {
+          "tag": "FRAME",
+          "prompt": "",
+          "default": ""
+        },
+        {
+          "tag": "LUG_KIT",
+          "prompt": "",
+          "default": ""
+        },
+        {
+          "tag": "1BOM1",
+          "prompt": "ITEM#",
+          "default": "##"
+        }
+      ]
     }
   }
 }

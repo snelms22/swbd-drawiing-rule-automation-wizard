@@ -29,7 +29,11 @@
     "label_gap_above_bus": 1.34,
     "symbol_offset_x": 5.86,
     "symbol_stem_length": 1.98,
-    "symbol_bar_widths": [4.92, 3.69, 2.46],
+    "symbol_bar_widths": [
+      4.92,
+      3.69,
+      2.46
+    ],
     "symbol_bar_spacing": 1.23
   },
   "text": {
@@ -44,19 +48,22 @@
     "gap_above_title_block": 1.34
   },
   "group_mounted": {
-    "note": "Measured from NTT-013627 / PRIME-014034 / ES_12.",
+    "note": "Measured from NTT-013627 / PRIME-014034 / ES_12. A part too tall for the page is split: column 1 is cut after the last level that fits and the rest continue in a column beside it (FIXED_011511 ES_12, CORRECTED_FIXED_011511 ES_11). column_pitch is A phase to A phase; it is widened if the breakers of neighbouring columns would come closer than column_clearance. continuation_start_gap is from the main bus's nearest phase to where a continuation column starts.",
     "gap_to_first_level": 15.0,
     "level_pitch": 25.0,
     "level_height": 10.0,
     "vertical_bus_overhang": 10.0,
-    "single_mount_first_side": "left"
+    "single_mount_first_side": "left",
+    "column_pitch": 103.22,
+    "continuation_start_gap": 15.5,
+    "column_clearance": 10.0
   },
   "placeholder_sizes": {
-    "note": "PLACEHOLDERS until the real blocks are catalogued. Widths include labels.",
+    "note": "PLACEHOLDERS until the real blocks are catalogued. Widths include labels. A single-breaker feeder is drawn like a main breaker, so it uses the same height. group_mounted_width is only used when the feeder block isn't catalogued.",
     "main_breaker_width": 30.0,
     "main_breaker_height": 75.0,
     "single_breaker_width": 30.0,
-    "single_breaker_height": 45.0,
+    "single_breaker_height": 75.0,
     "group_mounted_width": 145.0,
     "tie_breaker_width": 30.0
   },
@@ -65,18 +72,71 @@
     "layer": "BUS",
     "phase_spacing": 5.0,
     "step_width": 10.0,
+    "step_clearance": 10.0,
     "tie_step_height": 70.0,
+    "page_break_overrun_max": 30.0,
+    "page_break_overrun_min": 10.0,
+    "page_break_label_space": 15.0,
+    "page_break_note": "Bus runs past the last divider at a page break (min..max), plus room for the break block's to/from label (placeholder until the block exists).",
     "content_top_y": 256.33,
     "content_bottom_y": 30.94,
     "junction_dot_block": "BUS_NODE"
   },
   "main_breaker": {
     "note": "Gaps measured from NTC-013632 / NTT-013628 (breaker 15 from the bus, input about 30 beyond the breaker).",
-    "block": "3P_CB_FM_1",
+    "blocks": {
+      "fixed": "3P_CB_FM_1",
+      "draw-out": "3P_CB_DO"
+    },
     "block_layer": "0",
+    "label_attribute": "BREAKER_NAME",
     "visibility": "1 BOM",
     "gap_bus_to_breaker": 15.0,
     "gap_breaker_to_input": 30.0,
-    "input_box_height": 15.0
+    "input_box_height": 15.0,
+    "u_turn_note": "Used by main breakers and single breakers when the termination is fed from the other side than the breaker (e.g. a bottom-fed breaker below the bus fed from a top termination): the bus leaves the breaker, drops u_turn_depth (A phase; B and C 5 and 10 more), runs u_turn_width to the right and comes back to the breaker's far-terminal height, where the termination block sits. Measured from NTT-013630 section 1.",
+    "u_turn_depth": 28.43,
+    "u_turn_width": 35.0
+  },
+  "input_output": {
+    "note": "Sammy's input/output block. Not flipped = from/to the bottom; flipped = from/to the top.",
+    "block": "PHASE_LUGS_3L_R0",
+    "layer": "0",
+    "input_state": "INPUT",
+    "output_state": "OUTPUT",
+    "neutral_block": "PHASE_LUGS_3L_N_R0"
+  },
+  "bus_break": {
+    "note": "Where a bus is cut (page break, or a too-tall column): 3P_TIDE_R0 sits on the A-phase end (CONN_A), BRACKET_TEXT_R0 stands just past the end, centred on B, with the to/from label. Gap measured from CORRECTED_FIXED_011511 ES_11.",
+    "layer": "0",
+    "tilde_block": "3P_TIDE_R0",
+    "tilde_state_horizontal_bus": "HORIZONTAL",
+    "tilde_state_vertical_bus": "VERTICAL",
+    "bracket_block": "BRACKET_TEXT_R0",
+    "bracket_state_horizontal_bus": "VERTICAL BRACKET",
+    "bracket_state_vertical_bus": "HORIZONTAL BRACKET",
+    "bracket_gap": 2.5,
+    "page_reference": "ES_{number:02d}",
+    "to_label": "TO {page}",
+    "from_label": "FROM {page}",
+    "label_attribute_horizontal_bus": "VERTICAL_LABLE",
+    "label_attribute_vertical_bus": "HORIZONTAL_LABLE",
+    "column_label_note": "Too-tall split (2026-10-13): the bracket where a column is cut says column_cut_label; the bracket where the next column starts says where the bus comes from (the part below the main bus / above it).",
+    "column_cut_label": "BUS CONTINUES",
+    "continued_from_below_label": "FROM BELOW",
+    "continued_from_above_label": "FROM ABOVE"
+  },
+  "feeder": {
+    "note": "Group-mounted feeder breaker (Sammy's block). Drawn as a LEFT-side breaker; the right-side one is the same block with only `mirror_parameter` turned on (the mirror that goes with `visibility`: MIRROR-3W for 3 PHASE-3 WIRE). The block mirrors about the vertical bus's B phase, as in ES_12. Taps run from each vertical-bus phase to the breaker; the nearest phase's tap is `tap_length` long.",
+    "block": "SIE_BKR_3P_3L_ASSY_R0",
+    "layer": "0",
+    "visibility": "3 PHASE-3 WIRE",
+    "mirror_parameter": "MIRROR-3W",
+    "label_attribute": "DEVICE_ID",
+    "tap_length": 10.0,
+    "provision_note": "A provision is tapped out like a breaker (taps end where the breaker would connect); its note starts provision_text_gap beyond the tap ends, centred on B. First line is provision_heading (or provision_heading_without_info when the engineer left the info empty), then the engineer's line. From IMS-REFERENCE.",
+    "provision_heading": "PROVISION FOR",
+    "provision_heading_without_info": "PROVISION",
+    "provision_text_gap": 10.0
   }
 }
