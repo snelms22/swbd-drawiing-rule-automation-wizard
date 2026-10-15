@@ -461,11 +461,14 @@ class ArrangementEditor(QGroupBox):
 
 
 class TieEditor(QGroupBox):
-    """Optional tie breaker. It sits at the section's right edge (approved)."""
+    """Optional tie breaker. It sits at the section's right edge (approved). Like a main
+    breaker, it gets one field per attribute of its mounting's block."""
     changed = Signal()
 
-    def __init__(self):
+    def __init__(self, settings, catalog=None):
         super().__init__("Tie breaker")
+        self._settings = settings
+        self._catalog = catalog
         self._section = None
         self.include_check = QCheckBox("Include a tie breaker")
         self.label_edit = QLineEdit()
@@ -479,6 +482,9 @@ class TieEditor(QGroupBox):
         form.addRow("Label", self.label_edit)
         form.addRow("Bus steps", self.steps_combo)
         form.addRow("Mounting", self.mounting_combo)
+        self.attributes_box = QGroupBox("Breaker block attributes")
+        self.attributes_form = QFormLayout(self.attributes_box)
+        form.addRow(self.attributes_box)
         self.include_check.toggled.connect(self._include_toggled)
         self.label_edit.textEdited.connect(self._edited)
         self.steps_combo.currentTextChanged.connect(self._edited)
@@ -493,6 +499,23 @@ class TieEditor(QGroupBox):
         _set_quietly(self.mounting_combo, self.mounting_combo.setCurrentText, tie.mounting if tie else MOUNTINGS[0])
         for widget in (self.label_edit, self.steps_combo, self.mounting_combo):
             widget.setEnabled(tie is not None)
+        self._rebuild_attribute_fields()
+
+    def set_catalog(self, catalog):
+        self._catalog = catalog
+        if self._section is not None:
+            self._rebuild_attribute_fields()
+
+    def _rebuild_attribute_fields(self):
+        """Fields for the tie's breaker block (fixed or draw-out), from the catalog. The
+        Label field fills the breaker-name attribute, so that one isn't shown twice."""
+        tie = self._section.contents.tie if self._section is not None else None
+        block = None
+        if tie is not None and self._catalog:
+            block = self._catalog.get(self._settings.main_breaker.blocks[tie.mounting])
+        add_attribute_fields(self.attributes_form, block, tie.breaker.attributes if tie else {},
+                             {self._settings.main_breaker.label_attribute}, self.changed.emit)
+        self.attributes_box.setVisible(block is not None and bool(block.attributes))
 
     def _include_toggled(self, included):
         if included:
@@ -508,9 +531,12 @@ class TieEditor(QGroupBox):
     def _edited(self, *_):
         tie = self._section.contents.tie
         if tie is not None:
+            mounting_changed = tie.mounting != self.mounting_combo.currentText()
             tie.breaker.label = self.label_edit.text().strip()
             tie.bus_steps = self.steps_combo.currentText()
             tie.mounting = self.mounting_combo.currentText()
+            if mounting_changed:
+                self._rebuild_attribute_fields()     # the other block may have other attributes
             self.changed.emit()
 
 
@@ -524,7 +550,7 @@ class SectionEditor(QWidget):
         self.title.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.above_editor = ArrangementEditor("Above the main bus", "above", settings, catalog)
         self.below_editor = ArrangementEditor("Below the main bus", "below", settings, catalog)
-        self.tie_editor = TieEditor()
+        self.tie_editor = TieEditor(settings, catalog)
         for editor in (self.above_editor, self.below_editor, self.tie_editor):
             editor.changed.connect(self.changed)
 
@@ -539,6 +565,7 @@ class SectionEditor(QWidget):
     def set_catalog(self, catalog):
         self.above_editor.set_catalog(catalog)
         self.below_editor.set_catalog(catalog)
+        self.tie_editor.set_catalog(catalog)
 
     def load(self, section, number):
         has_section = section is not None

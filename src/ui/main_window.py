@@ -1,33 +1,65 @@
-"""Main window: section list | section editor | page preview, with warnings below.
+"""Main window: section list | section editor | page preview, with warnings below, and a
+File menu for projects.
 
 Every edit re-runs the layout engine and redraws the preview, so what you see is always
 the current result of the layout rules.
+
+Projects (decisions 2026-10-15): File > New / Open / Open from Library / Save / Save As.
+Projects are .swbd files, saved only when the engineer saves; the title bar shows the file
+and a * when there are unsaved changes, and anything that would lose them asks first.
+A switchboard opened from the library is an untitled copy, so saving never changes the
+library. The project's name is its file name.
+
+Updates (decision 2026-10-15): the released app checks SharePoint for a newer version when
+it starts and every 30 minutes, and offers a restart, which goes through the launcher.
+
+One person edits a project at a time (project_lock.py): opening a project someone else has
+open gives a read-only copy, where Save works as Save As. Drawings go to the folder the
+person picked (File > Drawing Folder), remembered on their PC (preferences.py).
 """
-from PySide6.QtCore import Qt
+import subprocess
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QHBoxLayout, QListWidget, QMainWindow, QMessageBox, QPushButton,
-    QScrollArea, QSplitter, QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QFileDialog, QHBoxLayout, QListWidget, QMainWindow, QMessageBox,
+    QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget,
 )
 
 from src.layout.page_fitter import fit_pages
 from src.layout.settings import LayoutSettings
-from src.model.switchboard import Section, Switchboard
+from src.model.project_file import (
+    EXTENSION, ProjectFileError, attributes_no_longer_on_blocks, open_project, save_project,
+)
+from src.model.project_lock import held_by_someone_else, release_lock, take_lock
+from src.preferences import DRAWING_FOLDER, drawing_folder, save_preference
+from src.updates import INSTALLED_LAUNCHER, RELEASE_FOLDER, newer_version_available
+from src.model.switchboard import Section, Switchboard, new_switchboard
 from src.ui.page_preview import PagePreview
 from src.ui.section_editor import SectionEditor
+from src.version import VERSION
+
+APP_NAME = "Switchboard Configurator"
+UPDATE_CHECK_MINUTES = 30
+FILE_FILTER = f"Switchboard projects (*{EXTENSION})"
 
 
 class MainWindow(QMainWindow):
     def __init__(self, settings: LayoutSettings, switchboard: Switchboard,
-                 autocad_settings=None, autocad_settings_problem: str = "", catalog=None,
-                 catalog_file=None):
+                 autocad_settings=None, autocad_settings_problem: str = "", catalog=None):
         super().__init__()
         self._catalog = catalog     # library block sizes/terminals; None = placeholders only
-        self._catalog_file = catalog_file
         self._settings = settings
         self._switchboard = switchboard
         self._autocad_settings = autocad_settings
-        self.setWindowTitle(f"Hyper Switchboard Configurator - {switchboard.name}")
+        self._file_path: Path | None = None   # the .swbd this project is saved in, if any
+        self._unsaved = False
+        self._read_only = False                # someone else has this project open
         self.resize(1500, 900)
+        self._build_file_menu()
+        self._build_help_menu()
 
         # Left: the lineup. Sections have no names; the list shows "Section n".
         self.section_list = QListWidget()
@@ -58,19 +90,10 @@ class MainWindow(QMainWindow):
             self.generate_button.setToolTip(autocad_settings_problem or "AutoCAD settings not loaded.")
         left_layout.addWidget(self.generate_button)
 
-        # Audit Blocks: re-read every library block in use (markers, sizes, visibility
-        # states, attributes and prompts) into the catalog, in one click.
-        self.audit_blocks_button = QPushButton("Audit Blocks")
-        self.audit_blocks_button.setToolTip(
-            "Re-read every block the configurator uses from the block library: connection "
-            "markers, sizes, visibility states, attributes and prompts.")
-        self.audit_blocks_button.clicked.connect(self._audit_blocks)
-        self.audit_blocks_button.setEnabled(autocad_settings is not None and catalog_file is not None)
-        left_layout.addWidget(self.audit_blocks_button)
 
         # Middle: editor for the selected section.
         self.editor = SectionEditor(settings, catalog)
-        self.editor.changed.connect(self.refresh)
+        self.editor.changed.connect(self._edited)
         editor_scroll = QScrollArea()
         editor_scroll.setWidgetResizable(True)
         editor_scroll.setWidget(self.editor)
@@ -99,6 +122,243 @@ class MainWindow(QMainWindow):
 
         self._rebuild_list(select_row=0)
         self.refresh()
+        self._update_title()
+
+        # Only the released app updates itself (not when run from the development folder).
+        self._update_offered = None
+        if getattr(sys, "frozen", False):
+            self._update_timer = QTimer(self)
+            self._update_timer.timeout.connect(self._check_for_update)
+            self._update_timer.start(UPDATE_CHECK_MINUTES * 60 * 1000)
+            QTimer.singleShot(5000, self._check_for_update)
+
+    # --- Updates ------------------------------------------------------------------------
+
+    def _check_for_update(self):
+        newer = newer_version_available(VERSION)
+        if newer is None or newer == self._update_offered:
+            return                      # nothing new, or already offered (asked once each)
+        self._update_offered = newer
+        answer = QMessageBox.question(
+            self, APP_NAME, f"Version {newer} of the {APP_NAME} is available (you have "
+            f"{VERSION}).\n\nRestart now to update? Your project will be closed first.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if answer == QMessageBox.Yes and self._may_discard_changes():
+            self._let_go_of_project()
+            self._unsaved = False
+            subprocess.Popen([str(INSTALLED_LAUNCHER)], cwd=str(INSTALLED_LAUNCHER.parent))
+            self.close()
+
+    # --- Projects -----------------------------------------------------------------------
+
+    def _build_file_menu(self):
+        menu = self.menuBar().addMenu("&File")
+        for text, shortcut, action in (
+            ("&New", QKeySequence.New, self._new_project),
+            ("&Open...", QKeySequence.Open, self._open_project),
+            ("Open from &Library...", None, self._open_from_library),
+            ("&Save", QKeySequence.Save, self._save),
+            ("Save &As...", QKeySequence.SaveAs, self._save_as),
+            (None, None, None),
+            ("&Drawing Folder...", None, self._choose_drawing_folder),
+        ):
+            if text is None:
+                menu.addSeparator()
+                continue
+            item = QAction(text, self)
+            if shortcut is not None:
+                item.setShortcut(shortcut)
+            item.triggered.connect(action)
+            menu.addAction(item)
+
+    def _build_help_menu(self):
+        menu = self.menuBar().addMenu("&Help")
+        about = QAction(f"&About {APP_NAME}", self)
+        about.triggered.connect(self._show_about)
+        menu.addAction(about)
+
+    def _show_about(self):
+        drawings = drawing_folder()
+        QMessageBox.about(self, f"About {APP_NAME}", (
+            f"{APP_NAME} {VERSION}\nHyper Solutions\n\n"
+            f"Drawings are saved in: {drawings or '(not chosen yet)'}\n"
+            f"Releases: {RELEASE_FOLDER}\n"
+            f"Installed in: {INSTALLED_LAUNCHER.parent}\n"
+            f"(launcher.log there records each start, for troubleshooting)"))
+
+    def _update_title(self):
+        name = self._file_path.name if self._file_path else "Untitled"
+        star = " *" if self._unsaved else ""
+        read_only = " (read-only)" if self._read_only else ""
+        self.setWindowTitle(f"{APP_NAME} {VERSION} - {name}{read_only}{star}")
+
+    def _edited(self, *_):
+        """Any change to the switchboard: mark it unsaved and redraw."""
+        self._unsaved = True
+        self._update_title()
+        self.refresh()
+
+    def _folder(self, kind: str) -> Path:
+        """The jobs folder (created if needed) or the switchboard library; the user's home
+        folder if the settings didn't load or the folder can't be made."""
+        if self._autocad_settings is None:
+            return Path.home()
+        folder = (self._autocad_settings.jobs_folder if kind == "jobs"
+                  else self._autocad_settings.switchboard_library_folder)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return Path.home()
+        return folder
+
+    def _may_discard_changes(self) -> bool:
+        """True if it's fine to replace or close the project: nothing unsaved, or the
+        engineer saved it or chose not to."""
+        if not self._unsaved:
+            return True
+        answer = QMessageBox.question(
+            self, APP_NAME, "This project has unsaved changes. Save them first?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
+        if answer == QMessageBox.Save:
+            return self._save()
+        return answer == QMessageBox.Discard
+
+    def _show_project(self, switchboard: Switchboard, file_path: Path | None,
+                      read_only: bool = False):
+        self._let_go_of_project()
+        if file_path is not None and not read_only:
+            self._try_to_lock(file_path)
+        self._switchboard = switchboard
+        self._file_path = file_path
+        self._read_only = read_only
+        self._unsaved = False
+        self._rebuild_list(select_row=0)
+        self.refresh()
+        self._update_title()
+        kept = attributes_no_longer_on_blocks(switchboard, self._settings, self._catalog)
+        if kept:
+            QMessageBox.information(self, APP_NAME, "Opened. Please note:\n" +
+                                    "\n".join(f"- {line}" for line in kept))
+
+    def _new_project(self):
+        if self._may_discard_changes():
+            self._show_project(new_switchboard(), None)
+
+    def _open_project(self):
+        self._open_from(self._folder("jobs"), keep_path=True)
+
+    def _open_from_library(self):
+        # A library switchboard opens as an untitled copy: saving it goes to the jobs
+        # folder and never changes the library.
+        self._open_from(self._folder("library"), keep_path=False)
+
+    def _open_from(self, folder: Path, keep_path: bool):
+        if not self._may_discard_changes():
+            return
+        chosen, _ = QFileDialog.getOpenFileName(self, "Open project", str(folder), FILE_FILTER)
+        if not chosen:
+            return
+        try:
+            switchboard = open_project(chosen)
+        except ProjectFileError as error:
+            QMessageBox.warning(self, "Project not opened", str(error))
+            return
+        read_only = False
+        if keep_path:
+            holder = held_by_someone_else(Path(chosen))
+            if holder is not None:
+                choice = self._ask_about_lock(Path(chosen).name, holder)
+                if choice is None:
+                    return
+                read_only = choice == "read-only"
+        self._show_project(switchboard, Path(chosen) if keep_path else None, read_only)
+
+    def _ask_about_lock(self, name: str, holder) -> str | None:
+        """Someone else has the project open: "read-only", "take over", or None (cancel)."""
+        box = QMessageBox(self)
+        box.setWindowTitle(APP_NAME)
+        box.setIcon(QMessageBox.Warning)
+        box.setText(f"{name} is being edited by {holder.describe()}.\n\n"
+                    "Only one person can edit a project at a time. You can open a read-only "
+                    "copy (use Save As to keep your changes under another name).")
+        read_only = box.addButton("Open read-only", QMessageBox.AcceptRole)
+        take_over = box.addButton("Take over editing", QMessageBox.DestructiveRole)
+        box.addButton(QMessageBox.Cancel)
+        box.setDefaultButton(read_only)
+        box.exec()
+        if box.clickedButton() is read_only:
+            return "read-only"
+        if box.clickedButton() is take_over:
+            sure = QMessageBox.question(
+                self, APP_NAME, f"Only take over if you're sure {holder.user} isn't working on "
+                f"it (for example, their app closed unexpectedly). Their unsaved changes would "
+                f"be lost if they save after you. Take over?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            return "take over" if sure == QMessageBox.Yes else None
+        return None
+
+    def _try_to_lock(self, path: Path):
+        try:
+            take_lock(path)
+        except OSError:
+            pass              # can't write next to the project: carry on without a lock
+
+    def _let_go_of_project(self):
+        """Remove our lock on the current project (when closing it or opening another)."""
+        if self._file_path is not None and not self._read_only:
+            release_lock(self._file_path)
+
+    def _save(self) -> bool:
+        if self._file_path is None or self._read_only:
+            return self._save_as()
+        return self._write(self._file_path)
+
+    def _save_as(self) -> bool:
+        start = self._file_path or self._folder("jobs") / f"{self._switchboard.name}{EXTENSION}"
+        chosen, _ = QFileDialog.getSaveFileName(self, "Save project", str(start), FILE_FILTER)
+        if not chosen:
+            return False
+        return self._write(Path(chosen))
+
+    def _write(self, path: Path) -> bool:
+        if path.suffix.lower() != EXTENSION:
+            path = path.with_name(path.name + EXTENSION)
+        holder = held_by_someone_else(path)
+        if holder is not None:
+            QMessageBox.warning(self, "Project not saved",
+                                f"{path.name} is being edited by {holder.describe()}. "
+                                f"Save under another name.")
+            return False
+        self._switchboard.name = path.stem          # the project's name is its file name
+        try:
+            saved = save_project(self._switchboard, path)
+        except OSError as error:
+            QMessageBox.warning(self, "Project not saved", f"Could not save {path}:\n{error}")
+            return False
+        if saved != self._file_path:                # saved under a new name: move our lock
+            self._let_go_of_project()
+            self._try_to_lock(saved)
+        self._file_path = saved
+        self._read_only = False
+        self._unsaved = False
+        self._update_title()
+        return True
+
+    def _choose_drawing_folder(self) -> Path | None:
+        """Ask where drawings go and remember it on this PC."""
+        start = drawing_folder() or Path.home() / "Documents"
+        chosen = QFileDialog.getExistingDirectory(self, "Folder for drawings", str(start))
+        if not chosen:
+            return None
+        save_preference(DRAWING_FOLDER, chosen)
+        return Path(chosen)
+
+    def closeEvent(self, event):
+        if self._may_discard_changes():
+            self._let_go_of_project()
+            event.accept()
+        else:
+            event.ignore()
 
     # --- Section list -------------------------------------------------------------------
 
@@ -134,7 +394,7 @@ class MainWindow(QMainWindow):
         if section is not None:
             section.push_to_next_page = self.push_check.isChecked()
             section.link_with_next = self.link_check.isChecked()
-            self.refresh()
+            self._edited()
 
     def _add_section(self):
         # New sections go right after the selected one (or at the end).
@@ -142,14 +402,14 @@ class MainWindow(QMainWindow):
         insert_at = row + 1 if row >= 0 else len(self._sections())
         self._sections().insert(insert_at, Section())
         self._rebuild_list(insert_at)
-        self.refresh()
+        self._edited()
 
     def _remove_section(self):
         row = self.section_list.currentRow()
         if row >= 0:
             del self._sections()[row]
             self._rebuild_list(row)
-            self.refresh()
+            self._edited()
 
     def _move_up(self):
         self._swap(self.section_list.currentRow(), -1)
@@ -163,7 +423,7 @@ class MainWindow(QMainWindow):
         if 0 <= row < len(sections) and 0 <= other < len(sections):
             sections[row], sections[other] = sections[other], sections[row]
             self._rebuild_list(other)
-            self.refresh()
+            self._edited()
 
     # --- AutoCAD ------------------------------------------------------------------------
 
@@ -171,10 +431,17 @@ class MainWindow(QMainWindow):
         # Imported here so the app still opens (preview only) where AutoCAD isn't installed.
         from src.autocad.generate import GenerateError, generate_drawing
 
+        folder = drawing_folder()
+        if folder is None:
+            QMessageBox.information(self, APP_NAME, "Pick the folder your drawings should be saved "
+                                    "in. You can change it later with File > Drawing Folder.")
+            folder = self._choose_drawing_folder()
+            if folder is None:
+                return
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             result = generate_drawing(self._switchboard, self._settings, self._autocad_settings,
-                                      self._catalog)
+                                      self._catalog, output_folder=folder)
         except GenerateError as error:
             QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "Drawing not made", str(error))
@@ -185,35 +452,11 @@ class MainWindow(QMainWindow):
             return
         QApplication.restoreOverrideCursor()
         message = f"Drawing saved:\n{result.drawing_file}"
+        if result.project_copy is not None:
+            message += f"\n\nA copy of the project was saved next to it:\n{result.project_copy.name}"
         if result.problems:
             message += "\n\nPlease check:\n" + "\n".join(f"- {p}" for p in result.problems)
         QMessageBox.information(self, "Drawing made", message)
-
-    def _audit_blocks(self):
-        # Imported here so the app still opens (preview only) where AutoCAD isn't installed.
-        from src.autocad.catalog_refresh import audit_blocks
-        from src.autocad.connection import AutocadSession
-        from src.layout.block_catalog import load_block_catalog
-
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            app = AutocadSession(self._autocad_settings.program_id).app
-            changes, problems = audit_blocks(app, self._settings, self._autocad_settings,
-                                             self._catalog_file)
-            self._catalog = load_block_catalog(self._catalog_file)
-        except Exception as error:     # AutoCAD/COM or file errors: show them rather than crash
-            QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Block audit failed", f"{type(error).__name__}: {error}")
-            return
-        QApplication.restoreOverrideCursor()
-        self.editor.set_catalog(self._catalog)
-        self.refresh()
-        report = "Catalog updated:\n" + "\n".join(f"- {line}" for line in changes)
-        if problems:
-            report += "\n\nProblems found:\n" + "\n".join(f"- {line}" for line in problems)
-            QMessageBox.warning(self, "Block audit", report)
-        else:
-            QMessageBox.information(self, "Block audit", report + "\n\nNo problems found.")
 
     # --- Layout -------------------------------------------------------------------------
 

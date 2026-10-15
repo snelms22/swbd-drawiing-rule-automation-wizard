@@ -282,7 +282,9 @@ def _add_bus_paths(page, settings, catalog, continues_on_next_page=False):
 def _break_blocks(end_x, bus_y, direction, other_page, settings, catalog) -> list:
     """Tilde + labelled bracket where the horizontal main bus is cut at a page break.
     `end_x` is the bus end; `direction` "to" (bus leaves to the right) or "from" (bus
-    arrives from the left). Returns [] if the blocks aren't catalogued."""
+    arrives from the left). Where the bus arrives, both blocks are mirrored to face it:
+    the tilde with only its left-right flip setting, so its A/B/C letters sit on the
+    incoming side, away from the bus. Returns [] if the blocks aren't catalogued."""
     br = settings.bus_break
     tilde = catalog.get(br.tilde_block) if catalog else None
     bracket = catalog.get(br.bracket_block) if catalog else None
@@ -296,7 +298,9 @@ def _break_blocks(end_x, bus_y, direction, other_page, settings, catalog) -> lis
     return [
         BlockPlacement(block=br.tilde_block, layer=br.layer,
                        position=(end_x - conn_a[0], a_y - conn_a[1]),
-                       visibility=br.tilde_state_horizontal_bus, extents=tilde.extents),
+                       visibility=br.tilde_state_horizontal_bus,
+                       flipped=not leaving, flip_parameter=br.tilde_flip_horizontal_bus,
+                       extents=tilde.oriented_extents(not leaving)),
         BlockPlacement(block=br.bracket_block, layer=br.layer, position=(bracket_x, bus_y),
                        attributes={br.label_attribute_horizontal_bus: label}, label=label,
                        visibility=br.bracket_state_horizontal_bus,

@@ -2,8 +2,10 @@
 
 Test numbers (tests/helpers.py): breaker TEST_BKR has poles at x 0/5/10 of its base point,
 running from y 0 down to y -10. Bus phases 5 apart; breaker 15 from the bus; input 30
-beyond the breaker, input box 15. U-turn: the nearest phase goes 30 from where it starts
-(the next 5 and 10 further), then runs 35 across. Phases keep the references' rule: A
+beyond the breaker, input box 15. TEST_LUGS reaches 15 from its connection. U-turn to a
+termination: just far enough for the termination's text (5 clear of the breaker), then 35
+across and back 5. U-turns of a breaker fed on the bus side: the nearest phase goes 30
+from where it starts (the next 5 and 10 further), then 35 across. Phases keep the references' rule: A
 left of B on vertical runs, above it on horizontal runs. The first section's content
 starts at x 15, so the block base sits at x 15.5.
 Main breaker placeholder: 30 wide, 75 tall.
@@ -37,29 +39,33 @@ def test_empty_feed_directions_mean_the_side_away_from_the_bus():
 def test_bottom_fed_breaker_below_the_bus_from_a_top_termination_u_turns():
     # As in NTT-013630 section 1. Nothing above: bus B at 30 + 5 + 75 = 110, C at 105.
     # Breaker top terminals 15 below C (y 90), bottom terminals at y 80.
+    # The U goes just far enough: the breaker reaches 1 past its bottom terminals, then 5
+    # clearance, then the termination reaches 15 back up from its connection, then 5 out
+    # of the U-turn: A (nearest) turns 26 below 80, at 54; B at 49, C at 44.
     main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="top")
     page = layout(Section(SectionContents(below=main))).pages[0]
     assert lines(page) == [
-        ("A", (15.5, 80), (15.5, 50)), ("A", (15.5, 50), (50.5, 50)), ("A", (50.5, 50), (50.5, 80)),
-        ("B", (20.5, 80), (20.5, 45)), ("B", (20.5, 45), (55.5, 45)), ("B", (55.5, 45), (55.5, 80)),
-        ("C", (25.5, 80), (25.5, 40)), ("C", (25.5, 40), (60.5, 40)), ("C", (60.5, 40), (60.5, 80)),
+        ("A", (15.5, 80), (15.5, 54)), ("A", (15.5, 54), (50.5, 54)), ("A", (50.5, 54), (50.5, 59)),
+        ("B", (20.5, 80), (20.5, 49)), ("B", (20.5, 49), (55.5, 49)), ("B", (55.5, 49), (55.5, 59)),
+        ("C", (25.5, 80), (25.5, 44)), ("C", (25.5, 44), (60.5, 44)), ("C", (60.5, 44), (60.5, 59)),
     ]
-    # The termination block is fed from the top: flipped, CONN_A (5 below its base point)
-    # on the top of the A-phase leg.
+    # 5 out of the U-turn (y 59): the termination block, fed from the top: flipped, CONN_A
+    # 5 below its base point. Its top (64 + 10 = 74) is 5 below the breaker's (79).
     block, = lugs(page)
-    assert block.flipped and block.position == (50.5, 85)
+    assert block.flipped and block.position == (50.5, 64)
 
 
 def test_top_fed_breaker_above_the_bus_from_a_bottom_termination_u_turns_up():
-    # Bus B at 35, A at 40. Breaker bottom terminals at 55, top terminals at 65. Turning
-    # up, C is nearest (65 + 30 = 95) and A outermost (105).
+    # Bus B at 35, A at 40. Breaker bottom terminals at 55, top terminals at 65; the
+    # breaker reaches 3.5 above them. Depth 3.5 + 5 + 15 + 5 = 28.5 to C (nearest, 93.5);
+    # A is outermost (103.5). The legs come back down 5, to 88.5.
     main = MainBreaker(Breaker("52-M"), breaker_feed="top", termination_feed="bottom")
     page = layout(Section(SectionContents(above=main))).pages[0]
     a_lines = [line for line in lines(page) if line[0] == "A"]
-    assert a_lines == [("A", (15.5, 65), (15.5, 105)), ("A", (15.5, 105), (50.5, 105)),
-                       ("A", (50.5, 105), (50.5, 65))]
+    assert a_lines == [("A", (15.5, 65), (15.5, 103.5)), ("A", (15.5, 103.5), (50.5, 103.5)),
+                       ("A", (50.5, 103.5), (50.5, 88.5))]
     block, = lugs(page)
-    assert not block.flipped and block.position == (50.5, 60)   # CONN_A 5 above its base
+    assert not block.flipped and block.position == (50.5, 83.5)   # CONN_A 5 above its base
 
 
 def test_single_breaker_u_turns_too():
@@ -132,3 +138,14 @@ def test_bus_side_fed_breaker_mid_bus_tees_in_beside_it():
     riser_xs = {breaker.position[0] + 35 + dx for dx in (0, 5, 10)}
     dot_xs = {b.position[0] for b in page.parts.blocks if b.block == "BUS_NODE"}
     assert riser_xs <= dot_xs
+
+
+def test_u_turn_goes_further_for_a_termination_with_more_lines_of_text():
+    # Two line breaks in the termination's text: 2 x 1.25 x 1.6 = 4 more, so A turns at
+    # 54 - 4 = 50 and the termination sits 5 above that (55) instead of at 59.
+    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="top",
+                       input_attributes={"TERMINATION": "LUGS\n(4) 500 KCMIL\nPER PHASE"})
+    page = layout(Section(SectionContents(below=main))).pages[0]
+    assert ("A", (15.5, 80), (15.5, 50)) in lines(page)
+    block, = lugs(page)
+    assert block.position == (50.5, 60)

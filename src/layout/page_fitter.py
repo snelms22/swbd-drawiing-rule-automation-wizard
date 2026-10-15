@@ -187,6 +187,11 @@ def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings, catalog=None) -
     if current_page:
         sections_per_page.append(current_page)
 
+    # The bus can enter a new page at any height, so the first section on a page never
+    # needs to step it (2026-10-13): it drops the step and the width paid for it.
+    for sections in sections_per_page[1:]:
+        _enter_page_at_own_height(sections[0], settings)
+
     pages = []
     first_section_number = 1
     for page_number, sections in enumerate(sections_per_page, start=1):
@@ -195,6 +200,16 @@ def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings, catalog=None) -
 
     add_page_parts(pages, settings, catalog, warnings)
     return LayoutResult(pages=pages, warnings=warnings)
+
+
+def _enter_page_at_own_height(section, settings):
+    """The bus arrives from the previous page already at this section's height (its break
+    block and "FROM" label sit there), so no step, and no step zone, is needed."""
+    plan = section.bus
+    if plan is None or plan.starts_bus or not plan.steps_at_entry:
+        return
+    plan.entry_y = plan.body_y
+    section.width -= step_zone_width(settings)
 
 
 def _check_section_sizes(sections, settings, warnings):

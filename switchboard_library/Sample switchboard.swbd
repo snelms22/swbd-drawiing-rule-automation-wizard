@@ -1,0 +1,145 @@
+{
+  "format_version": 1,
+  "saved_with": "2.0.0-dev",
+  "name": "Sample switchboard",
+  "sections": [
+    {
+      "push_to_next_page": false,
+      "link_with_next": false,
+      "above": {
+        "kind": "main breaker",
+        "label": "52-MCB-01",
+        "mounting": "fixed",
+        "breaker_feed": "",
+        "termination_feed": "",
+        "breaker_attributes": {},
+        "input_attributes": {}
+      },
+      "below": null,
+      "tie": null
+    },
+    {
+      "push_to_next_page": false,
+      "link_with_next": false,
+      "above": {
+        "kind": "group mounted",
+        "levels": [
+          {
+            "type": "twin",
+            "left": {
+              "breaker": "52-F5",
+              "attributes": {}
+            },
+            "right": {
+              "breaker": "52-F6",
+              "attributes": {}
+            }
+          },
+          {
+            "type": "twin",
+            "left": {
+              "provision": "3VA41"
+            },
+            "right": {
+              "breaker": "52-F4",
+              "attributes": {}
+            }
+          },
+          {
+            "type": "single",
+            "flipped": false,
+            "slot": {
+              "breaker": "52-F3",
+              "attributes": {}
+            }
+          },
+          {
+            "type": "single",
+            "flipped": false,
+            "slot": {
+              "breaker": "52-F2",
+              "attributes": {}
+            }
+          },
+          {
+            "type": "single",
+            "flipped": false,
+            "slot": {
+              "breaker": "52-F1",
+              "attributes": {}
+            }
+          }
+        ]
+      },
+      "below": {
+        "kind": "group mounted",
+        "levels": [
+          {
+            "type": "twin",
+            "left": {
+              "breaker": "52-F7",
+              "attributes": {}
+            },
+            "right": {
+              "breaker": "52-F8",
+              "attributes": {}
+            }
+          },
+          {
+            "type": "twin",
+            "left": {
+              "breaker": "52-F9",
+              "attributes": {}
+            },
+            "right": {
+              "breaker": "52-F10",
+              "attributes": {}
+            }
+          }
+        ]
+      },
+      "tie": null
+    },
+    {
+      "push_to_next_page": false,
+      "link_with_next": false,
+      "above": {
+        "kind": "single breaker",
+        "label": "52-F11",
+        "breaker_feed": "",
+        "termination_feed": "",
+        "breaker_attributes": {},
+        "output_attributes": {}
+      },
+      "below": {
+        "kind": "single breaker",
+        "label": "52-F12",
+        "breaker_feed": "",
+        "termination_feed": "",
+        "breaker_attributes": {},
+        "output_attributes": {}
+      },
+      "tie": {
+        "label": "52-TB01",
+        "bus_steps": "up",
+        "mounting": "fixed",
+        "breaker_attributes": {}
+      }
+    },
+    {
+      "push_to_next_page": false,
+      "link_with_next": false,
+      "above": null,
+      "below": {
+        "kind": "main breaker",
+        "label": "52-MCB-02",
+        "mounting": "draw-out",
+        "breaker_feed": "",
+        "termination_feed": "",
+        "breaker_attributes": {},
+        "input_attributes": {}
+      },
+      "tie": null
+    }
+  ]
+}

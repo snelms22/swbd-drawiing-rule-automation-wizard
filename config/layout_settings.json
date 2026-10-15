@@ -40,7 +40,9 @@
     "layer": "0",
     "style": "Hyper_Text",
     "height": 1.25,
-    "char_width_factor": 0.73
+    "char_width_factor": 0.73,
+    "line_spacing_note": "Multi-line text (e.g. a termination block's TERMINATION attribute): each extra line adds height x line_spacing_factor. 1.667 is AutoCAD's single line spacing for MText.",
+    "line_spacing_factor": 1.667
   },
   "section_label": {
     "text_format": "SECTION {number}",
@@ -94,9 +96,11 @@
     "gap_bus_to_breaker": 15.0,
     "gap_breaker_to_input": 30.0,
     "input_box_height": 15.0,
-    "u_turn_note": "Used by main breakers and single breakers when the termination is fed from the other side than the breaker (e.g. a bottom-fed breaker below the bus fed from a top termination): the bus leaves the breaker, drops u_turn_depth (A phase; B and C 5 and 10 more), runs u_turn_width to the right and comes back to the breaker's far-terminal height, where the termination block sits. Measured from NTT-013630 section 1.",
+    "u_turn_note": "U-turns for main and single breakers (2026-10-13). When the termination is fed from the other side than the breaker, the bus leaves the breaker, turns, runs u_turn_width to the right and comes back u_turn_termination_rise, where the termination block sits. The turn is just far enough that the termination's text stays u_turn_text_clearance clear of the breaker and its text (sizes from catalog/blocks.json). u_turn_depth is used for the U-turns of a breaker fed on the bus side.",
     "u_turn_depth": 28.43,
-    "u_turn_width": 35.0
+    "u_turn_width": 35.0,
+    "u_turn_termination_rise": 5.0,
+    "u_turn_text_clearance": 5.0
   },
   "input_output": {
     "note": "Sammy's input/output block. Not flipped = from/to the bottom; flipped = from/to the top.",
@@ -112,6 +116,8 @@
     "tilde_block": "3P_TIDE_R0",
     "tilde_state_horizontal_bus": "HORIZONTAL",
     "tilde_state_vertical_bus": "VERTICAL",
+    "tilde_flip_horizontal_bus": "Flip state1",
+    "tilde_flip_note": "Where the bus arrives on a page, the tilde is mirrored with only this flip setting, so its A/B/C letters sit on the incoming side (tested on the block 2026-10-13: Flip state1 mirrors left-right; Flip state2 is for the vertical state).",
     "bracket_block": "BRACKET_TEXT_R0",
     "bracket_state_horizontal_bus": "VERTICAL BRACKET",
     "bracket_state_vertical_bus": "HORIZONTAL BRACKET",

@@ -228,6 +228,103 @@ no divider at that break. When to split, and how, is still to be defined.
 **Reason:** That is the only section label the drawing needs.
 **Status:** Approved
 
+### 2026-10-15 — Project files: extension and saving
+**Decision:** A switchboard project is saved as one plain-JSON file with the extension
+`.swbd` (each future product line gets its own extension). Saving is manual only (Save /
+Save As), with a Save / Don't save / Cancel prompt when unsaved changes would be lost. No
+autosave for now.
+- The file holds only what the engineer entered (sections, breakers, feeds, attribute
+  values), with `format_version` (older files are upgraded on opening) and `saved_with`
+  (the app version). Layout is always worked out again. Attribute values a block no longer
+  has are kept and reported on opening.
+- Default folder: `CAD BLOCKS/CONFIGURATORS/Jobs` (every user, every product line).
+- Saving overwrites the same file (no revisions for now).
+- Every generated drawing gets a copy of its project next to it (same name, `.swbd`).
+- A **switchboard library** (`switchboard_library/`, shipped with the app) holds ready-made
+  switchboards, starting with the sample. File > Open from Library opens one as an untitled
+  copy, so saving never changes the library. File > New = one empty section.
+- The project's name is its file name.
+**Reason:** Sammy, 2026-10-15: the tool will be remade for other product lines.
+**Status:** Approved
+
+### 2026-10-15 — Releasing the app to the team
+**Decision:**
+- The app is packaged with PyInstaller (it carries its own Python; Python already installed
+  on a PC doesn't matter).
+- Releases live in SharePoint: `CAD BLOCKS/CONFIGURATORS/Switchboard Configurator/`
+  (`CONFIGURATORS` will also hold future product lines), each version in its own
+  `Releases/X.Y.Z/` folder, with `latest.txt` naming the current one.
+- Each PC runs a one-time installer: desktop + Start menu shortcut, and an AutoCAD bundle
+  that adds a ribbon tab. A launcher copies the latest version to the PC and starts it, so
+  updates reach everyone with no action. If a newer version appears while the app is open,
+  it offers the user a restart.
+- Names: the app and its icon are **Switchboard Configurator**; the AutoCAD ribbon tab is
+  **Hyper**.
+- The installer is built first; IT approval is sought afterwards.
+- **Audit Blocks is removed from the app.** Sammy owns the block audit; Claude runs it on
+  request during development (`tools/audit_blocks.py`).
+**Reason:** Sammy, 2026-10-15.
+**Status:** Approved (to build after saving / opening projects)
+
+### 2026-10-15 — Ready for release 2.0.0
+**Decision:**
+- **Drawings** are saved in a folder each person picks; the app remembers it (per person,
+  on their PC) and it can be changed.
+- **One person edits a project at a time.** Opening a project someone else has open gives
+  a read-only copy (Save As still works).
+- **Icon:** the letters "SWBD" for now (a picture comes in a later update).
+- **Testing:** Sammy installs from SharePoint like a teammate (also to use and show the
+  app outside the development space), then one teammate tests before the team gets 2.0.0.
+- Feeder block prompts are left as they are for this release.
+**How it was built (2026-10-15):**
+- The app is zipped per version (`Releases/X.Y.Z/Switchboard Configurator X.Y.Z.zip`): one
+  file syncs through OneDrive far better than thousands. The launcher unzips it into
+  `%LOCALAPPDATA%\Hyper Configurators\Switchboard Configurator\versions\X.Y.Z\` and keeps one
+  older version. Offline, it starts the newest version already on the PC.
+- One .exe is both installer and launcher. Run from SharePoint it installs itself and the
+  shortcuts; run from the shortcut or the ribbon it launches. It logs each run
+  (`launcher.log`).
+- The AutoCAD add-in (bundle with a .cuix and a LISP command HYPERSWBD) ships inside each
+  version and is refreshed by the launcher; it loads only in plain AutoCAD 2026 (R25.1).
+- Builds are made outside OneDrive (OneDrive locks files mid-build).
+- The released app checks for updates on start and every 30 minutes; Help > About shows the
+  version and where things are.
+- Tested end to end in a sandbox (install, launch, update offer, restart into the new
+  version). The ribbon tab inside real AutoCAD and Generate from the installed app are
+  checked by Sammy's own install.
+**Reason:** Sammy, 2026-10-15.
+**Status:** Approved
+
+### 2026-10-15 — Version numbers
+**Decision:** Releases are numbered X.Y.Z. Z = routine changes and small fixes; Y = something
+changed but not huge; X = a milestone. The first release to the team, once the app
+interface changes are settled, is **2.0.0**.
+**Reason:** Sammy, 2026-10-15.
+**Status:** Approved
+
+### 2026-10-13 — Fixes from the first full test drawing (115535)
+**Decision:**
+- **Tie breaker attributes:** the tie breaker gets one editor field per attribute of its
+  block (fixed or draw-out), like a main breaker; its Label fills the breaker-name attribute.
+- **Bus entering a new page:** the bus enters a new page at the height the first section
+  on it needs. That section does not step the bus and does not pay for a step zone. Page 1's
+  bus leaves at its own height; the break blocks and labels sit at each page's height.
+- **U-turn to a termination (main and single breakers):** coming out of the U-turn the bus
+  runs `u_turn_termination_rise` (5), then the termination block. The U goes only as far as
+  needed for the termination's text (which faces back toward the breaker) to stay
+  `u_turn_text_clearance` (5) clear of the breaker and its text. Sizes come from the catalog;
+  each line break typed in the termination's attributes adds text height x
+  `line_spacing_factor` (1.667, AutoCAD's MText spacing). Replaces the fixed depth 28.43 for
+  this U; `u_turn_depth` still sets the U-turns of a breaker fed on the bus side.
+- **Tilde where the bus arrives on a page:** mirrored like the bracket, using only its
+  left-right flip setting (`bus_break.tilde_flip_horizontal_bus`, "Flip state1"; tested on
+  the block: Flip state2 belongs to its vertical state), so its A/B/C letters sit on the
+  incoming side instead of over the bus.
+**Reason:** Sammy's review of `output/New switchboard 2026-10-13 115535.dwg` (sections 1
+and 6: termination text ran into the main bus; page 2: the bus bent right after entering;
+the incoming tilde was not flipped).
+**Status:** Approved
+
 ### 2026-10-13 — Approved styles win over reference drawings
 **Decision:** The styles already approved here (e.g. Sammy's restyled ES_01 page style) are
 kept. Most reference drawings are in the old style; they are only raised when they add

@@ -43,9 +43,15 @@ class TextSettings:
     # Average character width as a fraction of text height (measured from "SECTION 1" in
     # Sammy's ES_01). Used to estimate how wide a label is without AutoCAD.
     char_width_factor: float
+    # Multi-line text: each extra line adds height x this (AutoCAD's MText line spacing).
+    line_spacing_factor: float
 
     def estimated_width(self, text: str) -> float:
         return len(text) * self.height * self.char_width_factor
+
+    def extra_height_for_lines(self, text: str) -> float:
+        """How much taller `text` is than one line, from the line breaks typed in it."""
+        return text.count("\n") * self.height * self.line_spacing_factor
 
 
 @dataclass(frozen=True)
@@ -104,8 +110,10 @@ class MainBreakerSettings:
     gap_breaker_to_input: float # breaker's far terminals to the input end of the bus
     input_box_height: float     # room kept for the input block and its label
     # U-turn when the termination is fed from the other side than the breaker (2026-10-13).
-    u_turn_depth: float         # breaker's far terminal (A) to the bottom of the U
+    u_turn_depth: float         # U-turns of a breaker fed on the bus side: start to nearest phase
     u_turn_width: float         # from the breaker's leg to the termination's leg
+    u_turn_termination_rise: float  # out of the U-turn this far, then the termination block
+    u_turn_text_clearance: float    # termination's text to the breaker and its text
 
 
 @dataclass(frozen=True)
@@ -115,6 +123,7 @@ class BusBreakSettings:
     tilde_block: str
     tilde_state_horizontal_bus: str
     tilde_state_vertical_bus: str
+    tilde_flip_horizontal_bus: str   # the one flip setting that mirrors the tilde left-right
     bracket_block: str
     bracket_state_horizontal_bus: str
     bracket_state_vertical_bus: str
@@ -247,6 +256,7 @@ def load_settings(path) -> LayoutSettings:
             style=_read_text(data, "text", "style"),
             height=_read_number(data, "text", "height"),
             char_width_factor=_read_number(data, "text", "char_width_factor"),
+            line_spacing_factor=_read_number(data, "text", "line_spacing_factor"),
         ),
         section_label=SectionLabelSettings(
             text_format=section_label_format,
@@ -294,6 +304,8 @@ def load_settings(path) -> LayoutSettings:
             input_box_height=_read_number(data, "main_breaker", "input_box_height"),
             u_turn_depth=_read_number(data, "main_breaker", "u_turn_depth"),
             u_turn_width=_read_number(data, "main_breaker", "u_turn_width"),
+            u_turn_termination_rise=_read_number(data, "main_breaker", "u_turn_termination_rise"),
+            u_turn_text_clearance=_read_number(data, "main_breaker", "u_turn_text_clearance"),
         ),
         input_output=InputOutputSettings(
             block=_read_text(data, "input_output", "block"),
@@ -318,6 +330,7 @@ def load_settings(path) -> LayoutSettings:
             tilde_block=_read_text(data, "bus_break", "tilde_block"),
             tilde_state_horizontal_bus=_read_text(data, "bus_break", "tilde_state_horizontal_bus"),
             tilde_state_vertical_bus=_read_text(data, "bus_break", "tilde_state_vertical_bus"),
+            tilde_flip_horizontal_bus=_read_text(data, "bus_break", "tilde_flip_horizontal_bus"),
             bracket_block=_read_text(data, "bus_break", "bracket_block"),
             bracket_state_horizontal_bus=_read_text(data, "bus_break", "bracket_state_horizontal_bus"),
             bracket_state_vertical_bus=_read_text(data, "bus_break", "bracket_state_vertical_bus"),

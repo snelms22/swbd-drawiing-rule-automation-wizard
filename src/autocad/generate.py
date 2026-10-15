@@ -1,5 +1,8 @@
 """Makes the drawing: copy the template, open it in AutoCAD, check its frames, draw every
 page, save. Decision: docs/DECISIONS.md, 2026-10-11 "First AutoCAD step".
+
+A copy of the project (.swbd) is saved next to every drawing, with the same name, so any
+drawing can be reopened and remade exactly (decision 2026-10-15).
 """
 import re
 import shutil
@@ -10,6 +13,7 @@ from pathlib import Path
 from src.autocad.connection import AutocadSession
 from src.autocad.draw_page import BlockInsert, page_shapes
 from src.layout.page_fitter import fit_pages
+from src.model.project_file import EXTENSION, save_project
 
 
 class GenerateError(Exception):
@@ -19,6 +23,7 @@ class GenerateError(Exception):
 @dataclass
 class GenerateResult:
     drawing_file: Path
+    project_copy: Path | None = None                   # the .swbd saved next to the drawing
     problems: list[str] = field(default_factory=list)   # drawing was made, but check these
 
 
@@ -58,7 +63,9 @@ def check_frames(frames, page_count, autocad_settings) -> dict[int, tuple[float,
 
 
 def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=None,
-                     now=None) -> GenerateResult:
+                     now=None, output_folder=None) -> GenerateResult:
+    """`output_folder`: where the drawing goes (the folder the person picked, decision
+    2026-10-15); config's output_folder when not given (development)."""
     layout = fit_pages(switchboard, layout_settings, catalog)
     if not layout.pages:
         raise GenerateError("There is nothing to draw: the switchboard has no sections.")
@@ -66,8 +73,9 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
     template = autocad_settings.template_file
     if not template.exists():
         raise GenerateError(f"Template not found: {template}")
-    autocad_settings.output_folder.mkdir(parents=True, exist_ok=True)
-    drawing_file = autocad_settings.output_folder / output_file_name(
+    output_folder = Path(output_folder) if output_folder else autocad_settings.output_folder
+    output_folder.mkdir(parents=True, exist_ok=True)
+    drawing_file = output_folder / output_file_name(
         switchboard.name, now or datetime.now())
     shutil.copy2(template, drawing_file)          # the template itself is never opened
 
@@ -115,4 +123,9 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
         problems += drawing.add_shapes(shapes_per_page[page.number], x, y)
 
     drawing.save()
-    return GenerateResult(drawing_file=drawing_file, problems=problems)
+    project_copy = None
+    try:
+        project_copy = save_project(switchboard, drawing_file.with_suffix(EXTENSION))
+    except OSError as error:          # the drawing is fine; just say the copy wasn't saved
+        problems.append(f"The project copy next to the drawing could not be saved: {error}")
+    return GenerateResult(drawing_file=drawing_file, project_copy=project_copy, problems=problems)

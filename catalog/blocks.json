@@ -3,7 +3,7 @@
   "blocks": {
     "3P_CB_FM_1": {
       "description": "3-pole fixed-mount breaker, poles vertical, A on the left",
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [
         [
           0.0,
@@ -88,7 +88,7 @@
     },
     "3P_CB_DO": {
       "description": "3-pole draw-out breaker, poles vertical, A on the left",
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [
         [
           0.0,
@@ -173,7 +173,7 @@
     },
     "BUS_NODE": {
       "description": "Filled junction dot, diameter 1.5, centred on the base point",
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -187,7 +187,7 @@
     },
     "PHASE_LUGS_3L_R0": {
       "description": "Input/output bus connection. States: INPUT, OUTPUT, INPUT W/ NEUTRAL, OUTPUT W/ NEUTRAL. Not flipped = from/to the BOTTOM; flipped = from/to the TOP. Base point at the base of the A-phase triangle (accepted for this block).",
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {
@@ -222,7 +222,7 @@
       },
       "extents": [
         -3.0,
-        -8.42,
+        -10.25,
         13.0,
         5.0
       ],
@@ -230,7 +230,7 @@
         -3.0,
         -5.0,
         13.0,
-        8.46
+        10.25
       ],
       "visibility_states": [
         "INPUT",
@@ -250,7 +250,7 @@
       ]
     },
     "3P_TIDE_R0": {
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {
@@ -286,17 +286,17 @@
       "attributes": []
     },
     "BRACKET_TEXT_R0": {
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
-        -6.0089,
+        -8.1581,
         -6.0089,
         6.679,
         6.0089
       ],
       "extents_flipped": [
-        -6.8333,
+        -8.1581,
         -6.0089,
         6.0089,
         6.0089
@@ -314,12 +314,12 @@
         {
           "tag": "HORIZONTAL_LABLE",
           "prompt": "",
-          "default": ""
+          "default": "XXX"
         }
       ]
     },
     "PHASE_LUGS_3L_N_R0": {
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {
@@ -362,7 +362,7 @@
       },
       "extents": [
         -3.0,
-        -8.42,
+        -10.25,
         18.0,
         5.0
       ],
@@ -370,7 +370,7 @@
         -3.0,
         -5.0,
         18.0,
-        8.46
+        10.25
       ],
       "visibility_states": [
         "INPUT W/ NEUTRAL",
@@ -390,7 +390,7 @@
       ]
     },
     "SIE_BKR_3P_3L_ASSY_R0": {
-      "source": "Refreshed 2026-10-13 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-10-15 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {

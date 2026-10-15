@@ -200,9 +200,17 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
         input_y = far[0][1] + direction * mb.gap_breaker_to_input
         geometry.bus_lines += _u_turn(near, -direction, -mb.u_turn_width, input_y, settings)
     else:
-        # On away from the bus, across to the right, and back to the breaker's height.
-        input_x, input_y = far[0][0] + mb.u_turn_width, far[0][1]
-        geometry.bus_lines += _u_turn(far, direction, mb.u_turn_width, input_y, settings)
+        # On away from the bus, across to the right, and back toward it only
+        # `u_turn_termination_rise`, where the termination block sits. The turn is just far
+        # enough that the termination's text (facing back toward the breaker) stays
+        # `u_turn_text_clearance` clear of the breaker and its text (2026-10-13).
+        depth = (_reach_past_far_terminals(block, far_terminals, direction)
+                 + mb.u_turn_text_clearance
+                 + _termination_reach(settings, catalog, termination_feed, direction, io_attributes)
+                 + mb.u_turn_termination_rise)
+        input_x = far[0][0] + mb.u_turn_width
+        input_y = far[0][1] + direction * (depth - mb.u_turn_termination_rise)
+        geometry.bus_lines += _u_turn(far, direction, mb.u_turn_width, input_y, settings, depth)
 
     # Bus side: from the main bus to the breaker's bus end.
     dot_block = settings.main_bus.junction_dot_block
@@ -260,16 +268,19 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
     return geometry
 
 
-def _u_turn(ends, direction, width, back_to_y, settings) -> list[BusLine]:
+def _u_turn(ends, direction, width, back_to_y, settings, depth=None) -> list[BusLine]:
     """Bus lines for a U-turn from the A, B, C `ends` (all at one height): on in
-    `direction` (+1 up, -1 down) until the nearest phase is `u_turn_depth` away, across by
-    `width` (+ right, - left), and back to `back_to_y` (one height, or {phase: height}).
+    `direction` (+1 up, -1 down) until the nearest phase is `depth` away (default
+    `u_turn_depth`), across by `width` (+ right, - left), and back to `back_to_y` (one
+    height, or {phase: height}).
     Phases follow the references' rule, as the main bus does: A left of B on vertical
     runs and above it on horizontal runs, so the corners are staggered and some phases
     cross without connecting (NTT-013630 section 1)."""
     half = settings.main_bus.phase_spacing
+    if depth is None:
+        depth = settings.main_breaker.u_turn_depth
     start_y = ends[0][1]
-    turn_b = start_y + direction * (settings.main_breaker.u_turn_depth + half)
+    turn_b = start_y + direction * (depth + half)
     lines = []
     for phase, (x, _) in zip("ABC", ends):
         turn_y = turn_b + {"A": half, "B": 0.0, "C": -half}[phase]
@@ -279,6 +290,33 @@ def _u_turn(ends, direction, width, back_to_y, settings) -> list[BusLine]:
                   BusLine(phase, (x, turn_y), (back_x, turn_y)),
                   BusLine(phase, (back_x, turn_y), (back_x, end_y))]
     return lines
+
+
+def _reach_past_far_terminals(block, far_terminals, direction) -> float:
+    """How far the breaker block (with its text) reaches past its far terminals, away
+    from the bus. From the block's size in the catalog."""
+    far_y = far_terminals[0][1]
+    return block.extents[3] - far_y if direction > 0 else far_y - block.extents[1]
+
+
+def _termination_reach(settings, catalog, termination_feed, direction, io_attributes) -> float:
+    """How far the termination block (with its text) reaches from its connection point
+    back toward the breaker, at the end of a U-turn that went in `direction`. Without the
+    block in the catalog, its placeholder box's height.
+
+    The catalog's size holds one line of text. The termination's text grows away from the
+    block (toward the breaker) with each line break the engineer typed, so the most lines
+    in any of its attributes are added on."""
+    extra = max((settings.text.extra_height_for_lines(value) for value in io_attributes.values()),
+                default=0.0)
+    io_block = catalog.get(settings.input_output.block)
+    if io_block is None or not io_block.connections:
+        return settings.main_breaker.input_box_height + extra
+    flipped = termination_feed == TOP
+    _, conn_y = io_block.connection("A", flipped)
+    _, bottom, _, top = io_block.oriented_extents(flipped)
+    # The U came back toward the bus: against `direction`.
+    return (top - conn_y if direction < 0 else conn_y - bottom) + extra
 
 
 def content_left_x(placed, settings) -> float:

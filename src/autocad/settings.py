@@ -1,5 +1,8 @@
-"""Loads config/autocad_settings.json: which AutoCAD to use, where the template is, and how
-pages map to the template's frames and layouts."""
+"""Loads config/autocad_settings.json: which AutoCAD to use, where the template, block
+library and project folders are, and how pages map to the template's frames and layouts.
+
+Paths starting with ~ are in each person's own user folder (where SharePoint syncs), so one
+settings file works on every PC; relative paths are inside the configurator's folder."""
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +23,8 @@ class AutocadSettings:
     placeholder_layer_color: int
     block_library_file: Path       # Hyper's block library drawing (read only)
     objectdbx_program_id: str      # reads a .dwg in the background (version must match AutoCAD)
+    jobs_folder: Path              # default folder for project files (every user, every product)
+    switchboard_library_folder: Path   # ready-made switchboards, e.g. the sample
 
     def frame_name(self, page_number: int) -> str:
         return self.page_frame_format.format(page=page_number)
@@ -69,10 +74,13 @@ def load_autocad_settings(path, project_root) -> AutocadSettings:
         placeholder_layer_color=color,
         block_library_file=_resolve(root, text("block_library_file")),
         objectdbx_program_id=text("objectdbx_program_id"),
+        jobs_folder=_resolve(root, text("jobs_folder")),
+        switchboard_library_folder=_resolve(root, text("switchboard_library_folder")),
     )
 
 
 def _resolve(root: Path, value: str) -> Path:
-    """Absolute paths are used as they are; relative ones are inside the project."""
-    path = Path(value)
+    """~ is the person's user folder; absolute paths are used as they are; relative ones
+    are inside the project."""
+    path = Path(value).expanduser()
     return path if path.is_absolute() else root / path

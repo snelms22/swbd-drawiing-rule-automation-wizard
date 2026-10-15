@@ -49,7 +49,8 @@ TEST_SETTINGS = LayoutSettings(
         symbol_bar_widths=(5.0, 3.75, 2.5),
         symbol_bar_spacing=1.25,
     ),
-    text=TextSettings(layer="0", style="Hyper_Text", height=1.25, char_width_factor=0.8),
+    text=TextSettings(layer="0", style="Hyper_Text", height=1.25, char_width_factor=0.8,
+                      line_spacing_factor=1.6),
     section_label=SectionLabelSettings(
         text_format="SECTION {number}", bottom_y=15.0, gap_above_title_block=2.0
     ),
@@ -74,7 +75,8 @@ TEST_SETTINGS = LayoutSettings(
         label_attribute="BREAKER_NAME",
         visibility="1 BOM",
         gap_bus_to_breaker=15.0, gap_breaker_to_input=30.0, input_box_height=15.0,
-        u_turn_depth=30.0, u_turn_width=35.0,
+        u_turn_depth=30.0, u_turn_width=35.0, u_turn_termination_rise=5.0,
+        u_turn_text_clearance=5.0,
     ),
     input_output=InputOutputSettings(
         block="TEST_LUGS", neutral_block="TEST_LUGS_N", layer="0",
@@ -88,7 +90,8 @@ TEST_SETTINGS = LayoutSettings(
     ),
     bus_break=BusBreakSettings(
         layer="0", tilde_block="TEST_TILDE", tilde_state_horizontal_bus="HORIZONTAL",
-        tilde_state_vertical_bus="VERTICAL", bracket_block="TEST_BRACKET",
+        tilde_state_vertical_bus="VERTICAL", tilde_flip_horizontal_bus="Flip state1",
+        bracket_block="TEST_BRACKET",
         bracket_state_horizontal_bus="VERTICAL BRACKET",
         bracket_state_vertical_bus="HORIZONTAL BRACKET", bracket_gap=2.0,
         label_attribute_horizontal_bus="VERTICAL_LABLE",

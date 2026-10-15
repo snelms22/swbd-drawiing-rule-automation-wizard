@@ -261,6 +261,12 @@ def test_page_break_gets_tilde_and_labelled_brackets_on_both_pages():
     assert bracket2.position == (start_x - 2.0, start_y)
     assert bracket2.attributes == {"VERTICAL_LABLE": "FROM ES_01"} and bracket2.flipped
     assert not [p for p in page1.parts.placeholders if p.text == "TO NEXT PAGE"]
+    # The tilde faces the way the bus goes: as is where it leaves; mirrored where it
+    # arrives, with only its left-right flip, so its letters sit on the incoming side.
+    tilde2 = [b for b in page2.parts.blocks if b.block == "TEST_TILDE"][0]
+    assert not tilde1.flipped
+    assert tilde2.flipped and tilde2.flip_parameter == "Flip state1"
+    assert tilde2.position == (start_x, start_y + 5)
 
 
 def test_sections_are_not_raised_when_a_later_section_already_lifts_the_bus_enough():
@@ -273,3 +279,18 @@ def test_sections_are_not_raised_when_a_later_section_already_lifts_the_bus_enou
     )
     assert plans[0].body_y == 35
     assert plans[1].body_y == 170 and plans[2].exit_y == 100
+
+
+def test_bus_enters_a_new_page_at_the_height_it_needs_without_a_step():
+    # Sections 1-2 (group of 1 above, 145 wide) fill page 1 (a third would sit over the
+    # title block) with the bus at 35. Section 3 (group of 5 below) needs the bus at 170
+    # and starts page 2: the bus arrives there at 170 (2026-10-13), so section 3 has no
+    # step and no step zone (145 wide, not 165).
+    sections = [section(above=group(1)) for _ in range(2)] + [section(below=group(5))]
+    result = fit_pages(Switchboard("Test", sections), TEST_SETTINGS)
+    assert [len(page.placed_sections) for page in result.pages] == [2, 1]
+    first_on_page_2 = result.pages[1].placed_sections[0].section
+    assert first_on_page_2.bus.entry_y == first_on_page_2.bus.body_y == 170
+    assert first_on_page_2.width == 145
+    # Page 1's bus leaves at its own height (35).
+    assert result.pages[0].placed_sections[-1].section.bus.exit_y == 35

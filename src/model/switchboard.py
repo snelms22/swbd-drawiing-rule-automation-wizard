@@ -26,3 +26,10 @@ class Switchboard:
     name: str
     # Order matters: it is the order of sections along the main bus, left to right.
     sections: list[Section] = field(default_factory=list)
+
+
+def new_switchboard() -> Switchboard:
+    """What the app opens with, and what File > New makes: one empty section (decision
+    2026-10-12). Saved projects are opened with File > Open; ready-made ones, like the
+    sample, with File > Open from Library."""
+    return Switchboard(name="New switchboard", sections=[Section()])

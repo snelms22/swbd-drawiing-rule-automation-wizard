@@ -27,6 +27,7 @@ from datetime import date
 from pathlib import Path
 
 import pythoncom
+import pywintypes
 import win32com.client
 
 from src.autocad.connection import _point, _retry, is_flip_setting
@@ -161,8 +162,10 @@ def _read_one(work, name, visibility="", flip_parameter="") -> dict:
 
 
 def read_library_blocks(app, library_file, objectdbx_program_id, names,
-                        how_used=None) -> tuple[dict, list[str]]:
-    """{block name: reading} for the names found in the library, and the missing names.
+                        how_used=None) -> tuple[dict, list[str], dict[str, str]]:
+    """{block name: reading} for the names found in the library, the missing names, and
+    {block name: AutoCAD's error} for blocks AutoCAD failed on while reading them (one
+    broken block must not stop the others being read).
     `how_used` is {block name: (visibility state, flip setting)} from block_usage()."""
     how_used = how_used or {}
     library_copy = Path(tempfile.gettempdir()) / f"hyper_configurator_catalog_{os.getpid()}.dwg"
@@ -179,8 +182,13 @@ def read_library_blocks(app, library_file, objectdbx_program_id, names,
             win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_DISPATCH,
                                     [d._oleobj_ for d in definitions]),
             work.Blocks))
-    readings = {name: _read_one(work, name, *how_used.get(name, ("", ""))) for name in found}
-    return readings, [name for name in names if name not in available]
+    readings, failed = {}, {}
+    for name in found:
+        try:
+            readings[name] = _read_one(work, name, *how_used.get(name, ("", "")))
+        except pywintypes.com_error as error:
+            failed[name] = str(error)
+    return readings, [name for name in names if name not in available], failed
 
 
 # --- Plain Python: the audit checks ---------------------------------------------------
@@ -355,7 +363,7 @@ def audit_blocks(app, layout_settings, autocad_settings, catalog_file) -> tuple[
     if unsaved:
         problems.append(unsaved)
 
-    readings, missing = read_library_blocks(app, autocad_settings.block_library_file,
+    readings, missing, failed = read_library_blocks(app, autocad_settings.block_library_file,
                                             autocad_settings.objectdbx_program_id, sorted(roles),
                                             block_usage(layout_settings))
     new_blocks = dict(old_blocks)
@@ -365,6 +373,9 @@ def audit_blocks(app, layout_settings, autocad_settings, catalog_file) -> tuple[
                                          old_blocks.get(name))
         problems += audit_problems(name, roles[name], reading, layout_settings.main_bus.phase_spacing)
     problems += [f"{name}: not found in the block library." for name in missing]
+    problems += [f"{name}: AutoCAD failed while reading it (often a flip or visibility "
+                 f"parameter it can't set); its catalog entry was kept as it was. "
+                 f"Check it in the Block Editor. ({error})" for name, error in failed.items()]
 
     data["blocks"] = new_blocks
     data["note"] = ("Library blocks the configurator uses: connection points (from CONN_ point "
