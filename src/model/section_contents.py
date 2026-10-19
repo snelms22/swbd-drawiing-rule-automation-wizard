@@ -22,8 +22,9 @@ GroupMounted is a list of levels counted OUTWARD from the main bus (level 1 is n
 the bus). A level is either:
     TwinLevel:   a left and a right slot on the same level
     SingleLevel: one slot. Sides alternate automatically; `flipped` swaps one level.
-A slot is a Breaker or a Provision (room left for a future breaker: the bus is tapped
-out to it and a note says what it is for, e.g. "PROVISION FOR" / "3VA62 250AF").
+A slot is a Breaker, a Provision (room left for a future breaker: the bus is tapped
+out to it and a note says what it is for, e.g. "PROVISION FOR" / "3VA62 250AF"), or a
+Space (an unused position: tapped out the same way, labelled just "SPACE"; 2026-10-19).
 """
 from dataclasses import dataclass, field
 
@@ -41,7 +42,12 @@ class Provision:
     info: str = ""                  # one line from the engineer, e.g. "3VA62 250AF"
 
 
-Slot = Breaker | Provision
+@dataclass
+class Space:
+    """An unused position: bussed like a Provision, labelled "SPACE" (decision 2026-10-19)."""
+
+
+Slot = Breaker | Provision | Space
 
 
 # Main breaker mounting options; each maps to a library block in config.

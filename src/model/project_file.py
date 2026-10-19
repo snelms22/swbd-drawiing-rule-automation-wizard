@@ -23,8 +23,8 @@ An arrangement ("above" / "below") has a "kind":
     "group mounted":  levels, nearest the bus first:
                       {"type": "twin", "left": slot, "right": slot}
                       {"type": "single", "flipped": bool, "slot": slot}
-                      a slot is {"breaker": label, "attributes": {...}}
-                      or {"provision": info}
+                      a slot is {"breaker": label, "attributes": {...}},
+                      {"provision": info}, or {"space": true}
 A tie is: label, bus_steps ("up" / "down"), mounting, breaker_attributes.
 
 `format_version` is raised whenever the format changes; opening an older file upgrades it
@@ -34,7 +34,7 @@ import json
 from pathlib import Path
 
 from src.model.section_contents import (
-    FIXED, Breaker, GroupMounted, MainBreaker, Provision, SectionContents, SingleBreaker,
+    FIXED, Breaker, GroupMounted, MainBreaker, Provision, SectionContents, SingleBreaker, Space,
     SingleLevel, TieBreaker, TwinLevel,
 )
 from src.model.switchboard import Section, Switchboard
@@ -122,6 +122,8 @@ def _level_to_dict(level) -> dict:
 def _slot_to_dict(slot) -> dict:
     if isinstance(slot, Provision):
         return {"provision": slot.info}
+    if isinstance(slot, Space):
+        return {"space": True}
     return {"breaker": slot.label, "attributes": dict(slot.attributes)}
 
 
@@ -223,6 +225,8 @@ def _level_from_dict(data: dict):
 def _slot_from_dict(data: dict):
     if "provision" in data:
         return Provision(data["provision"])
+    if "space" in data:
+        return Space()
     return Breaker(data["breaker"], attributes=_texts(data.get("attributes")))
 
 

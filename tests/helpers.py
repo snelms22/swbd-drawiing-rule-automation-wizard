@@ -86,7 +86,7 @@ TEST_SETTINGS = LayoutSettings(
         block="TEST_FEEDER", layer="0", visibility="3 PHASE-3 WIRE",
         mirror_parameter="MIRROR-3W", label_attribute="DEVICE_ID", tap_length=10.0,
         provision_heading="PROVISION FOR", provision_heading_without_info="PROVISION",
-        provision_text_gap=10.0,
+        provision_text_gap=10.0, space_text="SPACE",
     ),
     bus_break=BusBreakSettings(
         layer="0", tilde_block="TEST_TILDE", tilde_state_horizontal_bus="HORIZONTAL",

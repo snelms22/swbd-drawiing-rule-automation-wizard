@@ -19,6 +19,7 @@ levels to its left and right. (docs/DECISIONS.md, "Breaker arrangement vocabular
 - A Provision is tapped out just like a breaker (taps and dots, ending where the breaker
   would connect), then a note: "PROVISION FOR" and the engineer's line, starting
   `provision_text_gap` beyond the tap ends, centred on the B tap. (From IMS-REFERENCE.)
+  A Space (an unused position) is drawn the same way with just the word "SPACE".
 - Too tall for the page (section_builder.plan_columns decides the split): a column that
   goes on in the next column is cut at its far end, and the next column starts
   `continuation_start_gap` from the main bus, not connected to it. Both ends are marked
@@ -144,12 +145,12 @@ def _add_column(geometry, dots, group, part, level_indices, column_index, a_x, i
                                     position[1] + block.connection(phase, flipped)[1])
                             for phase in PHASES}
             else:
-                # A provision: taps end where a breaker would connect, then the note.
+                # A provision or space: taps end where a breaker would connect, then the note.
                 tap_ends = {phase: (conn_x[side], level_a_y - n * half)
                             for n, phase in enumerate(PHASES)}
                 outward = -1 if side == LEFT else +1
                 geometry.notes.append(Note(
-                    lines=fd.provision_lines(slot.info),
+                    lines=fd.note_lines(slot),
                     x=conn_x[side] + outward * fd.provision_text_gap,
                     middle_y=tap_ends["B"][1],
                     align="middle_right" if side == LEFT else "middle_left"))

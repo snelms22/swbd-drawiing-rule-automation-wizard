@@ -1,5 +1,6 @@
-"""Each person's own choices, remembered on their PC (decision 2026-10-15): for now, the
-folder their drawings are saved in.
+"""Each person's own choices, remembered on their PC (decision 2026-10-15): the folder
+their drawings are saved in, and the last version they opened (for the "Updates since
+your last session" pop-up, decision 2026-10-19).
 
 Kept in a small JSON file in the person's AppData folder, not in config/ (config is the
 same for everyone and comes with each release). A missing or unreadable file just means
@@ -13,6 +14,7 @@ PREFERENCES_FILE = (Path(os.environ.get("APPDATA", Path.home())) / "Hyper Config
                     / "Switchboard Configurator" / "preferences.json")
 
 DRAWING_FOLDER = "drawing_folder"
+LAST_SEEN_VERSION = "last_seen_version"
 
 
 def load_preferences(path: Path = PREFERENCES_FILE) -> dict:

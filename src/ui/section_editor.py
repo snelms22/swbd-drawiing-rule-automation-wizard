@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from src.layout.section_builder import single_level_sides
 from src.model.section_contents import (
     FEED_DIRECTIONS, FIXED, MOUNTINGS, Breaker, GroupMounted, MainBreaker, Provision,
-    SingleBreaker, SingleLevel, TieBreaker, TwinLevel, feed_directions,
+    SingleBreaker, SingleLevel, Space, TieBreaker, TwinLevel, feed_directions,
 )
 
 EMPTY = "Empty"
@@ -39,9 +39,25 @@ def _set_quietly(widget, setter, value):
     widget.blockSignals(False)
 
 
+SLOT_BREAKER = "Breaker"
+SLOT_PROVISION = "Provision"
+SLOT_SPACE = "Space"
+SLOT_KINDS = [SLOT_BREAKER, SLOT_PROVISION, SLOT_SPACE]
+
+
+def slot_kind(slot) -> str:
+    if isinstance(slot, Provision):
+        return SLOT_PROVISION
+    if isinstance(slot, Space):
+        return SLOT_SPACE
+    return SLOT_BREAKER
+
+
 def slot_text(slot) -> str:
     if isinstance(slot, Provision):
         return f"PROVISION {slot.info}".strip()
+    if isinstance(slot, Space):
+        return "SPACE"
     return slot.label or "(no label)"
 
 
@@ -73,7 +89,7 @@ def _store_and_report(values: dict, tag: str, text: str, on_edit):
 
 class SlotEditor(QWidget):
     """One position on a group-mounted level: a feeder breaker (label and its block's
-    attributes), or a Provision (one line of info)."""
+    attributes), a Provision (one line of info), or a Space (nothing to fill in)."""
     changed = Signal()
 
     def __init__(self, settings, catalog=None):
@@ -82,18 +98,19 @@ class SlotEditor(QWidget):
         self._catalog = catalog
         self._slot = None
         self.label_edit = QLineEdit()
-        self.provision_check = QCheckBox("Provision")
+        self.kind_combo = QComboBox()
+        self.kind_combo.addItems(SLOT_KINDS)
         self.attributes_box = QGroupBox("Breaker block attributes")
         self.attributes_form = QFormLayout(self.attributes_box)
         row = QHBoxLayout()
         row.addWidget(self.label_edit)
-        row.addWidget(self.provision_check)
+        row.addWidget(self.kind_combo)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(row)
         layout.addWidget(self.attributes_box)
         self.label_edit.textEdited.connect(self.changed)
-        self.provision_check.toggled.connect(self.changed)
+        self.kind_combo.currentTextChanged.connect(self.changed)
 
     def set_catalog(self, catalog):
         self._catalog = catalog
@@ -102,19 +119,21 @@ class SlotEditor(QWidget):
 
     def load(self, slot):
         self._slot = slot
-        is_provision = isinstance(slot, Provision)
-        _set_quietly(self.provision_check, self.provision_check.setChecked, is_provision)
-        _set_quietly(self.label_edit, self.label_edit.setText,
-                     slot.info if is_provision else slot.label)
+        _set_quietly(self.kind_combo, self.kind_combo.setCurrentText, slot_kind(slot))
+        text = slot.info if isinstance(slot, Provision) else getattr(slot, "label", "")
+        _set_quietly(self.label_edit, self.label_edit.setText, text)
         self._rebuild_fields()
 
     def read(self, previous):
         """The slot as now edited. Keeps the same object when it stays the same kind, so
         anything else stored on it (attributes) is not lost."""
         text = self.label_edit.text().strip()
-        if self.provision_check.isChecked():
+        kind = self.kind_combo.currentText()
+        if kind == SLOT_PROVISION:
             slot = previous if isinstance(previous, Provision) else Provision()
             slot.info = text
+        elif kind == SLOT_SPACE:
+            slot = previous if isinstance(previous, Space) else Space()
         else:
             slot = previous if isinstance(previous, Breaker) else Breaker("")
             slot.label = text
@@ -125,7 +144,12 @@ class SlotEditor(QWidget):
 
     def _rebuild_fields(self):
         is_breaker = isinstance(self._slot, Breaker)
-        self.label_edit.setPlaceholderText("e.g. 52-F1" if is_breaker else "Provision for, e.g. 3VA62 250AF")
+        is_space = isinstance(self._slot, Space)
+        self.label_edit.setEnabled(not is_space)            # a space has nothing to type
+        if is_space:
+            self.label_edit.clear()
+        self.label_edit.setPlaceholderText(
+            "e.g. 52-F1" if is_breaker else "" if is_space else "Provision for, e.g. 3VA62 250AF")
         block = self._catalog.get(self._settings.feeder.block) if self._catalog and is_breaker else None
         add_attribute_fields(self.attributes_form, block,
                              self._slot.attributes if is_breaker else {},

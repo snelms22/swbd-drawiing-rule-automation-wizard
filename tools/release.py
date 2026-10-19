@@ -1,18 +1,22 @@
 """Publish a new version of the Switchboard Configurator to the team (decisions 2026-10-15).
 
-    python tools/release.py 2.0.1 --notes "Fixed the tie breaker label"
+    python tools/release.py 2.0.1 --note "SPACE option for empty slots" --note "..."
+
+Each --note is one short line for the release notes: they go in CHANGELOG.md under the
+version, ship inside the app, and are shown to everyone in the "Updates since your last
+session" pop-up the first time they open the new version (decision 2026-10-19).
 
 Version numbers are X.Y.Z: Z = routine changes and small fixes, Y = something changed but
 not huge, X = a milestone. Steps, stopping at the first problem:
   1. checks: the number is X.Y.Z and newer than the released one; no uncommitted changes;
   2. runs every test;
-  3. sets the version in src/version.py;
+  3. sets the version in src/version.py and adds the notes to CHANGELOG.md;
   4. builds the app (PyInstaller) with config, catalog, template, switchboard library and
      icons, adds the AutoCAD add-in (Hyper ribbon tab), and zips it;
   5. builds the launcher / installer;
   6. copies everything to SharePoint: Releases/X.Y.Z/, "Install Switchboard
      Configurator.exe", and LAST latest.txt (so nobody sees a half-copied version);
-  7. adds the notes to CHANGELOG.md, commits, and tags the version in git.
+  7. commits the version and notes, and tags the version in git.
 Everyone gets the new version the next time they open the app (or is offered a restart).
 
 Trying it out without touching SharePoint or git:
@@ -45,6 +49,7 @@ CHANGELOG = PROJECT_ROOT / "CHANGELOG.md"
 INSTALLER_NAME = f"Install {APP_NAME}"
 # Folders shipped inside the app (read at run time, relative to the program).
 DATA_FOLDERS = ["config", "catalog", "templates", "switchboard_library", "assets"]
+DATA_FILES = ["CHANGELOG.md"]          # the release notes, for the pop-up
 
 
 class ReleaseError(Exception):
@@ -89,6 +94,8 @@ def build_app(version: str) -> Path:
     data = []
     for folder in DATA_FOLDERS:
         data += ["--add-data", f"{PROJECT_ROOT / folder};{folder}"]
+    for file in DATA_FILES:
+        data += ["--add-data", f"{PROJECT_ROOT / file};."]
     run([PYTHON, "-m", "PyInstaller", str(PROJECT_ROOT / "run_configurator.py"),
          "--name", APP_NAME, "--windowed", "--noconfirm", "--clean",
          "--icon", str(PROJECT_ROOT / "assets" / "swbd.ico"),
@@ -136,8 +143,10 @@ def publish_installer(launcher: Path, release_folder: Path):
     (release_folder / f"{INSTALLER_NAME}.exe").unlink(missing_ok=True)
 
 
-def add_to_changelog(version: str, notes: str):
-    entry = f"## {version} ({date.today():%Y-%m-%d})\n{notes.strip()}\n\n"
+def add_to_changelog(version: str, notes: list[str]):
+    """The notes as a list under the version, newest version first."""
+    lines = "".join(f"- {note.strip()}\n" for note in notes)
+    entry = f"## {version} ({date.today():%Y-%m-%d})\n{lines}\n"
     old = CHANGELOG.read_text(encoding="utf-8") if CHANGELOG.exists() else (
         "# Switchboard Configurator: release history\n\n")
     heading, _, rest = old.partition("\n\n")
@@ -147,21 +156,29 @@ def add_to_changelog(version: str, notes: str):
 def main() -> int:
     parser = argparse.ArgumentParser(description="Publish a new version to the team.")
     parser.add_argument("version", help="X.Y.Z, e.g. 2.0.1")
-    parser.add_argument("--notes", default="", help="what changed, for CHANGELOG.md")
+    parser.add_argument("--note", action="append", default=[],
+                        help="one short line about a change (repeat for each change)")
     parser.add_argument("--test-folder", help="publish here instead of SharePoint; no git")
     args = parser.parse_args()
     release_folder = Path(args.test_folder) if args.test_folder else RELEASE_FOLDER
     use_git = not args.test_folder
     original_version_file = VERSION_FILE.read_text(encoding="utf-8")
+    original_changelog = CHANGELOG.read_text(encoding="utf-8") if CHANGELOG.exists() else None
+
+    def put_files_back():
+        VERSION_FILE.write_text(original_version_file, encoding="utf-8")
+        if original_changelog is not None:
+            CHANGELOG.write_text(original_changelog, encoding="utf-8")
     try:
         print("1. Checking")
         check(args.version, release_folder, use_git)
-        if use_git and not args.notes:
-            raise ReleaseError('Say what changed: --notes "..."')
+        if use_git and not args.note:
+            raise ReleaseError('Say what changed: --note "..." (one per change)')
         print("2. Running the tests")
         run([PYTHON, "-m", "pytest", "-q"])
-        print(f"3. Setting version {args.version}")
+        print(f"3. Setting version {args.version} and adding the release notes")
         set_version(args.version)
+        add_to_changelog(args.version, args.note or ["(test release)"])
         print("4. Building the app")
         app_folder = build_app(args.version)
         print("5. Building the launcher / installer")
@@ -171,17 +188,17 @@ def main() -> int:
         publish(args.version, app_folder, launcher, release_folder)
         if use_git:
             print("7. Recording the release in git")
-            add_to_changelog(args.version, args.notes)
+            notes = "\n".join(f"- {note}" for note in args.note)
             run(["git", "add", str(VERSION_FILE), str(CHANGELOG)])
-            run(["git", "commit", "-m", f"Release {args.version}\n\n{args.notes}"])
+            run(["git", "commit", "-m", f"Release {args.version}\n\n{notes}"])
             run(["git", "tag", f"v{args.version}"])
     except ReleaseError as error:
         print(f"\nNOT RELEASED: {error}")
-        VERSION_FILE.write_text(original_version_file, encoding="utf-8")
+        put_files_back()
         return 1
     finally:
         if not use_git:          # a test release leaves the code exactly as it was
-            VERSION_FILE.write_text(original_version_file, encoding="utf-8")
+            put_files_back()
     print(f"\nReleased {APP_NAME} {args.version}.")
     return 0
 

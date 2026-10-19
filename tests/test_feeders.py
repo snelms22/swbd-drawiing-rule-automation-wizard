@@ -8,7 +8,7 @@ content starts at x 15.
 """
 from src.layout.page_fitter import fit_pages
 from src.model.section_contents import (
-    Breaker, GroupMounted, MainBreaker, SectionContents, Provision, SingleLevel, TwinLevel,
+    Breaker, GroupMounted, MainBreaker, SectionContents, Provision, SingleLevel, Space, TwinLevel,
 )
 from src.model.switchboard import Section, Switchboard
 from tests.helpers import TEST_CATALOG, TEST_SETTINGS
@@ -145,6 +145,24 @@ def test_a_provision_is_tapped_out_and_ends_with_its_note():
     assert note.lines == ["PROVISION FOR", "3VA62 250AF"]
     assert (note.x, note.middle_y, note.align) == (end_x + 10, a_y - 5, "middle_left")
     assert not [b for b in page.parts.blocks if b.block == "TEST_FEEDER" and b.flipped]
+
+
+def test_a_space_is_tapped_out_like_a_provision_and_labelled_space():
+    # Decision 2026-10-19: solid bus taps to where a breaker would connect, then "SPACE".
+    group = GroupMounted([TwinLevel(Breaker("52-L"), Space())])
+    page, placed = middle_section_layout(above=group)
+    a_x = placed.component_left_x + 33
+    end_x = a_x + 10 + 10
+    assert len([l for l in page.parts.bus_lines if l.start[0] == end_x]) == 3
+    note, = page.parts.notes
+    assert note.lines == ["SPACE"]
+    assert (note.x, note.align) == (end_x + 10, "middle_left")
+
+
+def test_a_space_works_on_a_single_level_too():
+    page, placed = middle_section_layout(above=GroupMounted([SingleLevel(Space())]))
+    note, = page.parts.notes
+    assert note.lines == ["SPACE"] and note.align == "middle_right"
 
 
 def test_a_provision_on_the_left_runs_its_note_leftward():

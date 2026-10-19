@@ -155,6 +155,12 @@ class FeederSettings:
     provision_heading: str                # first line of a provision note, e.g. "PROVISION FOR"
     provision_heading_without_info: str   # ...when the engineer gave no info, e.g. "PROVISION"
     provision_text_gap: float             # from the provision's tap ends to its note
+    space_text: str                       # the note on a SPACE slot, e.g. "SPACE"
+
+    def note_lines(self, slot) -> list[str]:
+        """The note beside an empty slot: a provision's note, or the SPACE text."""
+        info = getattr(slot, "info", None)
+        return self.provision_lines(info) if info is not None else [self.space_text]
 
     def provision_lines(self, info: str) -> list[str]:
         """The lines of a provision's note."""
@@ -324,6 +330,7 @@ def load_settings(path) -> LayoutSettings:
             provision_heading=_read_text(data, "feeder", "provision_heading"),
             provision_heading_without_info=_read_text(data, "feeder", "provision_heading_without_info"),
             provision_text_gap=_read_number(data, "feeder", "provision_text_gap"),
+            space_text=_read_text(data, "feeder", "space_text"),
         ),
         bus_break=BusBreakSettings(
             layer=_read_text(data, "bus_break", "layer"),

@@ -228,13 +228,13 @@ def level_slots(group, settings) -> list[dict[str, object]]:
 
 def _slot_reach(slot, side, block, settings) -> float:
     """How far a slot reaches out from where its taps end (away from the vertical bus):
-    a breaker by its block's size, a provision by its note."""
+    a breaker by its block's size, a provision or space by its note."""
     if isinstance(slot, Breaker):
         flipped = side == RIGHT
         left, _, right, _ = block.oriented_extents(flipped)
         conn_x = block.connection("A", flipped)[0]
         return (right - conn_x) if flipped else (conn_x - left)
-    lines = settings.feeder.provision_lines(slot.info)
+    lines = settings.feeder.note_lines(slot)
     return settings.feeder.provision_text_gap + max(settings.text.estimated_width(line) for line in lines)
 
 

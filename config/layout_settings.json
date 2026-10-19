@@ -143,6 +143,8 @@
     "provision_note": "A provision is tapped out like a breaker (taps end where the breaker would connect); its note starts provision_text_gap beyond the tap ends, centred on B. First line is provision_heading (or provision_heading_without_info when the engineer left the info empty), then the engineer's line. From IMS-REFERENCE.",
     "provision_heading": "PROVISION FOR",
     "provision_heading_without_info": "PROVISION",
-    "provision_text_gap": 10.0
+    "provision_text_gap": 10.0,
+    "space_note": "A SPACE slot (an unused position, decision 2026-10-19) is drawn like a provision (solid taps out to where a breaker would connect) with just this text, in the same place as a provision's note.",
+    "space_text": "SPACE"
   }
 }

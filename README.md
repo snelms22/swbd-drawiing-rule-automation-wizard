@@ -53,7 +53,7 @@ gets a copy of its project next to it.
 
 ## Releasing to the team
 ```
-python tools/release.py 2.0.1 --notes "What changed"
+python tools/release.py 2.0.1 --note "One short line per change" --note "..."
 ```
 Runs every test, builds the app outside OneDrive (`%LOCALAPPDATA%\Hyper Configurators\build`),
 and publishes it to SharePoint `CAD BLOCKS\CONFIGURATORS\Switchboard Configurator\`
@@ -86,18 +86,28 @@ Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.m
 
 ## Docket (agreed next work, in order; added 2026-10-15)
 1. ~~Save and open projects~~ (built 2026-10-15: File menu, `.swbd` files).
-1b. **Release to the team** as 2.0.0: app on the desktop and inside AutoCAD, updated by
-   Sammy from SharePoint (plan being workshopped, 2026-10-15).
+1b. ~~Release to the team~~ (2.0.0 released 2026-10-15; installer zipped 2026-10-16).
 2. **General Drawing Information tab** in the app, before the sections: system-level
-   attributes that go in the title block / title page.
-3. **Other devices on the 3-line**, starting with communication.
+   attributes that go in the title block / title page. Possibly also where a **single section
+   switchboard** is chosen. Title-block data comes from **Arena**; fetching it by job number
+   is requested (feasibility to check). Release as 2.1.0.
+3. **Communications:** a comms checkbox on each breaker, and a communications page generated
+   from the breakers (rules: DECISIONS 2026-10-19). Then other devices on the 3-line.
+3b. ~~SPACE option~~ (built 2026-10-19, in 2.0.1).
+3c. **Main-to-main interlock line, always drawn** (DRAWING_PARTS S4, now approved).
+3d. **Single section switchboards** (one vertical bus, mains fed from the side): design to come.
+3e. **Line-side output breakers** (load bank), possibly by splitting "input feed" and "input
+   breaker" into two parts: design to come.
+3f. **Riser length grows with its devices** (when CTs, taps, CPT etc. are built).
 4. Later polish (Sammy, in the block library): `BRACKET_TEXT_R0` label doesn't mirror its
    justification when flipped ("FROM ES_nn" runs back over the bus); `SIE_BKR_3P_3L_ASSY_R0`
    FRAME attributes (shared tag, no prompt, don't move on flip). No code workaround for now.
 
+## Watch list (for Sammy's team meetings)
+- Side-jog ("centre-fed") vertical buses: does Hyper build them? (Sabey-011475/011484,
+  NTT-013630)
+
 ## Open items (to decide when the work reaches them)
-- Blocks: waiting on Sammy's Hyper block set for `blocks/` (replaces legacy `SCHEM_*`).
-  Then: connection-marker convention, and how dynamic blocks (visibility states) are handled.
 - House standard picks (divider layer/linetype, page-break style, feeder row pitch, section
   label position): to come from Sammy's master reference drawing.
 - Drawing: switch the main bus from plain lines to the dynamic bus blocks (BUSSING_3PH_3W_3L).

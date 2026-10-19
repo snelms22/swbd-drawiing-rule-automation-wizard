@@ -9,7 +9,7 @@ from src.model.project_file import (
     FORMAT_VERSION, ProjectFileError, attributes_no_longer_on_blocks, open_project, save_project,
 )
 from src.model.section_contents import (
-    Breaker, GroupMounted, MainBreaker, Provision, SectionContents, SingleBreaker, SingleLevel,
+    Breaker, GroupMounted, MainBreaker, Provision, SectionContents, SingleBreaker, SingleLevel, Space,
     TieBreaker, TwinLevel,
 )
 from src.model.switchboard import Section, Switchboard
@@ -29,6 +29,8 @@ def everything_board() -> Switchboard:
                 TwinLevel(Breaker("52-F1", attributes={"BKR_RATINGS": "125AF"}), Provision("3VA62 250AF")),
                 SingleLevel(Breaker("52-F2"), flipped=True),
                 SingleLevel(Provision("")),
+                TwinLevel(Space(), Breaker("52-F9")),
+                SingleLevel(Space()),
             ]),
             below=SingleBreaker(Breaker("52-F3"), output_attributes={"LOCATION": "TO/FROM"},
                                 breaker_feed="bottom", termination_feed="bottom"),

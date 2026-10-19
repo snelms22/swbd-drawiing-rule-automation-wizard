@@ -48,6 +48,7 @@ def main() -> int:
         catalog = None
     window = MainWindow(settings, new_switchboard(), autocad_settings, autocad_problem, catalog)
     window.show()
+    window.show_updates_since_last_session(PROJECT_ROOT / "CHANGELOG.md")
     return app.exec()
 
 

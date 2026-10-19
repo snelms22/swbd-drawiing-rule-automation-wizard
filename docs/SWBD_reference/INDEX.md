@@ -356,3 +356,94 @@ continuation (ES_12 had 2.25 / 2.12); the too-tall split (DECISIONS 2026-10-13).
 **Sammy's notes (2026-10-13):** ES_11 is the typical "too tall" case: the part BELOW the
 main bus is the one that gets split (see DECISIONS 2026-10-13). The sideways main breaker in
 section 1 is a drafting error; that arrangement is not needed.
+
+## Sabey-011475
+**Files:** .dxf, .pdf  **Studied:** 2026-10-19
+**Contents:** SWBD 5000A 480V 100kAIC, MA-HDP-X, 7 sections, Rev A. S1 load-bank breaker 52-LBBA
+fed from a bus duct termination, tied into the LINE side of the gen main's riser in S2 (not the
+main bus). S2 gen main + SPD breaker below; S3 utility main (tees in with dots); S4, S5, S7
+group-mounted; S6 single breaker 2500A below the bus. No tie. 14 sheets: TOC, legend, BOM,
+**ES_01 = elevation**, **3-line = ES_02 + ES_03**, control/ATC/lights/breaker-control pages,
+**ES_11 = network/communication**. One-line in EO_01 (separate drawing).
+**Measurements:** mains: breaker ~68-70 above the bus, input ~77-79 beyond it; the riser holds
+CTs + shorting block (load side) and fused taps, CPT, voltage-monitor relay, ATC/PM taps (line
+side). S4/S5/S7 vertical buses are fed by a riser that rises from the main bus and jogs 33.23
+sideways into the vertical bus at mid-height ("centre-fed"). Bus 13.0 higher on page 2.
+**Proposed rules (pending approval):** main-breaker distances (15 / 30) become minimums that
+grow with the devices on the riser; "centre-fed" vertical bus as an option; first 3-line frame
+configurable (ES_01 can be the elevation); comms page rules (see 2026-10-19 report).
+**Questions for Sammy:** see the 2026-10-19 report.
+
+## Sabey-011484
+**Files:** .dxf, .pdf  **Studied:** 2026-10-19
+**Contents:** SWBD 5000A 480V 100kAIC NEMA 3R, MA-HDP-E, 6 sections (sister job of 011475,
+same layout and devices): load-bank breaker on the gen main's line side, gen + utility mains
+with CTs/CPT/fused taps/voltage relays/PM taps, SPD, two centre-fed group-mounted sections, a
+2500A single breaker below the bus. **ES_01 = elevation, 3-line = ES_02 + ES_03**, network page
+ES_11, RS-485 thermal sensors on ES_06.
+**Measurements:** as 011475. S6 has both a dashed "SPACE" level (CDP_BUS_HORIZ in its HIDDEN
+state, unbussed) and a solid-tap "SPACE" (bussed, = our Provision). S3|S4 divider moved to the
+start of page 2 because it would hit the title block (matches our rule).
+**Proposed rules (pending approval):** as 011475, plus: a "Space" (unbussed, dashed) slot next to
+"Provision" (bussed).
+**Questions for Sammy:** see the 2026-10-19 report.
+
+## Sabey-011485
+**Files:** .dxf, .pdf  **Studied:** 2026-10-19
+**Contents:** SWBD MA-LBDP (load-bank docking panel) 5000A 480V 100kAIC Type 3R, 3 sections.
+Incoming bus duct with NO main breaker (main lugs only) on a riser that passes THROUGH the main
+bus (tee with dots) into breaker 52-LB-LB below, to load-bank lugs. 52-LB-GEN at the end of the
+bus; its output runs into section 3 to a generator cam-lock bank (8 per phase + ground
+cam-locks). Aux taps: fused tap to a power supply, 2-pole breaker to a 15kVA transformer;
+receptacles, heaters, thermostat; Kirk keys / transfer blocks / SKRU; K6PM thermal sensors on
+RS-485; Ethernet switch with COM190s on both breakers (ES_04).
+**File problem:** the issued PDF prints the ONE-LINE (frame EO_01) as the power page and pages
+3-6 are blank (layouts ES_02-05 look at empty EO frames); the real 3-line sits unprinted in
+ES_01 (found by the study agent; not re-checked).
+**Proposed rules (pending approval):** main-lugs-only source; riser passing through the main bus
+(source above, breaker below on one riser); a feeder output running into a later section;
+cam-lock termination; small 1-/2-/3-pole taps off the main bus with "TO/FROM X SECTION n" labels.
+**Questions for Sammy:** see the 2026-10-19 report.
+**Sammy's notes (2026-10-19):** the printed set (one-line printed, blank pages) is a mistake;
+Sammy will fix the drawing.
+
+## Sabey-011486
+**Files:** .dxf, .pdf  **Studied:** 2026-10-19
+**Contents:** SWBD MA-HDP/MBP-X 4000A 480V 65kAIC, Rev B, 12 sections, 17 breakers, maintenance
+bypass with three bus levels joined by two vertical ties (52-MBB steps up, 52-MIB steps down),
+each tie in a section of its own (MBB near the left of S6, MIB centred in S9). Gen + utility mains
+with the dashed "MECHANICAL AND ELECTRICAL INTERLOCK" line between them, load-bank breaker on the
+gen main's line side, UIB/UOB/CDP feeders, a single breaker above + group-mounted below in S8,
+load-bank ULB. 3-line = ES_01 + ES_02; comms on ES_03 / ES_07 / ES_08. REV B triangles and clouds.
+**Measurements:** tie rises 122.29 (MBB) and 64.76 (MIB), not a fixed 70. Single breakers
+14.15-15.53 from the bus (matches 15). Page break label "TO SECTION 7 SHEET 3" (sheet numbers
+wrong by one in this drawing).
+**Proposed rules (pending approval):** ties placeable within their section (centred / own
+section), step height set by what's on the next bus; UPS-bypass lineup = main bus + several ties
+(3rd job: NTT-013630, IMS, this); page-break text "TO SECTION n SHEET m" generated by the program.
+**Questions for Sammy:** see the 2026-10-19 report.
+
+## Sabey-011509
+**Files:** .dxf, .pdf  **Studied:** 2026-10-19
+**Contents:** SWBD 600A 480V 65kAIC, MA-MPB-X (maintenance bypass), ONE section, **no horizontal
+main bus**: one vertical bus with 7 levels; both mains (52-M1 top, 52-M2 bottom) are levels on it,
+fed from the left (lugs facing in), with line-side voltage taps "TO FA-1/FA-2"; feeders and a
+provision on the levels between. Kirk key under M2, Kirk key procedure notes box on the 3-line.
+7 pages; frames named **EW_nn** (3-line = EW_01, comms = EW_04).
+**Measurements:** levels pitch 25, gap 15, nearest tap 10, overhang 10 (matches our rules).
+**Proposed rules (pending approval):** panelboard lineup (vertical bus only, mains as levels fed
+from the side); line-side voltage tap with "TO FA-n"; Kirk key on any breaker; notes box on the
+3-line page clear of the title block; frame prefix configurable (EW vs ES).
+**Questions for Sammy:** see the 2026-10-19 report.
+
+## Sabey-011510
+**Files:** .dxf, .pdf  **Studied:** 2026-10-19
+**Contents:** PNLB MA-MBP-E (maintenance bypass panel) 250A 480V 65kAIC, ONE section, no
+horizontal main bus (same kind as 011509, in ES frames): mains M1/M2 as levels fed from the left
+with "BY OTHERS" cables and CTs on the cables, Kirk keys KA/KB, 3 feeders, FA-3 fused tap off the
+vertical bus to PM-1, shorting blocks. 6 pages: 3-line ES_01, control ES_02, comms ES_03.
+**Measurements:** pitch 25, nearest tap 10, overhang 10 (matches). Bus foot label "A B C" +
+"480VAC, 65KAIC / 3P-3W / 250A CU".
+**Proposed rules (pending approval):** as 011509; bus-foot label with voltage, kAIC, phases/wires
+and bus rating; accessory balloon (twin mounting kit) per level.
+**Questions for Sammy:** see the 2026-10-19 report.

@@ -266,6 +266,56 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-10-19 — "Updates since your last session" pop-up, and SPACE slots
+**Decision:**
+- When someone opens a version newer than the one they last used, the app shows a pop-up
+  titled "Updates since your last session": every version since their last one, newest
+  first, each with its version number and short notes, ending (after some space) with
+  "Go try it out :)". Shown once per version. The very first start shows the current
+  version's notes.
+- Release notes are short descriptors, one per change, worked out together at each release
+  (Sammy also presents them at the weekly meeting). They live in CHANGELOG.md, ship inside the
+  app, and are written by the release command (`--note`, once per change).
+- **SPACE** is a choice for any empty slot (twin and single levels), next to Breaker and
+  Provision: drawn like a Provision (solid bus taps to where the breaker would connect) with
+  just the word "SPACE" (config `feeder.space_text`).
+- This goes out as **2.0.1**.
+**Reason:** Sammy, 2026-10-19.
+**Status:** Approved
+
+### 2026-10-19 — Answers from the six Sabey reference jobs
+**Decision:**
+1. **Single section switchboards** (what the references call panelboards: one vertical bus, no
+   horizontal main bus, mains as levels fed from the side) are in scope. This is the name from
+   now on. Possibly chosen in the General Drawing Information tab if it doesn't fit the
+   section editor. Design to come.
+2. **Load-bank / line-side output breakers are in scope** (a breaker fed from a main's line
+   side, as in 011475/011484/011486). Idea to explore: enter the input feed and the input
+   breaker as two separate parts, which may also handle line-side output breakers. Design to come.
+3. **Riser length grows with its devices:** a main breaker's 15 (to the bus) and 30 (to the
+   input) become minimums; CTs, shorting blocks, fused taps, CPT, relays etc. on the riser push
+   the breaker and the input further out. Applies when those devices are built.
+4. **Tie breakers: no change.** Where the tie sits in its section doesn't matter as long as its
+   feed direction is right; the current logic (right edge, step) stands, and the tie's section
+   adapts to the drawing.
+5. **First 3-line page stays ES_01** (page N -> ES_0N). Which drawing holds what is still being
+   worked out; the existing rule is what's in scope.
+6. **"SPACE" becomes an option on twin levels**, beside breaker and Provision (style details
+   below, to confirm).
+7. **Side-jog ("centre-fed") vertical buses:** unknown whether Hyper builds them; on the watch
+   list for Sammy's team meeting. Not built.
+8. **Communications page is in scope.** The comms rules from the studies are correct (3WA:
+   COM190 + CAT6 home run to the Ethernet switch; 3VA: COM60 on a COM800 chain through
+   T-connectors, 0.4 m drops, 1 m between tees, EOL terminator). The editor gets a **comms
+   checkbox on each breaker**; the logic behind it is worked out later.
+9. **Title block content comes from Arena** (PLM). There is a request to fetch it from Arena by
+   job number; feasibility to be looked into. Which fields go in the title block is not known yet.
+10. **The main-to-main interlock is always drawn** on the 3-line (dashed "MECHANICAL AND
+    ELECTRICAL INTERLOCK" line between the mains). Jobs that leave it out are mistakes.
+11. Sabey-011485's printed set (one-line printed, blank pages) is a mistake; Sammy will fix it.
+**Reason:** Sammy, 2026-10-19, on the 2026-10-19 study report.
+**Status:** Approved (items 1, 2, 6 and 8: designs to come)
+
 ### 2026-10-16 — Installer is published zipped
 **Decision:** The installer goes in SharePoint as `Install Switchboard Configurator.zip`
 (holding the .exe), never as a loose .exe. People open the zip and run the installer from

@@ -17,6 +17,7 @@ One person edits a project at a time (project_lock.py): opening a project someon
 open gives a read-only copy, where Save works as Save As. Drawings go to the folder the
 person picked (File > Drawing Folder), remembered on their PC (preferences.py).
 """
+import html
 import subprocess
 import sys
 from pathlib import Path
@@ -34,7 +35,10 @@ from src.model.project_file import (
     EXTENSION, ProjectFileError, attributes_no_longer_on_blocks, open_project, save_project,
 )
 from src.model.project_lock import held_by_someone_else, release_lock, take_lock
-from src.preferences import DRAWING_FOLDER, drawing_folder, save_preference
+from src.preferences import (
+    DRAWING_FOLDER, LAST_SEEN_VERSION, drawing_folder, load_preferences, save_preference,
+)
+from src.release_notes import notes_since
 from src.updates import INSTALLED_LAUNCHER, RELEASE_FOLDER, newer_version_available
 from src.model.switchboard import Section, Switchboard, new_switchboard
 from src.ui.page_preview import PagePreview
@@ -133,6 +137,33 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(5000, self._check_for_update)
 
     # --- Updates ------------------------------------------------------------------------
+
+    def show_updates_since_last_session(self, changelog: Path):
+        """If this is a newer version than the person last opened, list what changed in
+        each version since then (decision 2026-10-19). Shown once per version."""
+        last_seen = load_preferences().get(LAST_SEEN_VERSION)
+        if last_seen == VERSION:
+            return
+        try:
+            text = changelog.read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+        releases = notes_since(text, last_seen, VERSION)
+        save_preference(LAST_SEEN_VERSION, VERSION)
+        if releases:
+            QTimer.singleShot(300, lambda: self._show_release_notes(releases))
+
+    def _show_release_notes(self, releases):
+        parts = []
+        for version, notes in releases:
+            items = "".join(f"<li>{html.escape(note)}</li>" for note in notes)
+            parts.append(f"<p><b>Version {version}</b></p><ul>{items}</ul>")
+        box = QMessageBox(self)
+        box.setWindowTitle("Updates since your last session")
+        box.setTextFormat(Qt.RichText)
+        box.setText("<h3>Updates since your last session</h3>" + "".join(parts)
+                    + "<p>&nbsp;</p><p>Go try it out :)</p>")
+        box.exec()
 
     def _check_for_update(self):
         newer = newer_version_available(VERSION)
