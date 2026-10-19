@@ -266,6 +266,15 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-10-16 — Installer is published zipped
+**Decision:** The installer goes in SharePoint as `Install Switchboard Configurator.zip`
+(holding the .exe), never as a loose .exe. People open the zip and run the installer from
+it (or extract it first); it copies itself to their PC, so nothing else changes. Updates
+were already zip-only (`Releases/X.Y.Z/*.zip` + `latest.txt`). Windows and IT have no
+problem with the .exe itself.
+**Reason:** Sammy, 2026-10-16: SharePoint won't sync a loose .exe file.
+**Status:** Approved (release command changed; the live 2.0.0 folder fixed the same day)
+
 ### 2026-10-15 — Ready for release 2.0.0
 **Decision:**
 - **Drawings** are saved in a folder each person picks; the app remembers it (per person,

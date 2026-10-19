@@ -2,7 +2,8 @@
 
 Built into one small .exe by the release command. The same .exe does two jobs:
 
-INSTALL - run from SharePoint as "Install Switchboard Configurator.exe" (once per PC):
+INSTALL - run once per PC from "Install Switchboard Configurator.zip" in SharePoint (the
+          installer is zipped: SharePoint will not sync a loose .exe):
     copies itself to  %LOCALAPPDATA%\\Hyper Configurators\\Switchboard Configurator\\
     adds the desktop and Start menu shortcuts "Switchboard Configurator" (to that copy),
     then carries on as the launcher.

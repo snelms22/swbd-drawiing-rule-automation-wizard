@@ -4,7 +4,8 @@
     SharePoint (synced):  CAD BLOCKS\\CONFIGURATORS\\Switchboard Configurator\\
                               latest.txt                    e.g. "2.0.1"
                               Releases\\2.0.1\\Switchboard Configurator 2.0.1.zip
-                              Install Switchboard Configurator.exe
+                              Install Switchboard Configurator.zip   (installer; zipped,
+                                  because SharePoint will not sync a loose .exe)
     This PC:              %LOCALAPPDATA%\\Hyper Configurators\\Switchboard Configurator\\
                               Switchboard Configurator.exe  (the launcher)
                               versions\\2.0.1\\...           (the app)

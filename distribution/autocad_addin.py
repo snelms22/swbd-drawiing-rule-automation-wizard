@@ -63,7 +63,7 @@ def lisp_commands() -> str:
   (setq launcher (strcat (getenv "LOCALAPPDATA") "\\\\{launcher}"))
   (if (findfile launcher)
     (startapp (strcat "\\"" launcher "\\""))
-    (alert "Switchboard Configurator is not installed on this PC.\\nRun 'Install Switchboard Configurator' from the CONFIGURATORS folder in SharePoint.")
+    (alert "Switchboard Configurator is not installed on this PC.\\nOpen 'Install Switchboard Configurator.zip' in the CONFIGURATORS folder in SharePoint and run the installer in it.")
   )
   (princ)
 )

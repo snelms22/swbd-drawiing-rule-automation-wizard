@@ -57,7 +57,8 @@ python tools/release.py 2.0.1 --notes "What changed"
 ```
 Runs every test, builds the app outside OneDrive (`%LOCALAPPDATA%\Hyper Configurators\build`),
 and publishes it to SharePoint `CAD BLOCKS\CONFIGURATORS\Switchboard Configurator\`
-(`Releases\X.Y.Z\`, `Install Switchboard Configurator.exe`, then `latest.txt`). It refuses to
+(`Releases\X.Y.Z\`, `Install Switchboard Configurator.zip` (zipped: SharePoint won't sync a loose `.exe`), then
+`latest.txt`). It refuses to
 run with uncommitted changes or a version that isn't newer, and commits + tags the release.
 Everyone gets it the next time they open the app (a running app offers a restart).
 Try a release without touching SharePoint or git: add `--test-folder <folder>`.

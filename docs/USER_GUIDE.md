@@ -5,8 +5,9 @@
 ## Installing (once per PC)
 1. Make sure the **CAD BLOCKS** library is synced to your PC (OneDrive), like for the
    block library.
-2. Open `CAD BLOCKS\CONFIGURATORS\Switchboard Configurator\` and run
-   **Install Switchboard Configurator**.
+2. Open `CAD BLOCKS\CONFIGURATORS\Switchboard Configurator\`, open
+   **Install Switchboard Configurator.zip**, and run **Install Switchboard Configurator**
+   inside it (you can also extract it first; it doesn't matter where it runs from).
 3. You get a **Switchboard Configurator** icon on your desktop and in the Start menu.
    After restarting AutoCAD 2026, there is also a **Hyper** tab on the ribbon with a
    Switchboard Configurator button (or type `HYPERSWBD`).

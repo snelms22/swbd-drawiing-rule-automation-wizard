@@ -17,7 +17,7 @@ Everyone gets the new version the next time they open the app (or is offered a r
 
 Trying it out without touching SharePoint or git:
     python tools/release.py 2.0.0 --test-folder C:/somewhere/test-release
-then run "Install Switchboard Configurator.exe" there with the environment variable
+then run the installer from "Install Switchboard Configurator.zip" there, with the environment variable
 HYPER_RELEASE_FOLDER set to the same folder.
 """
 import argparse
@@ -121,8 +121,19 @@ def publish(version: str, app_folder: Path, launcher: Path, release_folder: Path
     archive = release_folder / "Releases" / version / f"{APP_NAME} {version}.zip"
     print(f"  > zipping to {archive}")
     zip_folder(app_folder, archive)
-    shutil.copy2(launcher, release_folder / f"{INSTALLER_NAME}.exe")
+    publish_installer(launcher, release_folder)
     (release_folder / "latest.txt").write_text(version + "\n", encoding="utf-8")   # last
+
+
+def publish_installer(launcher: Path, release_folder: Path):
+    """The installer goes in SharePoint ZIPPED: SharePoint won't sync a loose .exe
+    (2026-10-16). People open the zip and run the installer from it; it copies itself to
+    their PC, so where it was run from doesn't matter. A loose .exe from an earlier
+    release is removed."""
+    archive = release_folder / f"{INSTALLER_NAME}.zip"
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zipped:
+        zipped.write(launcher, launcher.name)
+    (release_folder / f"{INSTALLER_NAME}.exe").unlink(missing_ok=True)
 
 
 def add_to_changelog(version: str, notes: str):
