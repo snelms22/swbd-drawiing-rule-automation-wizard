@@ -251,5 +251,37 @@ class Drawing:
         _retry(lambda: setattr(text, "InsertionPoint", insertion))
         return text
 
+    def set_drawing_properties(self, values: dict[str, str]):
+        """Set the drawing's custom properties (DWGPROPS), adding any that are missing.
+        Fields in the template (e.g. the title block) show them after a regen."""
+        info = _retry(lambda: self.document.SummaryInfo)
+        existing = {_retry(lambda i=i: info.GetCustomByIndex(i))[0]
+                    for i in range(_retry(lambda: info.NumCustomInfo()))}
+        for key, value in values.items():
+            if key in existing:
+                _retry(lambda: info.SetCustomByKey(key, value))
+            else:
+                _retry(lambda: info.AddCustomInfo(key, value))
+
+    def update_fields(self):
+        """Regenerate so fields (title block text from the drawing properties) update."""
+        _retry(lambda: self.document.Regen(1))          # 1 = all viewports
+
+    def keep_only_layouts(self, keep: list[str], open_on: str) -> list[str]:
+        """Keep the layouts in `keep`, with their tabs in that order, and delete every other
+        layout. The drawing opens on `open_on`. Returns the names deleted."""
+        layouts = _retry(lambda: self.document.Layouts)
+        names = [_retry(lambda i=i: layouts.Item(i).Name) for i in range(_retry(lambda: layouts.Count))]
+        if open_on in names:
+            _retry(lambda: setattr(self.document, "ActiveLayout", layouts.Item(open_on)))
+        deleted = []
+        for name in names:
+            if name != "Model" and name not in keep:
+                _retry(lambda: layouts.Item(name).Delete())
+                deleted.append(name)
+        for tab, name in enumerate((name for name in keep if name in names), start=1):
+            _retry(lambda: setattr(layouts.Item(name), "TabOrder", tab))     # Model is tab 0
+        return deleted
+
     def save(self):
         _retry(lambda: self.document.Save())

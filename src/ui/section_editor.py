@@ -105,12 +105,16 @@ class SlotEditor(QWidget):
         row = QHBoxLayout()
         row.addWidget(self.label_edit)
         row.addWidget(self.kind_combo)
+        # Communication module on this breaker (decision 2026-10-19; drawing logic later).
+        self.comms_check = QCheckBox("Comms")
+        row.addWidget(self.comms_check)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(row)
         layout.addWidget(self.attributes_box)
         self.label_edit.textEdited.connect(self.changed)
         self.kind_combo.currentTextChanged.connect(self.changed)
+        self.comms_check.toggled.connect(self.changed)
 
     def set_catalog(self, catalog):
         self._catalog = catalog
@@ -137,6 +141,7 @@ class SlotEditor(QWidget):
         else:
             slot = previous if isinstance(previous, Breaker) else Breaker("")
             slot.label = text
+            slot.comms = self.comms_check.isChecked()
         if slot is not self._slot:          # changed kind: its fields change too
             self._slot = slot
             self._rebuild_fields()
@@ -156,6 +161,9 @@ class SlotEditor(QWidget):
                              {self._settings.feeder.label_attribute},   # filled by the label
                              self.changed.emit)
         self.attributes_box.setVisible(block is not None and bool(block.attributes))
+        self.comms_check.setVisible(is_breaker)             # only breakers have comms
+        _set_quietly(self.comms_check, self.comms_check.setChecked,
+                     self._slot.comms if is_breaker else False)
 
 
 class ArrangementEditor(QGroupBox):
@@ -194,6 +202,9 @@ class ArrangementEditor(QGroupBox):
         breaker_page = QWidget()
         breaker_form = QFormLayout(breaker_page)
         breaker_form.addRow("Label", self.breaker_label)
+        self.breaker_comms_check = QCheckBox("Communication module")
+        self.breaker_comms_check.toggled.connect(self._breaker_comms_toggled)
+        breaker_form.addRow("Comms", self.breaker_comms_check)
         breaker_form.addRow(self.mounting_label, self.mounting_combo)
         breaker_form.addRow("Breaker Feed Direction", self.breaker_feed_combo)
         breaker_form.addRow("Termination Feed Direction", self.termination_feed_combo)
@@ -279,6 +290,8 @@ class ArrangementEditor(QGroupBox):
         self._show_page_for(kind)
         if kind in (MAIN, SINGLE):
             _set_quietly(self.breaker_label, self.breaker_label.setText, arrangement.breaker.label)
+            _set_quietly(self.breaker_comms_check, self.breaker_comms_check.setChecked,
+                         arrangement.breaker.comms)
             breaker_feed, termination_feed = feed_directions(arrangement, self._part)
             _set_quietly(self.breaker_feed_combo, self.breaker_feed_combo.setCurrentText, breaker_feed)
             _set_quietly(self.termination_feed_combo, self.termination_feed_combo.setCurrentText,
@@ -378,6 +391,10 @@ class ArrangementEditor(QGroupBox):
             arrangement.breaker_feed = self.breaker_feed_combo.currentText()
             arrangement.termination_feed = self.termination_feed_combo.currentText()
             self.changed.emit()
+
+    def _breaker_comms_toggled(self, checked):
+        self._arrangement().breaker.comms = checked
+        self.changed.emit()
 
     def _breaker_label_edited(self, text):
         self._arrangement().breaker.label = text.strip()
@@ -504,6 +521,9 @@ class TieEditor(QGroupBox):
         form = QFormLayout(self)
         form.addRow(self.include_check)
         form.addRow("Label", self.label_edit)
+        self.comms_check = QCheckBox("Communication module")
+        form.addRow("Comms", self.comms_check)
+        self.comms_check.toggled.connect(self._edited)
         form.addRow("Bus steps", self.steps_combo)
         form.addRow("Mounting", self.mounting_combo)
         self.attributes_box = QGroupBox("Breaker block attributes")
@@ -519,9 +539,10 @@ class TieEditor(QGroupBox):
         tie = section.contents.tie
         _set_quietly(self.include_check, self.include_check.setChecked, tie is not None)
         _set_quietly(self.label_edit, self.label_edit.setText, tie.breaker.label if tie else "")
+        _set_quietly(self.comms_check, self.comms_check.setChecked, tie.breaker.comms if tie else False)
         _set_quietly(self.steps_combo, self.steps_combo.setCurrentText, tie.bus_steps if tie else "down")
         _set_quietly(self.mounting_combo, self.mounting_combo.setCurrentText, tie.mounting if tie else MOUNTINGS[0])
-        for widget in (self.label_edit, self.steps_combo, self.mounting_combo):
+        for widget in (self.label_edit, self.steps_combo, self.mounting_combo, self.comms_check):
             widget.setEnabled(tie is not None)
         self._rebuild_attribute_fields()
 
@@ -557,6 +578,7 @@ class TieEditor(QGroupBox):
         if tie is not None:
             mounting_changed = tie.mounting != self.mounting_combo.currentText()
             tie.breaker.label = self.label_edit.text().strip()
+            tie.breaker.comms = self.comms_check.isChecked()
             tie.bus_steps = self.steps_combo.currentText()
             tie.mounting = self.mounting_combo.currentText()
             if mounting_changed:

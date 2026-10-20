@@ -13,7 +13,9 @@ from src.layout.settings import SettingsError
 @dataclass(frozen=True)
 class AutocadSettings:
     program_id: str            # e.g. "AutoCAD.Application.25.1" (AutoCAD 2026)
-    template_file: Path
+    template_file: Path            # the configurator's copy of the template (drawn from)
+    template_source: Path          # the team's template in SharePoint (copied by releases)
+    keep_layouts: list             # layouts kept besides the drawn pages (e.g. the legend)
     output_folder: Path
     frame_block_name: str      # "TITLE_BLOCK_MODEL"
     frame_name_attribute: str  # "NAME" (holds e.g. "ES_01")
@@ -65,6 +67,8 @@ def load_autocad_settings(path, project_root) -> AutocadSettings:
     return AutocadSettings(
         program_id=program_id,
         template_file=root / text("template_file"),
+        template_source=_resolve(root, text("template_source")),
+        keep_layouts=[str(name) for name in data.get("keep_layouts", [])],
         output_folder=root / text("output_folder"),
         frame_block_name=text("frame_block_name"),
         frame_name_attribute=text("frame_name_attribute"),

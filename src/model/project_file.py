@@ -16,6 +16,9 @@ positions are NOT saved: they are worked out again from the current rules every 
     }
 
 An arrangement ("above" / "below") has a "kind":
+    "drawing_info":   the General Drawing Information fields (job number, revision, ...);
+                      missing in older files, which then get the defaults.
+    Every breaker also has "comms": true/false (missing = false).
     "main breaker":   label, mounting, breaker_feed, termination_feed,
                       breaker_attributes, input_attributes
     "single breaker": label, breaker_feed, termination_feed,
@@ -37,6 +40,9 @@ from src.model.section_contents import (
     FIXED, Breaker, GroupMounted, MainBreaker, Provision, SectionContents, SingleBreaker, Space,
     SingleLevel, TieBreaker, TwinLevel,
 )
+from dataclasses import asdict, fields
+
+from src.model.drawing_info import DrawingInfo
 from src.model.switchboard import Section, Switchboard
 from src.version import VERSION
 
@@ -71,6 +77,7 @@ def switchboard_to_dict(switchboard: Switchboard) -> dict:
         "format_version": FORMAT_VERSION,
         "saved_with": VERSION,
         "name": switchboard.name,
+        "drawing_info": asdict(switchboard.drawing_info),
         "sections": [_section_to_dict(section) for section in switchboard.sections],
     }
 
@@ -93,6 +100,7 @@ def _arrangement_to_dict(arrangement):
         return {
             "kind": MAIN,
             "label": arrangement.breaker.label,
+            "comms": arrangement.breaker.comms,
             "mounting": arrangement.mounting,
             "breaker_feed": arrangement.breaker_feed,
             "termination_feed": arrangement.termination_feed,
@@ -103,6 +111,7 @@ def _arrangement_to_dict(arrangement):
         return {
             "kind": SINGLE,
             "label": arrangement.breaker.label,
+            "comms": arrangement.breaker.comms,
             "breaker_feed": arrangement.breaker_feed,
             "termination_feed": arrangement.termination_feed,
             "breaker_attributes": dict(arrangement.breaker.attributes),
@@ -124,7 +133,7 @@ def _slot_to_dict(slot) -> dict:
         return {"provision": slot.info}
     if isinstance(slot, Space):
         return {"space": True}
-    return {"breaker": slot.label, "attributes": dict(slot.attributes)}
+    return {"breaker": slot.label, "comms": slot.comms, "attributes": dict(slot.attributes)}
 
 
 def _tie_to_dict(tie):
@@ -132,6 +141,7 @@ def _tie_to_dict(tie):
         return None
     return {
         "label": tie.breaker.label,
+        "comms": tie.breaker.comms,
         "bus_steps": tie.bus_steps,
         "mounting": tie.mounting,
         "breaker_attributes": dict(tie.breaker.attributes),
@@ -169,7 +179,14 @@ def switchboard_from_dict(data: dict) -> Switchboard:
     return Switchboard(
         name=data.get("name") or "Switchboard",
         sections=[_section_from_dict(section) for section in data["sections"]],
+        drawing_info=_drawing_info_from_dict(data.get("drawing_info") or {}),
     )
+
+
+def _drawing_info_from_dict(data: dict) -> DrawingInfo:
+    """Older files have no drawing_info: every field keeps its default."""
+    known = {f.name for f in fields(DrawingInfo)}
+    return DrawingInfo(**{name: str(value) for name, value in data.items() if name in known})
 
 
 def _upgrade(data: dict) -> dict:
@@ -196,7 +213,7 @@ def _arrangement_from_dict(data):
     kind = data["kind"]
     if kind == MAIN:
         return MainBreaker(
-            breaker=Breaker(data["label"], attributes=_texts(data.get("breaker_attributes"))),
+            breaker=_breaker(data["label"], data),
             mounting=data["mounting"],
             input_attributes=_texts(data.get("input_attributes")),
             breaker_feed=data.get("breaker_feed", ""),
@@ -204,7 +221,7 @@ def _arrangement_from_dict(data):
         )
     if kind == SINGLE:
         return SingleBreaker(
-            breaker=Breaker(data["label"], attributes=_texts(data.get("breaker_attributes"))),
+            breaker=_breaker(data["label"], data),
             output_attributes=_texts(data.get("output_attributes")),
             breaker_feed=data.get("breaker_feed", ""),
             termination_feed=data.get("termination_feed", ""),
@@ -227,17 +244,24 @@ def _slot_from_dict(data: dict):
         return Provision(data["provision"])
     if "space" in data:
         return Space()
-    return Breaker(data["breaker"], attributes=_texts(data.get("attributes")))
+    return Breaker(data["breaker"], attributes=_texts(data.get("attributes")),
+                   comms=bool(data.get("comms", False)))
 
 
 def _tie_from_dict(data):
     if data is None:
         return None
     return TieBreaker(
-        breaker=Breaker(data["label"], attributes=_texts(data.get("breaker_attributes"))),
+        breaker=_breaker(data["label"], data),
         bus_steps=data["bus_steps"],
         mounting=data["mounting"],
     )
+
+
+def _breaker(label: str, data: dict) -> Breaker:
+    """A main, single or tie breaker: label, block attributes, comms (False if missing)."""
+    return Breaker(label, attributes=_texts(data.get("breaker_attributes")),
+                   comms=bool(data.get("comms", False)))
 
 
 def _texts(values) -> dict[str, str]:

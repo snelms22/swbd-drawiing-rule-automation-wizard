@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from src.autocad.settings import load_autocad_settings
 from src.layout.block_catalog import load_block_catalog
 from src.layout.settings import SettingsError, load_settings
+from src.model.drawing_info import load_drawing_info_settings
 from src.model.switchboard import new_switchboard
 from src.ui.main_window import MainWindow
 
@@ -24,6 +25,7 @@ PROJECT_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 SETTINGS_FILE = PROJECT_ROOT / "config" / "layout_settings.json"
 AUTOCAD_SETTINGS_FILE = PROJECT_ROOT / "config" / "autocad_settings.json"
 BLOCK_CATALOG_FILE = PROJECT_ROOT / "catalog" / "blocks.json"
+DRAWING_INFO_FILE = PROJECT_ROOT / "config" / "drawing_info.json"
 
 
 def main() -> int:
@@ -33,6 +35,11 @@ def main() -> int:
         settings = load_settings(SETTINGS_FILE)
     except SettingsError as error:
         QMessageBox.critical(None, "Problem with layout settings", str(error))
+        return 1
+    try:
+        drawing_info_settings = load_drawing_info_settings(DRAWING_INFO_FILE)
+    except SettingsError as error:
+        QMessageBox.critical(None, "Problem with drawing information settings", str(error))
         return 1
     # The app still opens without AutoCAD settings; only "Generate drawing" is disabled.
     autocad_settings, autocad_problem = None, ""
@@ -46,7 +53,8 @@ def main() -> int:
         QMessageBox.warning(None, "Block catalog problem",
                             f"{error}\n\nMain breakers will be shown as placeholder boxes.")
         catalog = None
-    window = MainWindow(settings, new_switchboard(), autocad_settings, autocad_problem, catalog)
+    window = MainWindow(settings, new_switchboard(), autocad_settings, autocad_problem, catalog,
+                        drawing_info_settings)
     window.show()
     window.show_updates_since_last_session(PROJECT_ROOT / "CHANGELOG.md")
     return app.exec()

@@ -10,7 +10,7 @@ Start here: `CLAUDE.md` (working rules) and `docs/DECISIONS.md` (approved design
 | `config/` | Editable layout settings (margins, page size, clearances). |
 | `blocks/archived/` | Old block files, kept for reference only. Blocks now come from the shared library `Symbols-blocks.dwg` (see `docs/BLOCK_LIBRARY_STANDARD.md`). |
 | `catalog/` | Library blocks' sizes and connection points (`blocks.json`). |
-| `templates/` | Starting drawings the program builds on (e.g. `EW_SWBD_TEMPLATE.dwg`). |
+| `templates/` | The configurator's copy of the team's template `HYPER_A.dwt` (refreshed from SharePoint by each release, or `python tools/update_template.py`). |
 | `switchboard_library/` | Ready-made switchboard projects (`.swbd`), e.g. the sample. File > Open from Library. |
 | `tools/` | Development-only scripts (e.g. the block audit). Not part of the app. |
 | `docs/SWBD_reference/` | Finished switchboard jobs used as "what correct looks like." Not used by the program. |
@@ -73,7 +73,7 @@ Block audit (development only, not in the app; Sammy owns the block library):
 python tools/audit_blocks.py    # re-read the library blocks into catalog/blocks.json, list problems
 ```
 
-**Generate drawing** (button in the app) copies `templates/EW_SWBD_TEMPLATE.dwg` to a new
+**Generate drawing** (button in the app) copies `templates/HYPER_A.dwt` to a new
 file in `output/`, opens it in AutoCAD 2026 (never AutoCAD Electrical), draws every page into
 the ES frames, and saves. Which AutoCAD, the template, and the frame/layout names are in
 `config/autocad_settings.json`. Placeholder boxes for section contents are on the
@@ -87,12 +87,13 @@ Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.m
 ## Docket (agreed next work, in order; added 2026-10-15)
 1. ~~Save and open projects~~ (built 2026-10-15: File menu, `.swbd` files).
 1b. ~~Release to the team~~ (2.0.0 released 2026-10-15; installer zipped 2026-10-16).
-2. **General Drawing Information tab** in the app, before the sections: system-level
-   attributes that go in the title block / title page. Possibly also where a **single section
-   switchboard** is chosen. Title-block data comes from **Arena**; fetching it by job number
-   is requested (feasibility to check). Release as 2.1.0.
-3. **Communications:** a comms checkbox on each breaker, and a communications page generated
-   from the breakers (rules: DECISIONS 2026-10-19). Then other devices on the 3-line.
+2. **General Drawing Information** (built 2026-10-20 in the development copy: job number
+   (required) + item name, HYPER_A title block filled, only layouts with content kept).
+   Release as 2.1.0 after Sammy's review. Open: sheet numbering of kept pages; Arena fetch
+   (API machine user, Sammy + software lead).
+3. **Communications:** comms checkbox on each breaker (built 2026-10-19, no drawing effect
+   yet); then the communications page generated from the breakers (rules: DECISIONS
+   2026-10-19). Then other devices on the 3-line.
 3b. ~~SPACE option~~ (built 2026-10-19, in 2.0.1).
 3c. **Main-to-main interlock line, always drawn** (DRAWING_PARTS S4, now approved).
 3d. **Single section switchboards** (one vertical bus, mains fed from the side): design to come.

@@ -266,6 +266,54 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-10-20 — Drawing Information cut down; HYPER_A template; only layouts with content
+**Decision:**
+- **Drawing Information holds only the job number and the item name.** The job number is
+  required: a warning shows until it is entered and no drawing is made without it (it will
+  also be the key for fetching from Arena). The item name comes from Arena, pasted in for now
+  ("Fetch from Arena" comes later). The System fields, approvals, drop-down lists and the
+  generated breaker count from 2026-10-19 are removed.
+- **Template: HYPER_A** (the team's template, `CAD BLOCKS\TEMPLATE\HYPER_A.dwt`) replaces the
+  old EW_SWBD_TEMPLATE copy. Its location is in config (`template_source`), like the symbol
+  library. The configurator draws from its own copy, `templates/HYPER_A.dwt`, refreshed by
+  every release (and by `tools/update_template.py`); reading the shared file directly comes
+  much later, with similar changes.
+- **Title block:** HYPER_A's title block shows drawing properties through fields, so the
+  configurator only sets drawing properties: FG NUMBER = job number (the template's own fields
+  make FGD 900-<job> and each row's drawing number: one-line EO-, schematic ES-, wiring EW-),
+  FG DESCRIPTION / NUMBER OF BREAKERS = the item name on two lines (split at the comma nearest
+  the middle when it's long), TOTAL PAGES ES = the number of 3-line pages. It fills every sheet.
+- **Layouts:** a generated drawing keeps only these layouts, with tabs in this order: the
+  legend (LEG_ES), the BOM page (BOM_ES; not used yet), then the 3-line pages drawn (ES_01 ...).
+  Template pages kept are listed in config (`keep_layouts`). All other (empty) layouts are
+  deleted; the drawing opens on ES_01.
+- **Sheet numbers** ("08 OF 02" on ES_01: the template's frames carry fixed page numbers) are
+  a template update for Sammy, not a program change. **Arena** fetching is on hold for now.
+**Reason:** Sammy, 2026-10-20.
+**Status:** Approved
+
+### 2026-10-19 — General Drawing Information (first version, for review)
+**Decision:**
+- "Drawing Information" is the first entry in the section list; selecting it shows a page
+  with Job (job number, revision), System (board type, designation, bus rating + material,
+  voltage, system, short circuit rating, enclosure), Approvals (initials + dates), a live
+  title-block preview, and a greyed-out "Fetch from Arena" button (Arena: later).
+- Drop-downs for every choice-type field, lists in `config/drawing_info.json` (placeholders
+  until Sammy's lead reviews them).
+- ITEM NAME line 2 counts **every** breaker (mains, ties, single and group-mounted), by trip
+  rating, largest first. Interim: the trip rating is read from the breaker's attribute text
+  ("...1600AT..."); without one it counts as "?A". To be settled with the lead.
+- FGD = "900-" + job number, DWG = "ES-" + job number (formats in config).
+- Generated drawings are **named after the job number** (replacing the previous drawing of
+  the job, after asking); without a job number, project name + date as before.
+- The title block is filled through attributes on the template's MAIN_BLOCK (tags
+  ITEM_NAME_1, ITEM_NAME_2, FGD, DWG_NO, REV); Sammy is adding them. Until then generating
+  reports that the title block was not filled. The block's own contents are never edited.
+- Every breaker (main, single, group-mounted, tie) has a **Comms** checkbox, saved with the
+  project; what it draws is worked out later.
+**Reason:** Sammy, 2026-10-19 (to show the lead on 2026-10-20 before release as 2.1.0).
+**Status:** Approved for review (lists, line 2 rule and attribute tags may change)
+
 ### 2026-10-19 — "Updates since your last session" pop-up, and SPACE slots
 **Decision:**
 - When someone opens a version newer than the one they last used, the app shows a pop-up

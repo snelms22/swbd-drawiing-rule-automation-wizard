@@ -118,7 +118,7 @@ def test_output_file_name_has_name_and_time_and_no_bad_characters():
 def test_real_autocad_settings_load():
     settings = autocad_settings()
     assert settings.frame_name(1) == "ES_01"
-    assert settings.template_file.name == "EW_SWBD_TEMPLATE.dwg"
+    assert settings.template_file.name == "HYPER_A.dwt"
 
 
 def test_autocad_electrical_is_refused(tmp_path):

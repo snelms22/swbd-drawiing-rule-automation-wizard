@@ -9,6 +9,7 @@ session" pop-up the first time they open the new version (decision 2026-10-19).
 Version numbers are X.Y.Z: Z = routine changes and small fixes, Y = something changed but
 not huge, X = a milestone. Steps, stopping at the first problem:
   1. checks: the number is X.Y.Z and newer than the released one; no uncommitted changes;
+     then copies the team's current template (HYPER_A in SharePoint) into templates/;
   2. runs every test;
   3. sets the version in src/version.py and adds the notes to CHANGELOG.md;
   4. builds the app (PyInstaller) with config, catalog, template, switchboard library and
@@ -38,6 +39,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from distribution.autocad_addin import write_bundle             # noqa: E402
+from tools.update_template import update_template               # noqa: E402
 from src.updates import APP_NAME, RELEASE_FOLDER, version_key   # noqa: E402
 
 PYTHON = sys.executable
@@ -172,6 +174,7 @@ def main() -> int:
     try:
         print("1. Checking")
         check(args.version, release_folder, use_git)
+        print("  > " + update_template())
         if use_git and not args.note:
             raise ReleaseError('Say what changed: --note "..." (one per change)')
         print("2. Running the tests")
@@ -189,7 +192,7 @@ def main() -> int:
         if use_git:
             print("7. Recording the release in git")
             notes = "\n".join(f"- {note}" for note in args.note)
-            run(["git", "add", str(VERSION_FILE), str(CHANGELOG)])
+            run(["git", "add", str(VERSION_FILE), str(CHANGELOG), str(PROJECT_ROOT / "templates")])
             run(["git", "commit", "-m", f"Release {args.version}\n\n{notes}"])
             run(["git", "tag", f"v{args.version}"])
     except ReleaseError as error:

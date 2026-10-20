@@ -8,6 +8,7 @@ A section's size is not typed in; it is worked out from its contents
 """
 from dataclasses import dataclass, field
 
+from src.model.drawing_info import DrawingInfo
 from src.model.section_contents import SectionContents
 
 
@@ -26,6 +27,8 @@ class Switchboard:
     name: str
     # Order matters: it is the order of sections along the main bus, left to right.
     sections: list[Section] = field(default_factory=list)
+    # Title block / drawing-level information (decision 2026-10-19).
+    drawing_info: DrawingInfo = field(default_factory=DrawingInfo)
 
 
 def new_switchboard() -> Switchboard:

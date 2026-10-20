@@ -26,11 +26,12 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QFileDialog, QHBoxLayout, QListWidget, QMainWindow, QMessageBox,
-    QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QSplitter, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from src.layout.page_fitter import fit_pages
 from src.layout.settings import LayoutSettings
+from src.model.drawing_info import job_number_problem
 from src.model.project_file import (
     EXTENSION, ProjectFileError, attributes_no_longer_on_blocks, open_project, save_project,
 )
@@ -41,19 +42,24 @@ from src.preferences import (
 from src.release_notes import notes_since
 from src.updates import INSTALLED_LAUNCHER, RELEASE_FOLDER, newer_version_available
 from src.model.switchboard import Section, Switchboard, new_switchboard
+from src.ui.drawing_info_editor import DrawingInfoEditor
 from src.ui.page_preview import PagePreview
 from src.ui.section_editor import SectionEditor
 from src.version import VERSION
 
 APP_NAME = "Switchboard Configurator"
+DRAWING_INFO_ROW_TEXT = "Drawing Information"
+FIRST_SECTION_ROW = 1          # row 0 of the section list is Drawing Information
 UPDATE_CHECK_MINUTES = 30
 FILE_FILTER = f"Switchboard projects (*{EXTENSION})"
 
 
 class MainWindow(QMainWindow):
     def __init__(self, settings: LayoutSettings, switchboard: Switchboard,
-                 autocad_settings=None, autocad_settings_problem: str = "", catalog=None):
+                 autocad_settings=None, autocad_settings_problem: str = "", catalog=None,
+                 drawing_info_settings=None):
         super().__init__()
+        self._drawing_info_settings = drawing_info_settings
         self._catalog = catalog     # library block sizes/terminals; None = placeholders only
         self._settings = settings
         self._switchboard = switchboard
@@ -95,12 +101,17 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.generate_button)
 
 
-        # Middle: editor for the selected section.
+        # Middle: the Drawing Information page or the editor for the selected section.
         self.editor = SectionEditor(settings, catalog)
         self.editor.changed.connect(self._edited)
+        self.drawing_info_editor = DrawingInfoEditor(drawing_info_settings)
+        self.drawing_info_editor.changed.connect(self._edited)
+        self.editor_pages = QStackedWidget()
+        self.editor_pages.addWidget(self.drawing_info_editor)
+        self.editor_pages.addWidget(self.editor)
         editor_scroll = QScrollArea()
         editor_scroll.setWidgetResizable(True)
-        editor_scroll.setWidget(self.editor)
+        editor_scroll.setWidget(self.editor_pages)
 
         # Right: page preview (scrolls when there are many pages).
         self.preview = PagePreview(settings)
@@ -124,7 +135,7 @@ class MainWindow(QMainWindow):
         main_splitter.setSizes([750, 150])
         self.setCentralWidget(main_splitter)
 
-        self._rebuild_list(select_row=0)
+        self._rebuild_list(select_index=0)
         self.refresh()
         self._update_title()
 
@@ -263,7 +274,7 @@ class MainWindow(QMainWindow):
         self._file_path = file_path
         self._read_only = read_only
         self._unsaved = False
-        self._rebuild_list(select_row=0)
+        self._rebuild_list(select_index=0)
         self.refresh()
         self._update_title()
         kept = attributes_no_longer_on_blocks(switchboard, self._settings, self._catalog)
@@ -393,26 +404,40 @@ class MainWindow(QMainWindow):
 
     # --- Section list -------------------------------------------------------------------
 
+    # The list's first row is "Drawing Information"; the sections follow it, so section
+    # index i (0 = Section 1) is list row i + 1.
+
     def _sections(self) -> list[Section]:
         return self._switchboard.sections
 
-    def _rebuild_list(self, select_row):
+    def _section_index(self) -> int:
+        """Index of the selected section, or -1 when Drawing Information is selected."""
+        return self.section_list.currentRow() - FIRST_SECTION_ROW
+
+    def _rebuild_list(self, select_index):
+        """Refill the list and select section `select_index` (-1 = Drawing Information)."""
         self.section_list.blockSignals(True)
         self.section_list.clear()
+        self.section_list.addItem(DRAWING_INFO_ROW_TEXT)
         for number in range(1, len(self._sections()) + 1):
             self.section_list.addItem(f"Section {number}")
         self.section_list.blockSignals(False)
-        if self._sections():
-            self.section_list.setCurrentRow(min(max(select_row, 0), len(self._sections()) - 1))
+        index = min(select_index, len(self._sections()) - 1)
+        self.section_list.setCurrentRow(index + FIRST_SECTION_ROW)
         self._section_selected(self.section_list.currentRow())
 
     def _selected(self) -> Section | None:
-        row = self.section_list.currentRow()
-        return self._sections()[row] if 0 <= row < len(self._sections()) else None
+        index = self._section_index()
+        return self._sections()[index] if 0 <= index < len(self._sections()) else None
 
     def _section_selected(self, row):
+        if row == 0:                      # Drawing Information
+            self.drawing_info_editor.load(self._switchboard)
+            self.editor_pages.setCurrentWidget(self.drawing_info_editor)
+        else:
+            self.editor_pages.setCurrentWidget(self.editor)
         section = self._selected()
-        self.editor.load(section, row + 1)
+        self.editor.load(section, self._section_index() + 1)
         for check, value in ((self.push_check, section.push_to_next_page if section else False),
                              (self.link_check, section.link_with_next if section else False)):
             check.blockSignals(True)
@@ -428,31 +453,30 @@ class MainWindow(QMainWindow):
             self._edited()
 
     def _add_section(self):
-        # New sections go right after the selected one (or at the end).
-        row = self.section_list.currentRow()
-        insert_at = row + 1 if row >= 0 else len(self._sections())
+        # New sections go right after the selected one (Drawing Information selected: first).
+        insert_at = self._section_index() + 1
         self._sections().insert(insert_at, Section())
         self._rebuild_list(insert_at)
         self._edited()
 
     def _remove_section(self):
-        row = self.section_list.currentRow()
-        if row >= 0:
-            del self._sections()[row]
-            self._rebuild_list(row)
+        index = self._section_index()
+        if 0 <= index < len(self._sections()):
+            del self._sections()[index]
+            self._rebuild_list(index)
             self._edited()
 
     def _move_up(self):
-        self._swap(self.section_list.currentRow(), -1)
+        self._swap(self._section_index(), -1)
 
     def _move_down(self):
-        self._swap(self.section_list.currentRow(), +1)
+        self._swap(self._section_index(), +1)
 
-    def _swap(self, row, step):
+    def _swap(self, index, step):
         sections = self._sections()
-        other = row + step
-        if 0 <= row < len(sections) and 0 <= other < len(sections):
-            sections[row], sections[other] = sections[other], sections[row]
+        other = index + step
+        if 0 <= index < len(sections) and 0 <= other < len(sections):
+            sections[index], sections[other] = sections[other], sections[index]
             self._rebuild_list(other)
             self._edited()
 
@@ -460,8 +484,13 @@ class MainWindow(QMainWindow):
 
     def _generate_drawing(self):
         # Imported here so the app still opens (preview only) where AutoCAD isn't installed.
-        from src.autocad.generate import GenerateError, generate_drawing
+        from src.autocad.generate import GenerateError, drawing_path, generate_drawing
 
+        missing_job = job_number_problem(self._switchboard)
+        if missing_job:
+            QMessageBox.warning(self, "Drawing not made", missing_job)
+            self.section_list.setCurrentRow(0)                 # show Drawing Information
+            return
         folder = drawing_folder()
         if folder is None:
             QMessageBox.information(self, APP_NAME, "Pick the folder your drawings should be saved "
@@ -469,10 +498,19 @@ class MainWindow(QMainWindow):
             folder = self._choose_drawing_folder()
             if folder is None:
                 return
+        # Drawings are named after the job number, so generating again replaces the last one.
+        target = drawing_path(self._switchboard, folder, self._drawing_info_settings)
+        if target.exists():
+            answer = QMessageBox.question(
+                self, APP_NAME, f"{target.name} already exists in the drawing folder. Replace it?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if answer != QMessageBox.Yes:
+                return
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             result = generate_drawing(self._switchboard, self._settings, self._autocad_settings,
-                                      self._catalog, output_folder=folder)
+                                      self._catalog, output_folder=folder,
+                                      drawing_info_settings=self._drawing_info_settings)
         except GenerateError as error:
             QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "Drawing not made", str(error))
@@ -492,9 +530,13 @@ class MainWindow(QMainWindow):
     # --- Layout -------------------------------------------------------------------------
 
     def refresh(self):
+        self.drawing_info_editor.refresh_preview()     # line 2 counts the breakers
         result = fit_pages(self._switchboard, self._settings, self._catalog)
         self.preview.show_layout(result)
         self.warning_list.clear()
+        missing_job = job_number_problem(self._switchboard)     # required for a drawing
+        if missing_job:
+            result.warnings.insert(0, missing_job)
         if result.warnings:
             # Plain text on purpose: a warning symbol here made Windows search its fonts
             # the first time a warning appeared (about 0.7 s of lag).

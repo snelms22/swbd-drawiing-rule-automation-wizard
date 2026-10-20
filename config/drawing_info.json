@@ -1,0 +1,21 @@
+{
+  "note": "General Drawing Information (decisions 2026-10-19 / 10-20): the job number (required) and the item name (from Arena: pasted for now, fetched later). How they reach the title block of the HYPER_A template.",
+  "fgd_format": "900-{job_number}",
+  "drawing_number_formats": {
+    "EO": "EO-{job_number}",
+    "ES": "ES-{job_number}",
+    "EW": "EW-{job_number}"
+  },
+  "drawing_number_note": "Shown in the app's preview only. In the drawing, the template's own fields build FGD (900-) and each row's drawing number (EO-/ES-/EW-) from the FG NUMBER drawing property.",
+  "default_drawing_type": "ES",
+  "drawing_file_format": "{job_number}",
+  "item_name_line_length": 44,
+  "item_name_note": "The item name goes on two title block lines. If it is longer than item_name_line_length characters it is split at the comma nearest the middle.",
+  "drawing_properties": {
+    "job_number": "FG NUMBER",
+    "item_name_line_1": "FG DESCRIPTION",
+    "item_name_line_2": "NUMBER OF BREAKERS",
+    "schematic_pages": "TOTAL PAGES ES"
+  },
+  "drawing_properties_note": "Drawing properties (DWGPROPS custom properties) in HYPER_A; fields in its title block show them on every sheet."
+}

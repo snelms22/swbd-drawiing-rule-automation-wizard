@@ -3,6 +3,13 @@ page, save. Decision: docs/DECISIONS.md, 2026-10-11 "First AutoCAD step".
 
 A copy of the project (.swbd) is saved next to every drawing, with the same name, so any
 drawing can be reopened and remade exactly (decision 2026-10-15).
+
+General Drawing Information (decisions 2026-10-19/20): a drawing needs a job number. The
+drawing is named after it (replacing an earlier drawing of the same job), and the title
+block is filled through drawing properties (job number, item name, number of 3-line
+pages), which the template's fields show on every sheet (FGD 900- and the EO-/ES-/EW-
+drawing numbers come from the job number). Only the layouts with something in them are kept:
+the template pages listed in config (legend, BOM), then the 3-line pages drawn.
 """
 import re
 import shutil
@@ -13,6 +20,9 @@ from pathlib import Path
 from src.autocad.connection import AutocadSession
 from src.autocad.draw_page import BlockInsert, page_shapes
 from src.layout.page_fitter import fit_pages
+from src.model.drawing_info import (
+    MISSING_JOB_NUMBER, drawing_file_stem, drawing_properties, job_number_problem,
+)
 from src.model.project_file import EXTENSION, save_project
 
 
@@ -27,9 +37,14 @@ class GenerateResult:
     problems: list[str] = field(default_factory=list)   # drawing was made, but check these
 
 
+def _safe_file_name(name: str) -> str:
+    """The name with characters Windows won't allow in a file name replaced."""
+    return re.sub(r'[<>:"/\\|?*]', "_", name).strip()
+
+
 def output_file_name(switchboard_name: str, now: datetime) -> str:
     """Switchboard name + date/time, with characters Windows won't allow replaced."""
-    safe_name = re.sub(r'[<>:"/\\|?*]', "_", switchboard_name).strip() or "Switchboard"
+    safe_name = _safe_file_name(switchboard_name) or "Switchboard"
     return f"{safe_name} {now:%Y-%m-%d %H%M%S}.dwg"
 
 
@@ -62,10 +77,21 @@ def check_frames(frames, page_count, autocad_settings) -> dict[int, tuple[float,
     return origins
 
 
+def drawing_path(switchboard, output_folder: Path, drawing_info_settings=None, now=None) -> Path:
+    """Where the drawing goes: named after the job number when there is one, otherwise the
+    project name and the date."""
+    stem = drawing_file_stem(switchboard, drawing_info_settings) if drawing_info_settings else None
+    if stem:
+        return output_folder / f"{_safe_file_name(stem)}.dwg"
+    return output_folder / output_file_name(switchboard.name, now or datetime.now())
+
+
 def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=None,
-                     now=None, output_folder=None) -> GenerateResult:
+                     now=None, output_folder=None, drawing_info_settings=None) -> GenerateResult:
     """`output_folder`: where the drawing goes (the folder the person picked, decision
     2026-10-15); config's output_folder when not given (development)."""
+    if drawing_info_settings is not None and job_number_problem(switchboard):
+        raise GenerateError(MISSING_JOB_NUMBER)
     layout = fit_pages(switchboard, layout_settings, catalog)
     if not layout.pages:
         raise GenerateError("There is nothing to draw: the switchboard has no sections.")
@@ -75,9 +101,12 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
         raise GenerateError(f"Template not found: {template}")
     output_folder = Path(output_folder) if output_folder else autocad_settings.output_folder
     output_folder.mkdir(parents=True, exist_ok=True)
-    drawing_file = output_folder / output_file_name(
-        switchboard.name, now or datetime.now())
-    shutil.copy2(template, drawing_file)          # the template itself is never opened
+    drawing_file = drawing_path(switchboard, output_folder, drawing_info_settings, now)
+    try:
+        shutil.copy2(template, drawing_file)      # the template itself is never opened
+    except PermissionError:
+        raise GenerateError(f"{drawing_file.name} is open (probably in AutoCAD). Close it and "
+                            f"generate again.")
 
     drawing = AutocadSession(autocad_settings.program_id).open(drawing_file)
 
@@ -121,6 +150,14 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
     for page in layout.pages:
         x, y = origins[page.number]
         problems += drawing.add_shapes(shapes_per_page[page.number], x, y)
+
+    if drawing_info_settings is not None:
+        drawing.set_drawing_properties(
+            drawing_properties(switchboard, drawing_info_settings, len(layout.pages)))
+    pages = [autocad_settings.layout_name(page.number) for page in layout.pages]
+    # Template pages (legend, BOM) first, then the 3-line pages; it opens on the first page.
+    drawing.keep_only_layouts(autocad_settings.keep_layouts + pages, open_on=pages[0])
+    drawing.update_fields()
 
     drawing.save()
     project_copy = None

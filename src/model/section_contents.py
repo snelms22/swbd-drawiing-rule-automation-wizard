@@ -35,6 +35,8 @@ class Breaker:
     block: str = ""                 # block name from blocks/ (chosen once blocks are catalogued)
     # Values for the block's attributes, by tag. Empty or missing = the block's default.
     attributes: dict[str, str] = field(default_factory=dict)
+    # Has a communication module (decision 2026-10-19). What it draws is worked out later.
+    comms: bool = False
 
 
 @dataclass

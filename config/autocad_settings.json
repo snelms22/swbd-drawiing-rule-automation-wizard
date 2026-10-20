@@ -2,7 +2,14 @@
   "note": "How the program talks to AutoCAD. Layout numbers live in layout_settings.json.",
   "autocad_program_id": "AutoCAD.Application.25.1",
   "autocad_program_note": "25.1 = AutoCAD 2026. Never use AutoCAD Electrical (decision 2026-10-11).",
-  "template_file": "templates/EW_SWBD_TEMPLATE.dwg",
+  "template_file": "templates/HYPER_A.dwt",
+  "template_source": "~/Hyper Solutions/Hyper Document Library - Engineering/Electrical Team/CAD BLOCKS/TEMPLATE/HYPER_A.dwt",
+  "template_note": "The team's template HYPER_A lives in SharePoint (template_source), like the symbol library. The configurator draws from its own copy (template_file), refreshed from the source by every release (tools/release.py) or by tools/update_template.py during development (decision 2026-10-20). Reading the shared template directly, without a release, comes much later.",
+  "keep_layouts": [
+    "LEG_ES",
+    "BOM_ES"
+  ],
+  "keep_layouts_note": "Template pages kept in every generated drawing, in this order, BEFORE the 3-line pages (ES_01 ...): the legend, then the BOM page (not used yet). Every other layout (empty pages) is deleted (decisions 2026-10-20). The drawing opens on ES_01.",
   "output_folder": "output",
   "frame_block_name": "TITLE_BLOCK_MODEL",
   "frame_name_attribute": "NAME",
