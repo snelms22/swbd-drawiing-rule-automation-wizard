@@ -9,7 +9,7 @@ from src.model.project_file import (
     FORMAT_VERSION, ProjectFileError, attributes_no_longer_on_blocks, open_project, save_project,
 )
 from src.model.section_contents import (
-    Breaker, GroupMounted, MainBreaker, Provision, SectionContents, SingleBreaker, SingleLevel, Space,
+    Breaker, GroupMounted, IncomingFeed, MainBreaker, Provision, SectionContents, SingleBreaker, SingleLevel, Space,
     TieBreaker, TwinLevel,
 )
 from src.model.switchboard import Section, Switchboard
@@ -21,8 +21,9 @@ def everything_board() -> Switchboard:
     return Switchboard("Job 1234 MSB", [
         Section(SectionContents(
             above=MainBreaker(Breaker("52-M1", attributes={"SIZE/POLLS": "4000AF/\n4000AT"}),
-                              mounting="draw-out", input_attributes={"TERMINATION": "LUGS\n(14) 750"}),
-            below=MainBreaker(Breaker("52-M2"), breaker_feed="bottom", termination_feed="top"),
+                              mounting="draw-out",
+                              feed=IncomingFeed(input_attributes={"TERMINATION": "LUGS\n(14) 750"})),
+            below=MainBreaker(Breaker("52-M2"), breaker_feed="bottom", feed=IncomingFeed(termination_feed="top")),
         ), push_to_next_page=True),
         Section(SectionContents(
             above=GroupMounted([

@@ -7,7 +7,7 @@ so the first section's content starts at x 15 and the block base sits at x 15.5.
 Main breaker placeholder size: 30 wide, 75 tall.
 """
 from src.layout.page_fitter import fit_pages
-from src.model.section_contents import Breaker, MainBreaker, SectionContents, SingleBreaker
+from src.model.section_contents import Breaker, IncomingFeed, MainBreaker, SectionContents, SingleBreaker
 from src.model.switchboard import Section, Switchboard
 from tests.helpers import TEST_CATALOG, TEST_SETTINGS
 
@@ -128,7 +128,7 @@ def test_fixed_is_the_default_mounting():
 
 def test_attribute_values_go_to_the_blocks_and_empty_ones_keep_the_default():
     main = MainBreaker(Breaker("52-M1", attributes={"SIZE/POLLS": "2000AF/1600AT,3P", "ETU/DAS": ""}),
-                       input_attributes={"LOCATION": "FROM UTILITY", "TERMINATION": ""})
+                       feed=IncomingFeed(input_attributes={"LOCATION": "FROM UTILITY", "TERMINATION": ""}))
     page = layout(Section(SectionContents(above=main))).pages[0]
     breaker = [b for b in page.parts.blocks if b.block == "TEST_BKR"][0]
     lugs = [b for b in page.parts.blocks if b.block == "TEST_LUGS"][0]

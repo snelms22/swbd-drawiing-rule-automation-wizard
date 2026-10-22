@@ -12,7 +12,7 @@ Main breaker placeholder: 30 wide, 75 tall.
 """
 from src.layout.page_fitter import fit_pages
 from src.model.section_contents import (
-    Breaker, MainBreaker, SectionContents, SingleBreaker, feed_directions,
+    Breaker, IncomingFeed, MainBreaker, SectionContents, SingleBreaker, feed_directions,
 )
 from src.model.switchboard import Section, Switchboard
 from tests.helpers import TEST_CATALOG, TEST_SETTINGS
@@ -42,7 +42,7 @@ def test_bottom_fed_breaker_below_the_bus_from_a_top_termination_u_turns():
     # The U goes just far enough: the breaker reaches 1 past its bottom terminals, then 5
     # clearance, then the termination reaches 15 back up from its connection, then 5 out
     # of the U-turn: A (nearest) turns 26 below 80, at 54; B at 49, C at 44.
-    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="top")
+    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", feed=IncomingFeed(termination_feed="top"))
     page = layout(Section(SectionContents(below=main))).pages[0]
     assert lines(page) == [
         ("A", (15.5, 80), (15.5, 54)), ("A", (15.5, 54), (50.5, 54)), ("A", (50.5, 54), (50.5, 59)),
@@ -59,7 +59,7 @@ def test_top_fed_breaker_above_the_bus_from_a_bottom_termination_u_turns_up():
     # Bus B at 35, A at 40. Breaker bottom terminals at 55, top terminals at 65; the
     # breaker reaches 3.5 above them. Depth 3.5 + 5 + 15 + 5 = 28.5 to C (nearest, 93.5);
     # A is outermost (103.5). The legs come back down 5, to 88.5.
-    main = MainBreaker(Breaker("52-M"), breaker_feed="top", termination_feed="bottom")
+    main = MainBreaker(Breaker("52-M"), breaker_feed="top", feed=IncomingFeed(termination_feed="bottom"))
     page = layout(Section(SectionContents(above=main))).pages[0]
     a_lines = [line for line in lines(page) if line[0] == "A"]
     assert a_lines == [("A", (15.5, 65), (15.5, 103.5)), ("A", (15.5, 103.5), (50.5, 103.5)),
@@ -79,13 +79,13 @@ def test_single_breaker_u_turns_too():
 def test_u_turn_adds_its_width_to_the_section():
     straight = layout(Section(SectionContents(below=MainBreaker(Breaker("52-M")))))
     turned = layout(Section(SectionContents(
-        below=MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="top"))))
+        below=MainBreaker(Breaker("52-M"), breaker_feed="bottom", feed=IncomingFeed(termination_feed="top")))))
     assert straight.pages[0].placed_sections[0].section.width == 30
     assert turned.pages[0].placed_sections[0].section.width == 30 + 35
 
 
 def test_bus_side_fed_breaker_warns_so_it_can_be_checked():
-    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="bottom")
+    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", feed=IncomingFeed(termination_feed="bottom"))
     result = layout(Section(SectionContents(above=main)))
     assert any(w.startswith("Section 1: the bottom-fed breaker above the main bus")
                for w in result.warnings)
@@ -94,7 +94,7 @@ def test_bus_side_fed_breaker_warns_so_it_can_be_checked():
 def test_bottom_fed_above_the_bus_with_a_bottom_termination():
     # The termination block sits between the breaker and the bus: the breaker's bottom
     # terminals are 15 + 30 + 15 = 60 above A (40), at y 100; its top terminals at 110.
-    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="bottom")
+    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", feed=IncomingFeed(termination_feed="bottom"))
     page = layout(Section(SectionContents(above=main))).pages[0]
     breaker, = [b for b in page.parts.blocks if b.block == "TEST_BKR"]
     assert breaker.position == (15.5, 110)
@@ -112,7 +112,7 @@ def test_bottom_fed_above_the_bus_with_a_top_termination_turns_both_ways():
     # Room for the cables' U-turn below the breaker: bottom terminals 15 + 30 + 10 = 55
     # above A, at y 95; top terminals at 105. The cables turn LEFT, so the breaker moves
     # 35 right (base x 50.5).
-    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="top")
+    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", feed=IncomingFeed(termination_feed="top"))
     page = layout(Section(SectionContents(above=main))).pages[0]
     breaker, = [b for b in page.parts.blocks if b.block == "TEST_BKR"]
     assert breaker.position == (50.5, 105)
@@ -143,8 +143,8 @@ def test_bus_side_fed_breaker_mid_bus_tees_in_beside_it():
 def test_u_turn_goes_further_for_a_termination_with_more_lines_of_text():
     # Two line breaks in the termination's text: 2 x 1.25 x 1.6 = 4 more, so A turns at
     # 54 - 4 = 50 and the termination sits 5 above that (55) instead of at 59.
-    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", termination_feed="top",
-                       input_attributes={"TERMINATION": "LUGS\n(4) 500 KCMIL\nPER PHASE"})
+    main = MainBreaker(Breaker("52-M"), breaker_feed="bottom", feed=IncomingFeed(
+        input_attributes={"TERMINATION": "LUGS\n(4) 500 KCMIL\nPER PHASE"}, termination_feed="top"))
     page = layout(Section(SectionContents(below=main))).pages[0]
     assert ("A", (15.5, 80), (15.5, 50)) in lines(page)
     block, = lugs(page)

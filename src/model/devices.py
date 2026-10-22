@@ -1,0 +1,233 @@
+"""Devices (decision 2026-10-21): the choices the engineer picks from (communication
+modules and power meter models, config/devices.json), and how meters and CT sets are named
+and numbered through the lineup. Pure Python.
+
+    Meter models:  each model's block and the blocks wired into it (voltage input, one
+                   current input per CT set), with the meter marker each input marker
+                   lands on (decision 2026-10-22). pairing_problems() checks them.
+    Power meters:  PM-1, PM-2, ... in lineup order (section by section).
+    CT sets:       numbered in lineup order: in each section the part above the bus, the
+                   part below it, then the tie. Set k has CTs 3k-2, 3k-1, 3k (CT1-3, CT4-6,
+                   ...) and shorting kit k (STB-1, ...).
+    Voltage taps:  fuses FA-1, FA-2, ... in lineup order (per section: above, below; each
+                   feed's taps in the order entered). Decision 2026-10-22.
+"""
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+from src.layout.settings import SettingsError
+from src.model.section_contents import GroupMounted, IncomingFeed, MainBreaker, SingleBreaker
+
+
+@dataclass(frozen=True)
+class InputBlock:
+    """A block wired into a device, e.g. a meter's voltage input."""
+    block: str
+    lands_on: dict          # {this block's marker: the device marker it connects to}
+
+
+@dataclass(frozen=True)
+class MeterModel:
+    name: str                       # what the engineer picks, e.g. "Janitza UMG 801"
+    block: str                      # "" = block not built yet
+    voltage_input: InputBlock | None
+    current_inputs: tuple           # InputBlock per CT set, in the order sets are wired
+
+    def input_blocks(self) -> list[tuple[str, InputBlock]]:
+        """(what it is, the input) for each input, for messages."""
+        found = [("voltage input", self.voltage_input)] if self.voltage_input else []
+        found += [(f"current input {n}", i) for n, i in enumerate(self.current_inputs, start=1)]
+        return found
+
+
+@dataclass(frozen=True)
+class DeviceSettings:
+    comms_modules: list          # e.g. ["Siemens COM190", "Siemens COM800"]
+    power_meters: dict           # {model name: MeterModel}
+
+    @property
+    def power_meter_models(self) -> list[str]:
+        return list(self.power_meters)
+
+    def device_blocks(self) -> list[str]:
+        """Every library block the meters use (for Audit Blocks)."""
+        names = []
+        for model in self.power_meters.values():
+            if model.block:
+                names.append(model.block)
+                names += [i.block for _, i in model.input_blocks()]
+        return sorted(set(names))
+
+
+def load_device_settings(path) -> DeviceSettings:
+    path = Path(path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return DeviceSettings(
+            comms_modules=list(data["comms_modules"]),
+            power_meters={name: _meter_model(name, entry) for name, entry in data["power_meters"].items()},
+        )
+    except FileNotFoundError:
+        raise SettingsError(f"Settings file not found: {path}")
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as error:
+        raise SettingsError(f"{path.name} is missing something or is not valid JSON: {error}")
+
+
+def _meter_model(name, entry) -> MeterModel:
+    def input_block(data):
+        return InputBlock(block=str(data["block"]), lands_on={str(k): str(v) for k, v in data["lands_on"].items()})
+    voltage = entry.get("voltage_input")
+    return MeterModel(name=name, block=str(entry.get("block", "")),
+                      voltage_input=input_block(voltage) if voltage else None,
+                      current_inputs=tuple(input_block(i) for i in entry.get("current_inputs", [])))
+
+
+TOLERANCE = 0.05     # markers closer than this count as the same point
+
+
+def pairing_problems(model: MeterModel, markers: dict) -> list[str]:
+    """Check a meter model's pairs against its blocks' markers: every marker exists, and
+    with each input block placed so its first pair connects, every other pair connects too.
+    `markers` is {block name: {marker name: (x, y)}} for the blocks read. Plain words."""
+    if not model.block or model.block not in markers:
+        return []                       # not built yet, or not read (reported elsewhere)
+    meter = markers[model.block]
+    problems = []
+    for what, connected in model.input_blocks():
+        if connected.block not in markers:
+            continue
+        own = markers[connected.block]
+        where = f"{model.name} {what} ({connected.block} on {model.block})"
+        missing_own = [m for m in connected.lands_on if m not in own]
+        if missing_own:
+            problems.append(f"{where}: {connected.block} has no marker {', '.join(missing_own)}.")
+        usable = [(m, t) for m, t in connected.lands_on.items() if m in own and t in meter]
+        if not usable:
+            problems.append(f"{where}: none of its markers can be matched to the meter's.")
+            continue
+        first, first_target = usable[0]
+        dx = meter[first_target][0] - own[first][0]
+        dy = meter[first_target][1] - own[first][1]
+        for marker, target in connected.lands_on.items():
+            if marker not in own:
+                continue
+            x, y = own[marker][0] + dx, own[marker][1] + dy
+            if target not in meter:
+                there = [name for name, (mx, my) in meter.items()
+                         if abs(mx - x) <= TOLERANCE and abs(my - y) <= TOLERANCE]
+                hint = f" The marker where it should be is named {there[0]}." if there else ""
+                problems.append(f"{where}: {model.block} has no marker {target} (for {marker}).{hint}")
+            elif abs(meter[target][0] - x) > TOLERANCE or abs(meter[target][1] - y) > TOLERANCE:
+                problems.append(f"{where}: {marker} would land at ({x:g}, {y:g}) but {target} is at "
+                                f"({meter[target][0]:g}, {meter[target][1]:g}); they don't line up.")
+    return problems
+
+
+@dataclass
+class MeterInfo:
+    name: str               # "PM-1"
+    section_number: int     # where it is mounted
+    meter: object           # the PowerMeter
+
+
+@dataclass
+class CtSetInfo:
+    number: int             # 1, 2, ... (CT numbers 3n-2..3n, shorting kit n)
+    where: str              # e.g. "Section 2 above (52-M1)"
+    cts: object             # the CurrentTransformers
+    section_number: int     # 1, 2, ...
+    part: str               # "above", "below" or "tie"
+
+    @property
+    def ct_numbers(self) -> list[str]:
+        return [str(3 * self.number - 2 + i) for i in range(3)]
+
+
+def meters_in(switchboard) -> list[MeterInfo]:
+    found = []
+    for number, section in enumerate(switchboard.sections, start=1):
+        for meter in section.contents.power_meters:
+            found.append(MeterInfo(f"PM-{len(found) + 1}", number, meter))
+    return found
+
+
+def ct_sets_in(switchboard) -> list[CtSetInfo]:
+    found = []
+    for number, section in enumerate(switchboard.sections, start=1):
+        contents = section.contents
+        for part in ("above", "below"):
+            arrangement = getattr(contents, part)
+            if isinstance(arrangement, (MainBreaker, SingleBreaker)) and arrangement.cts:
+                label = arrangement.breaker.label or "breaker"
+                found.append(CtSetInfo(len(found) + 1, f"Section {number} {part} ({label})", arrangement.cts,
+                                       number, part))
+            elif isinstance(arrangement, GroupMounted) and arrangement.base_cts:
+                found.append(CtSetInfo(len(found) + 1, f"Section {number} {part} (group-mounted base)",
+                                       arrangement.base_cts, number, part))
+        if contents.tie is not None and contents.tie.cts:
+            label = contents.tie.breaker.label or "tie"
+            found.append(CtSetInfo(len(found) + 1, f"Section {number} tie ({label})", contents.tie.cts,
+                                   number, "tie"))
+    return found
+
+
+@dataclass
+class TapInfo:
+    number: int             # FA-n
+    where: str              # e.g. "Section 1 above (feed of 52-M1)"
+    tap: object             # the VoltageTap
+    section_number: int
+    part: str               # "above" or "below"
+    index: int              # its place in the feed's list of taps
+
+    @property
+    def fuse(self) -> str:
+        return f"FA-{self.number}"
+
+
+def voltage_taps_in(switchboard) -> list[TapInfo]:
+    found = []
+    for number, section in enumerate(switchboard.sections, start=1):
+        for part in ("above", "below"):
+            arrangement = getattr(section.contents, part)
+            if isinstance(arrangement, MainBreaker) and arrangement.feed is not None:
+                feed, where = arrangement.feed, f"feed of {arrangement.breaker.label or 'main breaker'}"
+            elif isinstance(arrangement, IncomingFeed):
+                feed, where = arrangement, "incoming feed"
+            else:
+                continue
+            for index, tap in enumerate(feed.voltage_taps):
+                found.append(TapInfo(len(found) + 1, f"Section {number} {part} ({where})",
+                                     tap, number, part, index))
+    return found
+
+
+def meter_name(switchboard, meter_id: str) -> str:
+    """The meter's name (e.g. "PM-1"), or "" if there is no such meter."""
+    for info in meters_in(switchboard):
+        if info.meter.id == meter_id:
+            return info.name
+    return ""
+
+
+def device_problems(switchboard) -> list[str]:
+    """Warnings about CTs and meters, in plain words."""
+    problems = []
+    for ct_set in ct_sets_in(switchboard):
+        if not ct_set.cts.meter_id:
+            problems.append(f"{ct_set.where}: choose the power meter its CTs feed.")
+        elif not meter_name(switchboard, ct_set.cts.meter_id):
+            problems.append(f"{ct_set.where}: its CTs feed a power meter that no longer exists.")
+        if ct_set.cts.on_main_bus:
+            problems.append(f"{ct_set.where}: CTs on the main bus after the mains join are not drawn "
+                            f"yet; they are drawn on the main's riser.")
+    for tap in voltage_taps_in(switchboard):
+        if not tap.tap.meter_id:
+            problems.append(f"{tap.where}: choose the power meter voltage tap {tap.fuse} feeds.")
+        elif not meter_name(switchboard, tap.tap.meter_id):
+            problems.append(f"{tap.where}: voltage tap {tap.fuse} feeds a power meter that no longer exists.")
+    for info in meters_in(switchboard):
+        if not info.meter.model:
+            problems.append(f"{info.name} (section {info.section_number}): choose its model.")
+    return problems

@@ -4,9 +4,19 @@ A section has an ABOVE part (above the main bus) and a BELOW part. Each part hol
 arrangement, or nothing. Any section may also hold a tie breaker.
 
     SectionContents
-      above: None | MainBreaker | SingleBreaker | GroupMounted
-      below: None | MainBreaker | SingleBreaker | GroupMounted
+      above: None | MainBreaker | IncomingFeed | LineSideBreaker | SingleBreaker | GroupMounted
+      below: None | MainBreaker | IncomingFeed | LineSideBreaker | SingleBreaker | GroupMounted
       tie:   None | TieBreaker
+
+A main breaker and its incoming feed are separate things (decision 2026-10-22, option B):
+the IncomingFeed is where power comes in (the termination, and what hangs on the line side
+before any breaker: voltage taps now; CPTs, relays and load-bank ties later); the
+MainBreaker holds the breaker itself (and its CTs, on the load side). A main's feed is
+either in its own riser (`feed`), or an IncomingFeed standing as a part by itself in the
+section next to it (`feed` None, `feed_from` its id). A feed by itself that no main breaker
+points at is "main lugs only": it runs straight to the main bus (see src/model/feeds.py).
+A LineSideBreaker (a load-bank breaker, like 52-LBBA in Sabey-011475) is fed from the line
+side of an incoming feed in the section next to it, before that feed's main breaker.
 
 Main breakers and single breakers have two feed directions (decision 2026-10-13), each
 "top" or "bottom":
@@ -26,6 +36,7 @@ A slot is a Breaker, a Provision (room left for a future breaker: the bus is tap
 out to it and a note says what it is for, e.g. "PROVISION FOR" / "3VA62 250AF"), or a
 Space (an unused position: tapped out the same way, labelled just "SPACE"; 2026-10-19).
 """
+import uuid
 from dataclasses import dataclass, field
 
 
@@ -35,8 +46,54 @@ class Breaker:
     block: str = ""                 # block name from blocks/ (chosen once blocks are catalogued)
     # Values for the block's attributes, by tag. Empty or missing = the block's default.
     attributes: dict[str, str] = field(default_factory=dict)
-    # Has a communication module (decision 2026-10-19). What it draws is worked out later.
-    comms: bool = False
+    # Communication module, e.g. "Siemens COM190"; "" = none (decision 2026-10-21; the
+    # choices are in config/devices.json). What it draws is worked out later.
+    comms_module: str = ""
+
+
+@dataclass
+class CurrentTransformers:
+    """A CT set measuring current for a power meter (decision 2026-10-21). The engineer
+    picks what it measures (by putting it on a main, single breaker, tie, or the base of a
+    group-mounted bus), the meter and the ratio; the program places it wherever it fits."""
+    meter_id: str = ""              # the PowerMeter it feeds; "" = not chosen yet
+    ratio: str = ""                 # e.g. "5000:5A"
+    attributes: dict[str, str] = field(default_factory=dict)   # other CT block attributes
+    on_main_bus: bool = False       # mains only: on the main bus after the mains have joined
+
+
+def new_device_id() -> str:
+    """A short id that stays with a device, so CTs keep pointing at the right meter even
+    when meters are added, removed or renumbered."""
+    return uuid.uuid4().hex[:8]
+
+
+@dataclass
+class PowerMeter:
+    """A power meter mounted in a section (decision 2026-10-21). Named PM-1, PM-2, ... in
+    lineup order; the model is labelled with its brand, e.g. "Janitza UMG 801"."""
+    model: str = ""
+    id: str = field(default_factory=new_device_id)
+
+
+@dataclass
+class VoltageTap:
+    """A fused voltage tap on a feed's line side, for a power meter's voltage input
+    (decision 2026-10-22). Its fuse is numbered FA-1, FA-2, ... through the lineup and is
+    drawn on the device pages; the 3-line shows the tap and "TO FA-n SHEET #"."""
+    meter_id: str = ""              # the PowerMeter it feeds; "" = not chosen yet
+
+
+@dataclass
+class IncomingFeed:
+    """Where power comes into a riser: the termination (input block) and the line side."""
+    # Values for the input block's attributes, by tag (e.g. LOCATION, TERMINATION).
+    input_attributes: dict[str, str] = field(default_factory=dict)
+    termination_feed: str = ""      # "top" / "bottom"; "" = the side away from the bus
+    voltage_taps: list[VoltageTap] = field(default_factory=list)
+    # Stays with the feed, so a breaker (or a load-bank tie) in another section can point
+    # at it later.
+    id: str = field(default_factory=new_device_id)
 
 
 @dataclass
@@ -67,10 +124,24 @@ FEED_DIRECTIONS = [TOP, BOTTOM]
 class MainBreaker:
     breaker: Breaker
     mounting: str = FIXED           # "fixed" or "draw-out"
-    # Values for the input block's attributes, by tag (e.g. LOCATION, TERMINATION).
-    input_attributes: dict[str, str] = field(default_factory=dict)
     breaker_feed: str = ""          # "top" / "bottom"; "" = the side away from the bus
-    termination_feed: str = ""      # "top" / "bottom"; "" = the side away from the bus
+    cts: CurrentTransformers | None = None
+    # Its incoming feed when it is in this riser; None when it comes from a feed in another
+    # section (`feed_from` = that IncomingFeed's id; "" = not chosen yet).
+    feed: IncomingFeed | None = field(default_factory=IncomingFeed)
+    feed_from: str = ""
+
+
+@dataclass
+class LineSideBreaker:
+    """A breaker fed from the line side of an incoming feed (decision 2026-10-22), e.g. a
+    load-bank breaker: tied into the feed's run between its termination and its main
+    breaker, with its own output termination (e.g. a bus duct "BY OTHERS")."""
+    breaker: Breaker
+    mounting: str = FIXED           # "fixed" or "draw-out", same blocks as main breakers
+    # Values for the output block's attributes, by tag (e.g. LOCATION, TERMINATION).
+    output_attributes: dict[str, str] = field(default_factory=dict)
+    fed_from: str = ""              # the IncomingFeed's id; "" = not chosen yet
 
 
 @dataclass
@@ -80,6 +151,7 @@ class SingleBreaker:
     output_attributes: dict[str, str] = field(default_factory=dict)
     breaker_feed: str = ""          # "top" / "bottom"; "" = the side away from the bus
     termination_feed: str = ""      # "top" / "bottom"; "" = the side away from the bus
+    cts: CurrentTransformers | None = None
 
 
 @dataclass
@@ -97,9 +169,10 @@ class SingleLevel:
 @dataclass
 class GroupMounted:
     levels: list[TwinLevel | SingleLevel] = field(default_factory=list)
+    base_cts: CurrentTransformers | None = None     # CTs at the base of the vertical bus
 
 
-Arrangement = MainBreaker | SingleBreaker | GroupMounted
+Arrangement = MainBreaker | IncomingFeed | LineSideBreaker | SingleBreaker | GroupMounted
 
 
 @dataclass
@@ -107,6 +180,7 @@ class TieBreaker:
     breaker: Breaker
     bus_steps: str = "down"         # "up" or "down": where the bus goes after the tie
     mounting: str = FIXED           # "fixed" or "draw-out", same blocks as main breakers
+    cts: CurrentTransformers | None = None
 
 
 @dataclass
@@ -114,6 +188,8 @@ class SectionContents:
     above: Arrangement | None = None
     below: Arrangement | None = None
     tie: TieBreaker | None = None
+    # Devices mounted in this section (decision 2026-10-21).
+    power_meters: list[PowerMeter] = field(default_factory=list)
 
 
 def side_away_from_bus(part: str) -> str:
@@ -123,6 +199,12 @@ def side_away_from_bus(part: str) -> str:
 
 def feed_directions(arrangement, part: str) -> tuple[str, str]:
     """(breaker feed, termination feed) of a main or single breaker in `part` ("above" or
-    "below"), with empty values filled in as the side away from the bus."""
+    "below"), with empty values filled in as the side away from the bus. A main breaker's
+    termination is its incoming feed's."""
     away = side_away_from_bus(part)
-    return arrangement.breaker_feed or away, arrangement.termination_feed or away
+    if isinstance(arrangement, MainBreaker):
+        # A main fed from another section: its feed's run is worked out with that feed.
+        termination = arrangement.feed.termination_feed if arrangement.feed is not None else ""
+    else:
+        termination = arrangement.termination_feed
+    return arrangement.breaker_feed or away, termination or away

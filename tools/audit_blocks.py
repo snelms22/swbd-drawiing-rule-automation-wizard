@@ -17,15 +17,17 @@ from src.autocad.catalog_refresh import audit_blocks          # noqa: E402
 from src.autocad.connection import AutocadSession             # noqa: E402
 from src.autocad.settings import load_autocad_settings        # noqa: E402
 from src.layout.settings import load_settings                 # noqa: E402
+from src.model.devices import load_device_settings            # noqa: E402
 
 
 def main() -> int:
     settings = load_settings(PROJECT_ROOT / "config" / "layout_settings.json")
     autocad_settings = load_autocad_settings(PROJECT_ROOT / "config" / "autocad_settings.json",
                                              PROJECT_ROOT)
+    device_settings = load_device_settings(PROJECT_ROOT / "config" / "devices.json")
     app = AutocadSession(autocad_settings.program_id).app
     changes, problems = audit_blocks(app, settings, autocad_settings,
-                                     PROJECT_ROOT / "catalog" / "blocks.json")
+                                     PROJECT_ROOT / "catalog" / "blocks.json", device_settings)
     print("Catalog updated:")
     for line in changes or ["(no changes)"]:
         print(f"  - {line}")

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from src.autocad.settings import load_autocad_settings
 from src.layout.block_catalog import load_block_catalog
 from src.layout.settings import SettingsError, load_settings
+from src.model.devices import load_device_settings
 from src.model.drawing_info import load_drawing_info_settings
 from src.model.switchboard import new_switchboard
 from src.ui.main_window import MainWindow
@@ -26,6 +27,7 @@ SETTINGS_FILE = PROJECT_ROOT / "config" / "layout_settings.json"
 AUTOCAD_SETTINGS_FILE = PROJECT_ROOT / "config" / "autocad_settings.json"
 BLOCK_CATALOG_FILE = PROJECT_ROOT / "catalog" / "blocks.json"
 DRAWING_INFO_FILE = PROJECT_ROOT / "config" / "drawing_info.json"
+DEVICES_FILE = PROJECT_ROOT / "config" / "devices.json"
 
 
 def main() -> int:
@@ -38,6 +40,7 @@ def main() -> int:
         return 1
     try:
         drawing_info_settings = load_drawing_info_settings(DRAWING_INFO_FILE)
+        device_settings = load_device_settings(DEVICES_FILE)
     except SettingsError as error:
         QMessageBox.critical(None, "Problem with drawing information settings", str(error))
         return 1
@@ -54,7 +57,7 @@ def main() -> int:
                             f"{error}\n\nMain breakers will be shown as placeholder boxes.")
         catalog = None
     window = MainWindow(settings, new_switchboard(), autocad_settings, autocad_problem, catalog,
-                        drawing_info_settings)
+                        drawing_info_settings, device_settings)
     window.show()
     window.show_updates_since_last_session(PROJECT_ROOT / "CHANGELOG.md")
     return app.exec()

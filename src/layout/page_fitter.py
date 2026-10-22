@@ -26,11 +26,17 @@ Rules applied (each one is recorded in docs/DECISIONS.md):
 """
 from dataclasses import dataclass, field
 
+from src.layout.current_transformers import ct_room, lineup_ct_attributes, tie_step_height
+from src.layout.voltage_taps import lineup_tap_attributes, tap_room
 from src.layout.feeders import feeder_block
+from src.layout.incoming_feeds import crossing_height
+from src.layout.line_side_breakers import line_side_breaker_height, line_side_run
 from src.layout.page_parts import PageParts, add_page_parts
 from src.layout.settings import LayoutSettings
 from src.layout.main_bus import BusPlan, plan_bus, step_zone_width
 from src.layout.section_builder import plan_columns, section_size
+from src.model.devices import voltage_taps_in
+from src.model.feeds import feed_links, feeds_pointed_at, line_side_links, standalone_feeds
 from src.model.switchboard import Switchboard
 
 # Allowance for floating-point rounding when comparing positions, so that a section
@@ -54,6 +60,21 @@ class SectionBox:
     below_height: float = 0.0           # room used below the main bus
     has_tie: bool = False
     contents: object = None             # the section's SectionContents (for drawing its parts)
+    # CT block attribute values per part ("above", "below", "tie"), numbered through the
+    # lineup by fit_pages().
+    ct_attributes: dict = field(default_factory=dict)
+    # Voltage tap block attribute values per part: {"above": [per tap], ...}.
+    tap_attributes: dict = field(default_factory=dict)
+    # A main breaker fed from a feed in the next section: {part: (feed's section index,
+    # feed's part)}; with a line-side breaker in the next section tied into its feed:
+    # {part: (that section's index, its part)}. Those parts are listed in their own
+    # section's `parts_drawn_elsewhere`: they are drawn with the main (decision 2026-10-22).
+    feed_crossings: dict = field(default_factory=dict)
+    line_side_ties: dict = field(default_factory=dict)
+    parts_drawn_elsewhere: set = field(default_factory=set)
+    # A feed a main breaker points at that can't be drawn (the warnings say why): it stays a
+    # placeholder box instead of being drawn as main lugs only.
+    feed_parts_not_drawn: set = field(default_factory=set)
 
 
 @dataclass
@@ -99,13 +120,58 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) 
     are placeholder boxes."""
     sections = switchboard.sections
     feeder = feeder_block(settings, catalog)      # None = group-mounted widths are placeholders
-    sizes = [section_size(section.contents, settings, feeder) for section in sections]
+    room = ct_room(settings, catalog)             # None = CT block not catalogued: no CTs drawn
+    taps = tap_room(settings, catalog)            # None = tap block not catalogued: no taps drawn
+    sizes = [section_size(section.contents, settings, feeder, room, taps) for section in sections]
     bus_warnings: list[str] = []
-    uses_bus = [_holds_something(section.contents) for section in sections]
-    plans = plan_bus(sizes, [s.contents.tie for s in sections], uses_bus, settings, bus_warnings)
+    if catalog is not None and room is None and _has_cts(sections):
+        bus_warnings.append(f'CTs are not drawn: block "{settings.current_transformers.block}" '
+                            f"isn't in catalog/blocks.json with its visibility states (run Audit Blocks).")
+    if catalog is not None and taps is None and voltage_taps_in(switchboard):
+        bus_warnings.append(f'Voltage taps are not drawn: block "{settings.voltage_taps.block}" '
+                            f"isn't in catalog/blocks.json with its visibility states (run Audit Blocks).")
+    # Feeds crossing into a main breaker in the next section (decision 2026-10-22). The
+    # feed needs the main's height plus its own run; a section holding nothing else doesn't
+    # carry the main bus (it only exists where it is used).
+    links, feed_problems = feed_links(switchboard)
+    bus_warnings += feed_problems
+    # {part: the main's section index} per section, for parts drawn with a main elsewhere.
+    drawn_with = [{} for _ in sections]
+    for link in links:
+        drawn_with[link.feed.section_index][link.feed.part] = link.main_section_index
+        main_height = getattr(sizes[link.main_section_index], f"{link.main_part}_height")
+        feed_height = crossing_height(settings, taps, link.feed.feed, main_height)
+        setattr(sizes[link.feed.section_index], f"{link.feed.part}_height", feed_height)
+        # The feed is drawn from the main's bus height, so the main's section must leave room
+        # for it when the bus is placed (2026-10-22).
+        name = f"{link.main_part}_height"
+        setattr(sizes[link.main_section_index], name,
+                max(getattr(sizes[link.main_section_index], name), feed_height))
+    # Line-side (load-bank) breakers tied into a main's feed in the next section: the main's
+    # line side grows for the tie; the breaker's part is drawn from the main's bus height.
+    line_side, line_side_problems = line_side_links(switchboard)
+    bus_warnings += line_side_problems
+    for tie in line_side:
+        main_index, main = tie.feed.section_index, tie.feed.main
+        drawn_with[tie.section_index][tie.part] = main_index
+        tap_count = len(main.feed.voltage_taps) if taps is not None else 0
+        growth = (line_side_run(settings, taps, tap_count, True)
+                  - line_side_run(settings, taps, tap_count, False))
+        name = f"{tie.feed.part}_height"
+        setattr(sizes[main_index], name, getattr(sizes[main_index], name) + growth)
+        breaker_height = line_side_breaker_height(settings, catalog, room, main, tie.part, tie.breaker)
+        setattr(sizes[tie.section_index], f"{tie.part}_height", breaker_height)
+        # Drawn from the main's bus height: the main's section must leave room for it too.
+        setattr(sizes[main_index], name, max(getattr(sizes[main_index], name), breaker_height))
+    uses_bus = [_holds_something(section.contents, set(parts)) for section, parts in zip(sections, drawn_with)]
+    ties = [s.contents.tie for s in sections]
+    plans = plan_bus(sizes, ties, uses_bus, settings, bus_warnings,
+                     [tie_step_height(tie, settings, room) for tie in ties])
+    ct_values = lineup_ct_attributes(switchboard, settings)
+    tap_values = lineup_tap_attributes(switchboard, settings)
     # A split section is drawn fine; the engineer is only told it happened (2026-10-12).
     for number, section in enumerate(sections, start=1):
-        columns = plan_columns(section.contents, settings, feeder)
+        columns = plan_columns(section.contents, settings, feeder, room)
         if columns is not None and len(columns.columns) > 1:
             bus_warnings.append(
                 f"NOTICE: Section {number} is too tall for the page, so its group-mounted "
@@ -113,7 +179,29 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) 
 
     half_bundle = settings.main_bus.phase_spacing    # B phase to A (top) or C (bottom)
     boxes = []
-    for section, size, plan in zip(sections, sizes, plans):
+    for index, (section, size, plan, values, section_taps) in enumerate(
+            zip(sections, sizes, plans, ct_values, tap_values)):
+        if plan is None and drawn_with[index]:
+            # Only parts drawn with a main in the next section (a feed crossing into it, a
+            # line-side breaker tied into its feed): no main bus here. They are drawn from
+            # the main's bus height.
+            tops, bottoms = [], []
+            for part, main_index in drawn_with[index].items():
+                body_y = plans[main_index].body_y
+                height = getattr(size, f"{part}_height")
+                if part == "above":
+                    tops.append(body_y + half_bundle + height)
+                    bottoms.append(body_y + half_bundle)
+                else:
+                    tops.append(body_y - half_bundle)
+                    bottoms.append(body_y - half_bundle - height)
+            boxes.append(SectionBox(width=size.width, height=max(tops) - min(bottoms),
+                                    push_to_next_page=section.push_to_next_page,
+                                    link_with_next=section.link_with_next,
+                                    top_y=max(tops), contents=section.contents,
+                                    tap_attributes=section_taps,
+                                    parts_drawn_elsewhere=set(drawn_with[index])))
+            continue
         if plan is None:
             # Empty section before or after the bus: nothing to draw but its labels and
             # dividers. (Empty sections are fine; no warning.)
@@ -139,14 +227,43 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) 
             below_height=size.below_height,
             has_tie=section.contents.tie is not None,
             contents=section.contents,
+            ct_attributes=values,
+            tap_attributes=section_taps,
+            parts_drawn_elsewhere=set(drawn_with[index]),
         ))
+    linked_ids = {link.feed.feed.id for link in links}
+    for place in standalone_feeds(switchboard):
+        if place.feed.id in feeds_pointed_at(switchboard) - linked_ids:
+            boxes[place.section_index].feed_parts_not_drawn.add(place.part)
+    # A main and its feed are kept on the same page: link them, and tell the main where
+    # its feed is.
+    for link in links:
+        first = min(link.feed.section_index, link.main_section_index)
+        boxes[first].link_with_next = True
+        boxes[link.main_section_index].feed_crossings[link.main_part] = (
+            link.feed.section_index, link.feed.part)
+    for tie in line_side:
+        boxes[min(tie.section_index, tie.feed.section_index)].link_with_next = True
+        boxes[tie.feed.section_index].line_side_ties[tie.feed.part] = (tie.section_index, tie.part)
     result = fit_boxes(boxes, settings, catalog)
     result.warnings[:0] = bus_warnings     # bus problems first: they explain later ones
     return result
 
 
-def _holds_something(contents) -> bool:
-    return contents.above is not None or contents.below is not None or contents.tie is not None
+def _has_cts(sections) -> bool:
+    for section in sections:
+        contents = section.contents
+        for arrangement in (contents.above, contents.below, contents.tie):
+            if getattr(arrangement, "cts", None) is not None or getattr(arrangement, "base_cts", None) is not None:
+                return True
+    return False
+
+
+def _holds_something(contents, parts_drawn_elsewhere=frozenset()) -> bool:
+    """Does the section use the main bus? Parts drawn with the next section's main (a
+    crossing feed, a line-side breaker) don't."""
+    parts = [getattr(contents, part) for part in ("above", "below") if part not in parts_drawn_elsewhere]
+    return any(arrangement is not None for arrangement in parts) or contents.tie is not None
 
 
 def fit_boxes(boxes: list[SectionBox], settings: LayoutSettings, catalog=None) -> LayoutResult:

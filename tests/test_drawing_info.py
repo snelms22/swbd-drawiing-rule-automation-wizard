@@ -55,9 +55,9 @@ def test_drawing_is_named_after_the_job_number():
     assert drawing_file_stem(board(job=""), SETTINGS) is None
 
 
-def test_drawing_info_and_comms_are_saved_with_the_project(tmp_path):
+def test_drawing_info_and_comms_module_are_saved_with_the_project(tmp_path):
     original = board()
-    original.sections[0].contents.above.breaker.comms = True
+    original.sections[0].contents.above.breaker.comms_module = "Siemens COM190"
     path = save_project(original, tmp_path / "job.swbd")
     assert open_project(path) == original
 

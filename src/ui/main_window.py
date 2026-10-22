@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from src.layout.page_fitter import fit_pages
 from src.layout.settings import LayoutSettings
+from src.model.devices import device_problems
 from src.model.drawing_info import job_number_problem
 from src.model.project_file import (
     EXTENSION, ProjectFileError, attributes_no_longer_on_blocks, open_project, save_project,
@@ -57,7 +58,7 @@ FILE_FILTER = f"Switchboard projects (*{EXTENSION})"
 class MainWindow(QMainWindow):
     def __init__(self, settings: LayoutSettings, switchboard: Switchboard,
                  autocad_settings=None, autocad_settings_problem: str = "", catalog=None,
-                 drawing_info_settings=None):
+                 drawing_info_settings=None, device_settings=None):
         super().__init__()
         self._drawing_info_settings = drawing_info_settings
         self._catalog = catalog     # library block sizes/terminals; None = placeholders only
@@ -102,7 +103,10 @@ class MainWindow(QMainWindow):
 
 
         # Middle: the Drawing Information page or the editor for the selected section.
-        self.editor = SectionEditor(settings, catalog)
+        comms_modules = device_settings.comms_modules if device_settings else []
+        meter_models = device_settings.power_meter_models if device_settings else []
+        self.editor = SectionEditor(settings, catalog, comms_modules, meter_models,
+                                    switchboard_provider=lambda: self._switchboard)
         self.editor.changed.connect(self._edited)
         self.drawing_info_editor = DrawingInfoEditor(drawing_info_settings)
         self.drawing_info_editor.changed.connect(self._edited)
@@ -537,6 +541,7 @@ class MainWindow(QMainWindow):
         missing_job = job_number_problem(self._switchboard)     # required for a drawing
         if missing_job:
             result.warnings.insert(0, missing_job)
+        result.warnings += device_problems(self._switchboard)   # CTs and power meters
         if result.warnings:
             # Plain text on purpose: a warning symbol here made Windows search its fonts
             # the first time a warning appeared (about 0.7 s of lag).

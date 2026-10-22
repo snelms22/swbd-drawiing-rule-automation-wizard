@@ -104,7 +104,8 @@ class AutocadSession:
 class Drawing:
     def __init__(self, document, app):
         self.document = document
-        self.model_space = document.ModelSpace
+        # Right after opening, AutoCAD can still be busy with the drawing (2026-10-22).
+        self.model_space = _retry(lambda: document.ModelSpace)
         self.app = app
 
     # --- Reading -----------------------------------------------------------------------

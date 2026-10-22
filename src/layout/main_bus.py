@@ -13,7 +13,7 @@ Rules:
   is the bus itself (`step_width`, 10: A to C) plus `step_clearance` (10) so the vertical
   run stays clear of everything else in the section.
 - A tie breaker (at the section's right edge) moves the bus up or down by
-  `tie_step_height` as it leaves that section.
+  `tie_step_height` as it leaves that section (more when the tie has CTs, 2026-10-21).
 
 Heights are the B (middle) phase. A is `phase_spacing` above it, C the same below it.
 Pure Python, no AutoCAD. The bus is planned along the whole lineup, before page fitting,
@@ -42,10 +42,14 @@ def step_zone_width(settings) -> float:
     return settings.main_bus.step_width + settings.main_bus.step_clearance
 
 
-def plan_bus(sizes, ties, uses_bus, settings, warnings: list[str]) -> list[BusPlan | None]:
+def plan_bus(sizes, ties, uses_bus, settings, warnings: list[str],
+             tie_steps=None) -> list[BusPlan | None]:
     """One BusPlan per section (None where there is no bus). `sizes` are SectionSize
     objects, `ties` the TieBreaker (or None) of each section, `uses_bus` whether each
-    section holds anything, all in lineup order."""
+    section holds anything, all in lineup order. `tie_steps`: how far each section's tie
+    moves the bus (default `tie_step_height` for all)."""
+    if tie_steps is None:
+        tie_steps = [settings.main_bus.tie_step_height] * len(sizes)
     bus = settings.main_bus
     half_bundle = bus.phase_spacing     # B to A (top) and B to C (bottom)
     used = [index for index, flag in enumerate(uses_bus) if flag]
@@ -66,7 +70,7 @@ def plan_bus(sizes, ties, uses_bus, settings, warnings: list[str]) -> list[BusPl
             )
             highest[i] = lowest[i]       # keep the bottom clear of the ground bus
 
-    floor, ceiling = _make_room_for_ties(sections, lowest, highest, ties, settings, warnings)
+    floor, ceiling = _make_room_for_ties(sections, lowest, highest, ties, settings, warnings, tie_steps)
 
     plans: list[BusPlan | None] = [None] * len(sizes)
     level = None                        # current bus height; None before the bus starts
@@ -79,14 +83,14 @@ def plan_bus(sizes, ties, uses_bus, settings, warnings: list[str]) -> list[BusPl
         exit_ = body
         tie = ties[i]
         if tie is not None:
-            exit_ = body - bus.tie_step_height if tie.bus_steps == "down" else body + bus.tie_step_height
+            exit_ = body - tie_steps[i] if tie.bus_steps == "down" else body + tie_steps[i]
         plans[i] = BusPlan(entry_y=entry, body_y=body, exit_y=exit_,
                            starts_bus=i == first, ends_bus=i == last)
         level = exit_
     return plans
 
 
-def _make_room_for_ties(sections, lowest, highest, ties, settings, warnings):
+def _make_room_for_ties(sections, lowest, highest, ties, settings, warnings, tie_steps):
     """Where the bus may sit in each section so every tie breaker has room for its step
     (decision 2026-10-12 "Room for tie breakers").
 
@@ -99,7 +103,6 @@ def _make_room_for_ties(sections, lowest, highest, ties, settings, warnings):
     and {section: highest allowed bus}."""
     bus = settings.main_bus
     half_bundle = bus.phase_spacing
-    drop = bus.tie_step_height
     lowest_bus = bus.content_bottom_y + half_bundle
     highest_bus = bus.content_top_y - half_bundle
     floor, ceiling = dict(lowest), dict(highest)
@@ -107,6 +110,7 @@ def _make_room_for_ties(sections, lowest, highest, ties, settings, warnings):
 
     for i in reversed(list(sections)):
         tie = ties[i]
+        drop = tie_steps[i]
         # A need on this section's exit becomes a need on its body (shifted by its own tie).
         shift = 0.0 if tie is None else (drop if tie.bus_steps == "down" else -drop)
         body_above = None if need_above is None else need_above + shift

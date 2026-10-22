@@ -266,6 +266,154 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-10-22 — Incoming feed and main breaker split (option B); voltage taps on the feed
+**Decision:**
+- **Option B:** the incoming feed and the main breaker are separate things in the data.
+  `IncomingFeed` = the termination (input block attributes, termination feed direction) and
+  its line side (voltage taps now; CPTs, relays, load-bank ties later), with a stable id.
+  `MainBreaker` = breaker, mounting, breaker feed direction, comms, CTs, and its feed.
+  Reason: a feed can be in a different section from the breaker it feeds (Sammy has seen an
+  input in section 1 crossing into section 2's main), and the load-bank breaker ties into a
+  feed, so the feed must stand on its own.
+- **Parts (approved shape):** Main breaker (feed "in this riser", or a standalone feed picked
+  from another section); Incoming feed on its own (to a main breaker that picks it, or straight
+  to the main bus = main lugs only); Line-side breaker (load bank, tied into a feed's line
+  side); Single breaker and Group mounted unchanged.
+- **Cross-section runs:** neighbouring sections only to start; the two sections are kept on the
+  same page automatically; anything else gets a warning. The run crosses horizontally into the
+  breaker's line-side run where the input normally sits (staggered corners, no dots). First case
+  to draw: a feed above the bus crossing into a top-fed main.
+- **Voltage taps** (Sammy's `3P_Voltage_Tap`, FROM_LEFT state on a riser, markers LA/LB/LC): on
+  the straight run between the main breaker and its termination, nearest the breaker first,
+  `clearance` 5 apart; the run (30) grows to fit them. Each tap picks the power meter it feeds;
+  fuses FA-1, FA-2, ... through the lineup fill FUSE_DRW_NUM; TO_SHEET keeps its default until
+  device pages exist. Not yet on a U-turned or bus-side-fed feed (warning).
+- **Editor:** the main breaker page shows the breaker, then an "Incoming feed" box (termination
+  feed direction, input block attributes, voltage taps); a single breaker's box is "Output".
+- **Files:** format 2 saves the main's "feed"; format 1 files are read into a feed.
+- **Build order:** (1) split + taps (built 2026-10-22, tested by Sammy: "good on drawing");
+  (2) standalone feeds (built 2026-10-22, below); (3) line-side breaker (load bank).
+- **Step 2 as built:**
+  - An "Incoming feed" part. A main breaker's "Feed" is "In this riser" or an Incoming feed
+    part; the feed part shows what it goes to. Nothing points at it = main lugs only.
+  - Main lugs only: riser from the main bus straight to the termination, at least
+    `gap_bus_to_breaker` + `gap_breaker_to_input` (45) long, growing to fit its taps (nearest
+    the bus first). Tees in with dots, or bends where the main bus starts / ends.
+  - Crossing: the main's line side runs `gap_breaker_to_input` to where its input would sit,
+    turns across into the feed's section (A on top, staggered corners, no dots), and runs at
+    least `gap_breaker_to_input` to the feed's termination, growing to fit the feed's taps
+    (nearest the crossing first). The two sections are linked onto one page.
+  - A section holding only a crossing feed doesn't carry the main bus (the bus only exists
+    where it is used), so a feed in section 1 starts the main bus at section 2's main.
+  - Not drawn yet, with a warning (and a placeholder): a feed not in the next section, on the
+    other side of the bus, already feeding another main, or a main with no feed chosen; a main
+    fed from another section must be fed on the side away from the bus. A feed a main points
+    at but that can't be drawn is never drawn as main lugs only. A U-turned standalone feed is
+    drawn straight, with a warning.
+- **Step 3 as built (line-side / load-bank breaker), measured from Sabey-011475 (52-LBBA):**
+  - A "Line-side breaker" part: label, comms, mounting (main breaker blocks), breaker and output
+    block attributes, and "Fed from" (any incoming feed in the lineup).
+  - The tie leaves the main's line side nearest the breaker: `tie_gap` 11.2 from the main
+    breaker's line-side terminals to the tie's nearest phase; A on top, staggered, a dot where
+    each phase tees into the riser. The main's voltage taps go beyond the tie, then its
+    termination; the run (30 minimum) grows to fit.
+  - The line-side breaker's line-side terminals are `gap_to_breaker` 16.0 beyond the tie's outer
+    phase; its output termination `gap_breaker_to_output` 25.0 beyond its other end (config
+    `line_side_breakers`). Its section doesn't carry the main bus unless something else in it
+    does; the two sections stay on one page.
+  - For now (warning otherwise): fed from a main breaker's own feed (not a feed by itself), in
+    the next section, same side of the bus, that main fed straight; one per feed. No CTs or
+    feed-direction choices on the line-side breaker yet.
+  - 011475 also has a set of staggered dots part-way along the tie in section 1 joined to
+    nothing; taken as leftovers and not drawn.
+- **Fixes found in the stage 2/3 test drawing (2026-10-22):**
+  - A feed crossing into a main, or a line-side breaker, is drawn from the main's bus height,
+    so the main's section now keeps room for it when the bus is placed (section 1's feed ran
+    off the top of the page).
+  - Where the main bus begins it bends into the section's LEFTMOST riser, and where it ends
+    into the RIGHTMOST; the other part tees in with dots. (A main's CTs move its riser right,
+    which left a single breaker below it teeing into bus that wasn't there.)
+**Reason:** Sammy, 2026-10-22 ("go with yes for all those questions"; "lets go stage 3").
+**Status:** Approved; steps 1-3 built (2 and 3 for review). Sammy will re-assess the editor
+layout and how the engineer works with it once more is built.
+
+### 2026-10-22 — Meter blocks: inputs are separate blocks, paired in config; devices by section
+**Decision:**
+- A meter's inputs are **separate library blocks**, not visibility states: `Janitza_UMG801`
+  with `Voltage_UMG801_Input` (above it, "FROM FA-# SHEET #") and `CT_Current_Input` (below
+  it, "FROM STB-# SHEET #"). A power supply block (24V+/24V-) comes later. Every terminal of
+  the meter has a named marker; not all are used.
+- **How inputs connect lives in `config/devices.json`**, one entry per meter model: its block,
+  and for each input block the meter marker each of its markers lands on. A device's own
+  quirks are written there once, when its block is built (the UMG 801: B to VN, C to V3,
+  V2 unused). A new meter = a block + one config entry, no code.
+- First CT set on a meter: I1-I3; second: I5-I7 (Sabey-011510: STB-1 and STB-2 into PM-1).
+- **Audit Blocks** reads every named marker of these blocks and checks each pair exists and
+  lines up (placing each input by its first pair), naming a misnamed marker when one sits
+  where the expected one should be.
+- **Direction (details later):** devices are shown **grouped by section**. A voltage tap and
+  CT shorting block in section 2 show on the 3-line in section 2; if the fuses and meter live
+  in section 3, they show on the device pages under section 3, referring back to section 2
+  (or its sheet; wording to decide). Later: shipping-split connections between sections,
+  which this grouping should make straightforward. Standards are expected to come out of
+  these development sessions.
+**Reason:** Sammy, 2026-10-22 (testing how well blocks can describe themselves to the program).
+**Status:** Approved (pairing + audit built); device-page layout to design in step 4
+
+### 2026-10-21 — CTs on the 3-line and power meters (step 1 + 2, built for review)
+**Decision:**
+- **Editor:** mains, single breakers and ties get a "Current transformers" box (tick to add a
+  set: power meter it feeds, current ratio, the CT block's other attributes). Group-mounted
+  parts get "Current transformers at the base of the vertical bus". Mains also get "On the
+  main bus after the mains join" (Sammy's option b, kept as a choice; not drawn there yet:
+  it is drawn on the riser with a warning). Each section gets "Devices in this section" with
+  its power meters (model from `config/devices.json`).
+- **Names and numbers (program):** meters PM-1, PM-2, ... in lineup order. CT sets numbered
+  in lineup order (per section: above, below, tie): set k gets CT numbers 3k-2..3k
+  (CT_A/B/C_DWG#), shorting kit k (STB#), LOCATION = its meter, CURRENT_RATIO = the ratio.
+  CTs keep pointing at the right meter when meters are added or removed (each meter has a
+  hidden id). SHEET# keeps its default until device pages exist.
+- **Placement (program):** CT LEFT states on a vertical run, markers A_L/B_L/C_L on the phases.
+  - Main / single breaker: on the riser between the main bus and the breaker, centred; the
+    riser lengthens to the CT block + `clearance` (5) at each end + the breaker's overhang,
+    and moves right so the CTs clear the section edge. The section widens to the CT block.
+  - Group-mounted: on column 1 between the main bus and level 1, which moves out to make room.
+  - Tie: on the entry side of the tie's vertical run; the tie's step grows (about 70 -> 103)
+    so the breaker keeps its usual room on the exit side.
+  - Polarity toward the source: main above the bus -> POLARITY TOP, below -> BOTTOM; single
+    breakers and group-mounted -> toward the main bus; tie -> toward the side it enters on.
+  - Not drawn yet (with a warning): CTs on a breaker fed on the bus side.
+- **Warnings:** CTs without a meter, CTs feeding a removed meter, a meter without a model, the
+  CT block missing from the catalog.
+- Power meters are not drawn on the 3-line (they go on device pages, step 4).
+**Reason:** Sammy, 2026-10-21 ("Go for 1 and 2").
+**Status:** Built for Sammy's review (placement details are the program's proposal)
+
+### 2026-10-21 — Comms module choice; CTs and power meters (rules so far)
+**Decision:**
+- **Comms:** the breaker's comms checkbox becomes a drop-down of communication modules:
+  None, Siemens COM190, Siemens COM800 (list in `config/devices.json`). The engineer chooses
+  for now. Background for the comms logic: COM190 goes on the larger **3WA** breakers and
+  connects directly (Ethernet); the smaller **3VA** breakers each get a small module
+  (COM060; written "COM60" in the references) chained to a **COM800** gateway.
+- **Power meters** are labelled with their brand: Schneider PM8000, Janitza UMG 801 (blocks
+  exist; Sammy is finishing edits). A power meter can live in a different section from the
+  CTs that feed it; the engineer decides both from the one-line.
+- **CTs** (`3_CTS_3L_R1`; markers per state, tags ending _L / _T / _B for left / top /
+  bottom): can go on mains, single breakers, ties, or at the base of a group-mounted
+  vertical bus. The engineer picks the breaker; **the program places them wherever they fit**,
+  always on a stretch that carries the full current with no fork between the CTs and what
+  they measure (e.g. after two sources have met). Without forking, line or load side doesn't
+  matter. **Polarity always points toward the source.** The block's visibility state is
+  chosen from that.
+- The CT block's SHEET# keeps its default for now, but the program should fill in the sheet
+  the meter is on once that page exists.
+- **Voltage taps** for the meters are part of this work. Fuses are moving off the 3-line onto
+  their own device pages (being workshopped; may become the new standard). Tap lines go on
+  the correct wire layers; Sammy can make a tap block if needed.
+**Reason:** Sammy, 2026-10-21.
+**Status:** Approved (comms drop-down built); CT / meter / tap drawing details to confirm
+
 ### 2026-10-20 — Drawing Information cut down; HYPER_A template; only layouts with content
 **Decision:**
 - **Drawing Information holds only the job number and the item name.** The job number is
@@ -353,7 +501,7 @@ autosave for now.
 7. **Side-jog ("centre-fed") vertical buses:** unknown whether Hyper builds them; on the watch
    list for Sammy's team meeting. Not built.
 8. **Communications page is in scope.** The comms rules from the studies are correct (3WA:
-   COM190 + CAT6 home run to the Ethernet switch; 3VA: COM60 on a COM800 chain through
+   COM190 + CAT6 home run to the Ethernet switch; 3VA: COM060 on a COM800 chain through
    T-connectors, 0.4 m drops, 1 m between tees, EOL terminator). The editor gets a **comms
    checkbox on each breaker**; the logic behind it is worked out later.
 9. **Title block content comes from Arena** (PLM). There is a request to fetch it from Arena by

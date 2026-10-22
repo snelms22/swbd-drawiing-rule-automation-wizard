@@ -144,6 +144,41 @@ class BusBreakSettings:
 
 
 @dataclass(frozen=True)
+class CurrentTransformerSettings:
+    """The CT set block and how the program fills it (decision 2026-10-21)."""
+    block: str
+    layer: str
+    vertical_state_source_above: str   # on a vertical run, source above (polarity up)
+    vertical_state_source_below: str   # ... source below
+    vertical_marker_suffix: str        # markers used on a vertical run, e.g. "_L"
+    clearance: float                   # from the CT set to the bus or breaker beside it
+    ct_number_attributes: list         # the three CT numbers (A, B, C)
+    shorting_kit_attribute: str        # shorting-kit number
+    meter_attribute: str               # the meter it feeds ("PM-1")
+    ratio_attribute: str               # current ratio
+
+
+@dataclass(frozen=True)
+class LineSideBreakerSettings:
+    """A line-side (load-bank) breaker's tie into a main's feed (decision 2026-10-22)."""
+    tie_gap: float               # main breaker's line-side terminals to the tie's nearest phase
+    gap_to_breaker: float        # tie's outer phase to the line-side breaker's terminals
+    gap_breaker_to_output: float # the line-side breaker's other end to its output termination
+
+
+@dataclass(frozen=True)
+class VoltageTapSettings:
+    """The voltage tap block and how the program places and fills it (decision 2026-10-22)."""
+    block: str
+    layer: str
+    vertical_state: str                # visibility state on a vertical run (e.g. "FROM_LEFT")
+    vertical_markers: list             # its A, B, C markers in that state (e.g. LA, LB, LC)
+    clearance: float                   # from the breaker, the next tap, the termination
+    fuse_number_attribute: str         # the n of "FA-n"
+    sheet_attribute: str               # the sheet the fuse is on
+
+
+@dataclass(frozen=True)
 class FeederSettings:
     """Group-mounted feeder breakers."""
     block: str              # library block, drawn as a left-side breaker
@@ -197,6 +232,9 @@ class LayoutSettings:
     input_output: InputOutputSettings
     bus_break: BusBreakSettings
     feeder: FeederSettings
+    current_transformers: CurrentTransformerSettings
+    voltage_taps: VoltageTapSettings
+    line_side_breakers: LineSideBreakerSettings
 
     @property
     def keepout_left_x(self) -> float:
@@ -319,6 +357,32 @@ def load_settings(path) -> LayoutSettings:
             layer=_read_text(data, "input_output", "layer"),
             input_state=_read_text(data, "input_output", "input_state"),
             output_state=_read_text(data, "input_output", "output_state"),
+        ),
+        line_side_breakers=LineSideBreakerSettings(
+            tie_gap=_read_number(data, "line_side_breakers", "tie_gap"),
+            gap_to_breaker=_read_number(data, "line_side_breakers", "gap_to_breaker"),
+            gap_breaker_to_output=_read_number(data, "line_side_breakers", "gap_breaker_to_output"),
+        ),
+        voltage_taps=VoltageTapSettings(
+            block=_read_text(data, "voltage_taps", "block"),
+            layer=_read_text(data, "voltage_taps", "layer"),
+            vertical_state=_read_text(data, "voltage_taps", "vertical_state"),
+            vertical_markers=list(data["voltage_taps"]["vertical_markers"]),
+            clearance=_read_number(data, "voltage_taps", "clearance"),
+            fuse_number_attribute=_read_text(data, "voltage_taps", "fuse_number_attribute"),
+            sheet_attribute=_read_text(data, "voltage_taps", "sheet_attribute"),
+        ),
+        current_transformers=CurrentTransformerSettings(
+            block=_read_text(data, "current_transformers", "block"),
+            layer=_read_text(data, "current_transformers", "layer"),
+            vertical_state_source_above=_read_text(data, "current_transformers", "vertical_state_source_above"),
+            vertical_state_source_below=_read_text(data, "current_transformers", "vertical_state_source_below"),
+            vertical_marker_suffix=_read_text(data, "current_transformers", "vertical_marker_suffix"),
+            clearance=_read_number(data, "current_transformers", "clearance"),
+            ct_number_attributes=list(data["current_transformers"]["ct_number_attributes"]),
+            shorting_kit_attribute=_read_text(data, "current_transformers", "shorting_kit_attribute"),
+            meter_attribute=_read_text(data, "current_transformers", "meter_attribute"),
+            ratio_attribute=_read_text(data, "current_transformers", "ratio_attribute"),
         ),
         feeder=FeederSettings(
             block=_read_text(data, "feeder", "block"),

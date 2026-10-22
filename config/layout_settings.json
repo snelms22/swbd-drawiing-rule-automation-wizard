@@ -146,5 +146,42 @@
     "provision_text_gap": 10.0,
     "space_note": "A SPACE slot (an unused position, decision 2026-10-19) is drawn like a provision (solid taps out to where a breaker would connect) with just this text, in the same place as a provision's note.",
     "space_text": "SPACE"
+  },
+  "current_transformers": {
+    "note": "CT set block (Sammy's 3_CTS_3L_R1, decision 2026-10-21). On a vertical run (a riser, a tie's run, the base of a group-mounted bus) the CT LEFT states are used, markers CONN_A_L / B_L / C_L; polarity always points toward the source. The program places the set wherever it fits, keeping `clearance` from the bus and the breaker, and fills the CT numbers, shorting-kit number and the meter it goes to.",
+    "block": "3_CTS_3L_R1",
+    "layer": "0",
+    "vertical_state_source_above": "CT LEFT - POLARITY TOP",
+    "vertical_state_source_below": "CT LEFT - POLARITY BOTTOM",
+    "vertical_marker_suffix": "_L",
+    "clearance": 5.0,
+    "ct_number_attributes": [
+      "CT_A_DWG#",
+      "CT_B_DWG#",
+      "CT_C_DWG#"
+    ],
+    "shorting_kit_attribute": "STB#",
+    "meter_attribute": "LOCATION",
+    "ratio_attribute": "CURRENT_RATIO"
+  },
+  "voltage_taps": {
+    "note": "Voltage tap block (Sammy's 3P_Voltage_Tap, decision 2026-10-22). On a vertical run (a main's incoming feed, between the breaker and the termination) the vertical_state is used, its vertical_markers (A, B, C) on the phases; the wires leave to the right to 'TO FA-n SHEET #'. Each tap keeps `clearance` from the breaker, the next tap and the termination; the run grows to fit. The program fills in the fuse number; the sheet keeps its default until device pages exist.",
+    "block": "3P_Voltage_Tap",
+    "layer": "0",
+    "vertical_state": "FROM_LEFT",
+    "vertical_markers": [
+      "LA",
+      "LB",
+      "LC"
+    ],
+    "clearance": 5.0,
+    "fuse_number_attribute": "FUSE_DRW_NUM",
+    "sheet_attribute": "TO_SHEET"
+  },
+  "line_side_breakers": {
+    "note": "A line-side (load-bank) breaker tied into a main breaker's feed in the next section (decision 2026-10-22), measured from Sabey-011475 (52-LBBA into 52-MA-GEN-A). The tie leaves the main's line side nearest the breaker: tie_gap from the main breaker's line-side terminals to the tie's nearest phase (A on top of the tie, staggered, a dot where each phase tees into the riser). The line-side breaker's line-side terminals are gap_to_breaker beyond the tie's outer phase; its output termination gap_breaker_to_output beyond its other end.",
+    "tie_gap": 11.2,
+    "gap_to_breaker": 16.0,
+    "gap_breaker_to_output": 25.0
   }
 }

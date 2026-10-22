@@ -25,10 +25,13 @@ from dataclasses import dataclass, field
 
 from src.layout.feeders import feeder_block, group_geometry
 from src.layout.main_breakers import (
-    BlockPlacement, Placeholder, content_left_x, main_breaker_geometry,
-    single_breaker_geometry, terminal_spacing_problem, tie_breaker_placement,
+    BlockPlacement, Crossing, LineSideTie, Placeholder, content_left_x, main_breaker_geometry,
+    main_lugs_geometry, single_breaker_geometry, terminal_spacing_problem, tie_breaker_placement,
+    tie_bus_x,
 )
-from src.model.section_contents import GroupMounted, MainBreaker, SingleBreaker
+from src.model.section_contents import (
+    GroupMounted, IncomingFeed, LineSideBreaker, MainBreaker, SingleBreaker,
+)
 
 ROUNDING_TOLERANCE = 1e-9
 
@@ -167,26 +170,56 @@ def _add_arrangements(page, settings, catalog, warnings=None) -> set:
     feeder = feeder_block(settings, catalog)
     for placed in page.placed_sections:
         box = placed.section
+        for part in box.parts_drawn_elsewhere:
+            drawn.add((placed.number, part))     # drawn with the main breaker it feeds
         if box.bus is None or box.contents is None:
             continue
+        parts = {}
         for part in ("above", "below"):
             arrangement = getattr(box.contents, part)
             if arrangement is None or (isinstance(arrangement, GroupMounted) and feeder is None):
                 continue                  # nothing there, or feeder block not catalogued
-            # The bus begins (or ends) in the first (or last) section that uses it; there
-            # it bends into what is drawn instead of teeing in.
-            starts_the_bus = box.bus.starts_bus and page.parts.bus_start_path is None
-            ends_the_bus = (box.bus.ends_bus and not starts_the_bus
-                            and page.parts.bus_end_path is None)
+            if (part in box.parts_drawn_elsewhere or part in box.feed_parts_not_drawn
+                    or isinstance(arrangement, LineSideBreaker)):
+                continue                  # drawn with a main, or can't be drawn (warned)
+            extras = (_crossing(box, part, page, warnings, placed.number),
+                      _line_side_tie(box, part, page, warnings, placed.number))
+            parts[part] = (arrangement, extras)
+
+        def draw(part, starts_the_bus, ends_the_bus):
+            arrangement, (crossing, tie) = parts[part]
             if isinstance(arrangement, MainBreaker):
-                geometry = main_breaker_geometry(arrangement, part, placed, settings, catalog,
-                                                 starts_the_bus, ends_the_bus)
-            elif isinstance(arrangement, SingleBreaker):
-                geometry = single_breaker_geometry(arrangement, part, placed, settings, catalog,
-                                                   starts_the_bus, ends_the_bus)
-            else:
-                geometry = group_geometry(arrangement, part, placed, settings, catalog,
+                return main_breaker_geometry(arrangement, part, placed, settings, catalog,
+                                             starts_the_bus, ends_the_bus, crossing, tie)
+            if isinstance(arrangement, IncomingFeed):
+                return main_lugs_geometry(arrangement, part, placed, settings, catalog,
                                           starts_the_bus, ends_the_bus)
+            if isinstance(arrangement, SingleBreaker):
+                return single_breaker_geometry(arrangement, part, placed, settings, catalog,
+                                               starts_the_bus, ends_the_bus)
+            return group_geometry(arrangement, part, placed, settings, catalog,
+                                  starts_the_bus, ends_the_bus)
+
+        # The bus begins (or ends) in the first (or last) section that uses it; there it
+        # bends into the leftmost (or rightmost) riser, and the other part tees into it, so
+        # nothing tees into bus that isn't there (2026-10-22).
+        def riser_x(part, starts):
+            geometry = draw(part, starts, not starts)
+            path = geometry.bus_start_path if starts else geometry.bus_end_path
+            return path[0][0] if path else None
+
+        start_part = end_part = None
+        if box.bus.starts_bus and page.parts.bus_start_path is None:
+            xs = {part: riser_x(part, True) for part in parts}
+            xs = {part: x for part, x in xs.items() if x is not None}
+            start_part = min(xs, key=xs.get) if xs else None
+        if box.bus.ends_bus and page.parts.bus_end_path is None:
+            xs = {part: riser_x(part, False) for part in parts if part != start_part}
+            xs = {part: x for part, x in xs.items() if x is not None}
+            end_part = max(xs, key=xs.get) if xs else None
+
+        for part in parts:
+            geometry = draw(part, part == start_part, part == end_part)
             if geometry.bus_start_path:
                 page.parts.bus_start_path = geometry.bus_start_path
             if geometry.bus_end_path:
@@ -199,6 +232,35 @@ def _add_arrangements(page, settings, catalog, warnings=None) -> set:
                 warnings += geometry.warnings
             drawn.add((placed.number, part))
     return drawn
+
+
+def _crossing(box, part, page, warnings, number):
+    """The Crossing for a main breaker fed from the next section, or None."""
+    if part not in box.feed_crossings:
+        return None
+    feed_index, feed_part = box.feed_crossings[part]
+    feed_placed = next((p for p in page.placed_sections if p.number == feed_index + 1), None)
+    if feed_placed is None:
+        if warnings is not None:
+            warnings.append(f"Section {number}: its incoming feed (section {feed_index + 1}) is on "
+                            f"another page, so it is not drawn.")
+        return None
+    return Crossing(feed=getattr(feed_placed.section.contents, feed_part), placed=feed_placed,
+                    tap_values=feed_placed.section.tap_attributes.get(feed_part, []))
+
+
+def _line_side_tie(box, part, page, warnings, number):
+    """The LineSideTie for a main breaker with a line-side breaker next to it, or None."""
+    if part not in box.line_side_ties:
+        return None
+    index, other_part = box.line_side_ties[part]
+    other = next((p for p in page.placed_sections if p.number == index + 1), None)
+    if other is None:
+        if warnings is not None:
+            warnings.append(f"Section {number}: its line-side breaker (section {index + 1}) is on "
+                            f"another page, so it is not drawn.")
+        return None
+    return LineSideTie(breaker=getattr(other.section.contents, other_part), placed=other)
 
 
 def page_break_overrun(placed, page, settings) -> float:
@@ -240,16 +302,17 @@ def _add_bus_paths(page, settings, catalog, continues_on_next_page=False):
             current.append((step_x, plan.entry_y))
             current.append((step_x, plan.body_y))
         if box.has_tie and abs(plan.exit_y - plan.body_y) > ROUNDING_TOLERANCE:
-            tie_x = placed.component_right_x - settings.placeholder_sizes.tie_breaker_width / 2
+            tie_x = tie_bus_x(placed, settings, catalog)
             tie = box.contents.tie if box.contents is not None else None
-            placed_tie = (tie_breaker_placement(tie, tie_x, plan.body_y, plan.exit_y, settings, catalog)
+            placed_tie = (tie_breaker_placement(tie, tie_x, plan.body_y, plan.exit_y, settings, catalog,
+                                                box.ct_attributes.get("tie"))
                           if catalog is not None and tie is not None else None)
             if placed_tie is None:
                 current.append((tie_x, plan.body_y))      # no block: bus runs straight on
                 current.append((tie_x, plan.exit_y))
             else:
-                block, lower_y, upper_y = placed_tie
-                page.parts.blocks.append(block)
+                blocks, lower_y, upper_y = placed_tie
+                page.parts.blocks += blocks
                 going_up = plan.exit_y > plan.body_y
                 near_y, far_y = (lower_y, upper_y) if going_up else (upper_y, lower_y)
                 current.append((tie_x, plan.body_y))
@@ -317,7 +380,8 @@ def _add_content_boxes(page, settings, drawn_parts=frozenset()):
         box = placed.section
         left, right = content_left_x(placed, settings), placed.component_right_x
         if box.bus is None:
-            if box.width > 0 and box.height > 0:      # empty sections have nothing to show
+            drawn_here = any((placed.number, part) in drawn_parts for part in ("above", "below"))
+            if box.width > 0 and box.height > 0 and not drawn_here:   # empty: nothing to show
                 page.parts.content_boxes.append(ContentBox(
                     placed.number, "above", left, placed.component_bottom_y, right,
                     placed.component_top_y))

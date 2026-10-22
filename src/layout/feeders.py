@@ -28,12 +28,16 @@ levels to its left and right. (docs/DECISIONS.md, "Breaker arrangement vocabular
   bracket says "BUS CONTINUES"; the next column's says "FROM BELOW" (a part below the
   main bus) or "FROM ABOVE" (config `bus_break`).
 
+- CTs at the base (decision 2026-10-21): on column 1's vertical bus, between the main
+  bus and level 1, which moves out to make room; polarity toward the main bus.
+
 Pure Python, no AutoCAD. Coordinates are frame-relative.
 """
+from src.layout.current_transformers import ct_room
 from src.layout.main_breakers import (
-    BlockPlacement, BusLine, MainBreakerGeometry, Note, _filled, content_left_x,
+    BlockPlacement, BusLine, MainBreakerGeometry, Note, _filled, content_left_x, ct_placement,
 )
-from src.layout.section_builder import LEFT, RIGHT, column_lead, level_slots, plan_columns
+from src.layout.section_builder import LEFT, RIGHT, level_slots, plan_columns
 from src.model.section_contents import Breaker
 
 PHASES = "ABC"
@@ -58,7 +62,8 @@ def group_geometry(group, part, placed, settings, catalog, starts_the_bus,
     if not group.levels:
         return geometry          # nothing on it yet: no vertical bus either
     block = feeder_block(settings, catalog)
-    plan = plan_columns(placed.section.contents, settings, block)
+    room = ct_room(settings, catalog) if group.base_cts is not None else None
+    plan = plan_columns(placed.section.contents, settings, block, ct_room(settings, catalog))
     left_x = content_left_x(placed, settings)
     dots = []
     for index, column in enumerate(plan.columns):
@@ -68,7 +73,11 @@ def group_geometry(group, part, placed, settings, catalog, starts_the_bus,
         _add_column(geometry, dots, group, part, level_indices, index,
                     left_x + plan.a_offsets[index], plan.continues_after(part, index),
                     placed, settings, catalog, block,
-                    starts_the_bus and index == 0, ends_the_bus and index == 0)
+                    starts_the_bus and index == 0, ends_the_bus and index == 0,
+                    plan.lead(part, index, settings.group_mounted))
+        if index == 0 and room is not None:
+            _add_base_cts(geometry, part, left_x + plan.a_offsets[0], placed, settings,
+                          catalog, room, plan.lead(part, 0, settings.group_mounted))
 
     dot_block = settings.main_bus.junction_dot_block
     dot_extents = catalog[dot_block].extents if dot_block in catalog else (-0.75, -0.75, 0.75, 0.75)
@@ -79,8 +88,25 @@ def group_geometry(group, part, placed, settings, catalog, starts_the_bus,
     return geometry
 
 
+def _add_base_cts(geometry, part, a_x, placed, settings, catalog, room, lead):
+    """CTs on column 1's vertical bus, centred between the main bus and level 1's breakers.
+    The source is the main bus."""
+    half = settings.main_bus.phase_spacing
+    body_y = placed.section.bus.body_y
+    if part == "above":
+        bus_edge = body_y + half
+        level_edge = bus_edge + lead - room.feeder_overhang["above"]
+        low, high = bus_edge, level_edge
+    else:
+        bus_edge = body_y - half
+        level_edge = bus_edge - lead + room.feeder_overhang["below"]
+        low, high = level_edge, bus_edge
+    geometry.blocks.append(ct_placement(settings, catalog, placed.section.ct_attributes.get(part, {}),
+                                        part == "below", a_x, low, high))
+
+
 def _add_column(geometry, dots, group, part, level_indices, column_index, a_x, is_cut,
-                placed, settings, catalog, block, starts_the_bus, ends_the_bus):
+                placed, settings, catalog, block, starts_the_bus, ends_the_bus, lead):
     """One column's vertical bus, its levels and taps. Column 1 (index 0) meets the main
     bus; a continuation column starts near it, marked with the break blocks. `is_cut`:
     the part goes on in a later column, so this one's far end is marked too."""
@@ -90,7 +116,6 @@ def _add_column(geometry, dots, group, part, level_indices, column_index, a_x, i
     main_y = {"A": plan.body_y + half, "B": plan.body_y, "C": plan.body_y - half}
     bus_x = {"A": a_x, "B": a_x + half, "C": a_x + 2 * half}
     conn_x = {LEFT: bus_x["A"] - fd.tap_length, RIGHT: bus_x["C"] + fd.tap_length}
-    lead = column_lead(column_index, gm)
 
     # Level positions: y of each level's A tap (its top); C is level_height below it.
     # `away` is the direction away from the main bus: +1 above it, -1 below it.

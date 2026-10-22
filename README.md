@@ -97,9 +97,19 @@ Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.m
 3b. ~~SPACE option~~ (built 2026-10-19, in 2.0.1).
 3c. **Main-to-main interlock line, always drawn** (DRAWING_PARTS S4, now approved).
 3d. **Single section switchboards** (one vertical bus, mains fed from the side): design to come.
-3e. **Line-side output breakers** (load bank), possibly by splitting "input feed" and "input
-   breaker" into two parts: design to come.
-3f. **Riser length grows with its devices** (when CTs, taps, CPT etc. are built).
+3e. ~~Line-side output breakers~~ (load bank; built 2026-10-22 with the feed / breaker split,
+   DECISIONS 2026-10-22). Later: on a feed by itself, CTs on it, more than one per feed.
+3f. **Riser length grows with its devices** (CTs, voltage taps and the load-bank tie built
+   2026-10-21/22; CPT etc. to come).
+3g. **CTs and power meters** (built 2026-10-21, for review: DECISIONS 2026-10-21). Next:
+   split input feed / input breaker (option B, DECISIONS 2026-10-22: step 1 split + voltage
+   taps built; step 2 standalone feeds / main lugs only / feed in the next section built;
+   step 3 load-bank line-side breaker built), then
+   device pages (meters + fuses, "FROM ...", as many per page as fit; CT SHEET# from them;
+   grouped by section; meter inputs paired in `config/devices.json`, DECISIONS 2026-10-22).
+   Later: power supply block (24V), shipping-split connections between sections.
+3h. **Re-assess the editor** (Sammy, 2026-10-22): once more is built, review the UI as a whole:
+   where things are placed and how the engineer works with it.
 4. Later polish (Sammy, in the block library): `BRACKET_TEXT_R0` label doesn't mirror its
    justification when flipped ("FROM ES_nn" runs back over the bus); `SIE_BKR_3P_3L_ASSY_R0`
    FRAME attributes (shared tag, no prompt, don't move on flip). No code workaround for now.

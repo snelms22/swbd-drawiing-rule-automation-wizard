@@ -22,7 +22,7 @@ Useful facts:
 """
 from src.layout.block_catalog import BlockInfo
 from src.layout.settings import (
-    DividerSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
+    CurrentTransformerSettings, DividerSettings, LineSideBreakerSettings, VoltageTapSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
     BusBreakSettings, FeederSettings, InputOutputSettings, MainBreakerSettings, MainBusSettings, PlaceholderSizes,
     SectionLabelSettings, TextSettings,
 )
@@ -87,6 +87,18 @@ TEST_SETTINGS = LayoutSettings(
         mirror_parameter="MIRROR-3W", label_attribute="DEVICE_ID", tap_length=10.0,
         provision_heading="PROVISION FOR", provision_heading_without_info="PROVISION",
         provision_text_gap=10.0, space_text="SPACE",
+    ),
+    current_transformers=CurrentTransformerSettings(
+        block="TEST_CT", layer="0", vertical_state_source_above="CT LEFT - POLARITY TOP",
+        vertical_state_source_below="CT LEFT - POLARITY BOTTOM", vertical_marker_suffix="_L",
+        clearance=5.0, ct_number_attributes=["CT_A_DWG#", "CT_B_DWG#", "CT_C_DWG#"],
+        shorting_kit_attribute="STB#", meter_attribute="LOCATION", ratio_attribute="CURRENT_RATIO",
+    ),
+    line_side_breakers=LineSideBreakerSettings(tie_gap=10.0, gap_to_breaker=15.0,
+                                               gap_breaker_to_output=25.0),
+    voltage_taps=VoltageTapSettings(
+        block="TEST_TAP", layer="0", vertical_state="FROM_LEFT", vertical_markers=["LA", "LB", "LC"],
+        clearance=5.0, fuse_number_attribute="FUSE_DRW_NUM", sheet_attribute="TO_SHEET",
     ),
     bus_break=BusBreakSettings(
         layer="0", tilde_block="TEST_TILDE", tilde_state_horizontal_bus="HORIZONTAL",
@@ -155,6 +167,26 @@ TEST_CATALOG = {
         extents=(-23.0, -1.0, 0.0, 23.0), extents_flipped=(0.0, -1.0, 23.0, 23.0),
         connections={"not_flipped": {"A": (0.0, 10.0), "B": (0.0, 5.0), "C": (0.0, 0.0)},
                      "flipped": {"A": (0.0, 10.0), "B": (0.0, 5.0), "C": (0.0, 0.0)}},
+    ),
+    # Shaped like 3_CTS_3L_R1 on a vertical run (CT LEFT states): A marker at the base
+    # point, B 5 right and 10 down, C 10 right and 20 down; the set (with its shorting
+    # block) reaches 20 left, 60 right, 10 up and 35 down.
+    "TEST_CT": BlockInfo(
+        name="TEST_CT", top_terminals=(), bottom_terminals=(),
+        extents=(-20.0, -35.0, 60.0, 10.0),
+        visibility_states=("CT LEFT - POLARITY TOP", "CT LEFT - POLARITY BOTTOM"),
+        states={state: {"markers": {"A_L": (0.0, 0.0), "B_L": (5.0, -10.0), "C_L": (10.0, -20.0)},
+                        "extents": (-20.0, -35.0, 60.0, 10.0)}
+                for state in ("CT LEFT - POLARITY TOP", "CT LEFT - POLARITY BOTTOM")},
+    ),
+    # Shaped like 3P_Voltage_Tap in its FROM_LEFT state: A marker at the base point, B 5
+    # right and 5 down, C 10 right and 10 down; reaches 1 left, 30 right, 2 up, 12 down.
+    "TEST_TAP": BlockInfo(
+        name="TEST_TAP", top_terminals=(), bottom_terminals=(),
+        extents=(-1.0, -31.0, 30.0, 21.0),
+        visibility_states=("FROM_LEFT", "FROM_TOP", "FROM_BOTTOM"),
+        states={"FROM_LEFT": {"markers": {"LA": (0.0, 0.0), "LB": (5.0, -5.0), "LC": (10.0, -10.0)},
+                              "extents": (-1.0, -12.0, 30.0, 2.0)}},
     ),
     "TEST_BRACKET": BlockInfo(
         name="TEST_BRACKET", top_terminals=(), bottom_terminals=(),

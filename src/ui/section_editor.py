@@ -10,6 +10,15 @@ nearest the bus), so the reorder buttons say "Closer to bus" / "Further from bus
 Every library block the configurator places gets one field per attribute, labelled with
 the prompt written in the block (read by Audit Blocks into catalog/blocks.json). A new
 block therefore needs no code for its fields: give its attributes prompts and audit it.
+
+CTs and power meters (decision 2026-10-21): mains, single breakers, ties and group-mounted
+parts each have a "Current transformers" box; each section has "Devices in this section"
+where its power meters are added.
+
+Incoming feeds (decision 2026-10-22): a main breaker's feed is "In this riser" (its
+Incoming feed box) or an "Incoming feed" part in the section next to it. An Incoming feed
+part that no main breaker picks is main lugs only. A "Line-side breaker" (load bank) picks
+the feed it is fed from.
 """
 import copy
 
@@ -19,17 +28,24 @@ from PySide6.QtWidgets import (
     QListWidget, QPushButton, QStackedWidget, QVBoxLayout, QWidget,
 )
 
+from src.layout.current_transformers import program_filled_tags
 from src.layout.section_builder import single_level_sides
+from src.model.devices import meters_in, voltage_taps_in
+from src.model.feeds import all_feeds, main_fed_by, standalone_feeds
 from src.model.section_contents import (
-    FEED_DIRECTIONS, FIXED, MOUNTINGS, Breaker, GroupMounted, MainBreaker, Provision,
-    SingleBreaker, SingleLevel, Space, TieBreaker, TwinLevel, feed_directions,
+    FEED_DIRECTIONS, FIXED, MOUNTINGS, Breaker, CurrentTransformers, GroupMounted, IncomingFeed,
+    LineSideBreaker, MainBreaker, PowerMeter, Provision, SingleBreaker, SingleLevel, Space, TieBreaker, TwinLevel,
+    VoltageTap, feed_directions, side_away_from_bus,
 )
 
 EMPTY = "Empty"
 MAIN = "Main breaker"
 SINGLE = "Single breaker"
 GROUP = "Group Mounted"
-ARRANGEMENT_CHOICES = [EMPTY, MAIN, SINGLE, GROUP]
+FEED = "Incoming feed"
+LINE_SIDE = "Line-side breaker"      # e.g. a load-bank breaker on a feed's line side
+ARRANGEMENT_CHOICES = [EMPTY, MAIN, FEED, LINE_SIDE, SINGLE, GROUP]
+IN_THIS_RISER = "In this riser"      # a main breaker's feed choice
 
 
 def _set_quietly(widget, setter, value):
@@ -37,6 +53,26 @@ def _set_quietly(widget, setter, value):
     widget.blockSignals(True)
     setter(value)
     widget.blockSignals(False)
+
+
+NO_COMMS = "None"                  # comms drop-down: no communication module
+
+
+def comms_combo(modules) -> QComboBox:
+    """Drop-down of communication modules (config/devices.json), "None" first."""
+    combo = QComboBox()
+    combo.addItems([NO_COMMS] + list(modules))
+    return combo
+
+
+def set_comms(combo, module: str):
+    if module and combo.findText(module) < 0:
+        combo.addItem(module)            # a saved module no longer in the list: keep it
+    _set_quietly(combo, combo.setCurrentText, module or NO_COMMS)
+
+
+def read_comms(combo) -> str:
+    return "" if combo.currentText() == NO_COMMS else combo.currentText()
 
 
 SLOT_BREAKER = "Breaker"
@@ -87,12 +123,292 @@ def _store_and_report(values: dict, tag: str, text: str, on_edit):
     on_edit()
 
 
+NO_METER = "Choose a power meter"
+
+
+class CtEditor(QGroupBox):
+    """CTs on a main, single or tie breaker, or at the base of a group-mounted part
+    (decision 2026-10-21). Ticking the box adds a CT set. The engineer picks the power meter
+    it feeds and the ratio; the program numbers it (CT1-3, STB-1, ...), places it wherever it
+    fits and fills in the meter. `attribute` is where the set is kept on the part ("cts", or
+    "base_cts" on a group-mounted part)."""
+    changed = Signal()
+
+    def __init__(self, title, attribute, settings, catalog=None, switchboard_provider=None):
+        super().__init__(title)
+        self._attribute = attribute
+        self._settings = settings
+        self._catalog = catalog
+        self._switchboard = switchboard_provider or (lambda: None)
+        self._owner = None
+        self.setCheckable(True)
+        self.meter_combo = QComboBox()
+        self.ratio_edit = QLineEdit()
+        self.ratio_edit.setPlaceholderText("e.g. 4000:5A")
+        # Mains only (decision 2026-10-21, kept as a choice): measure on the main bus after
+        # the mains have joined instead of on this main's riser.
+        self.main_bus_check = QCheckBox("On the main bus after the mains join (drawn on the riser for now)")
+        self.attributes_box = QGroupBox("CT block attributes")
+        self.attributes_form = QFormLayout(self.attributes_box)
+        form = QFormLayout(self)
+        form.addRow("Power meter", self.meter_combo)
+        form.addRow("Current ratio", self.ratio_edit)
+        form.addRow(self.main_bus_check)
+        form.addRow(self.attributes_box)
+        self.toggled.connect(self._toggled)
+        self.meter_combo.currentIndexChanged.connect(self._edited)
+        self.ratio_edit.textEdited.connect(self._edited)
+        self.main_bus_check.toggled.connect(self._edited)
+
+    def set_catalog(self, catalog):
+        self._catalog = catalog
+        self.load(self._owner)
+
+    def load(self, owner):
+        """Show the CTs of `owner` (a part or tie), or hide this box when None."""
+        self._owner = owner
+        self.setVisible(owner is not None)
+        cts = getattr(owner, self._attribute) if owner is not None else None
+        _set_quietly(self, self.setChecked, cts is not None)
+        self.refresh_meters()
+        _set_quietly(self.ratio_edit, self.ratio_edit.setText, cts.ratio if cts else "")
+        self.main_bus_check.setVisible(isinstance(owner, MainBreaker))
+        _set_quietly(self.main_bus_check, self.main_bus_check.setChecked, bool(cts and cts.on_main_bus))
+        block = self._catalog.get(self._settings.current_transformers.block) if self._catalog else None
+        add_attribute_fields(self.attributes_form, block, cts.attributes if cts else {},
+                             program_filled_tags(self._settings), self.changed.emit)
+        has_fields = block is not None and self.attributes_form.rowCount() > 0
+        self.attributes_box.setVisible(cts is not None and has_fields)
+
+    def refresh_meters(self):
+        """List every power meter in the lineup (meters are added in each section's
+        Devices box), keeping the chosen one."""
+        cts = getattr(self._owner, self._attribute) if self._owner is not None else None
+        chosen = cts.meter_id if cts else ""
+        switchboard = self._switchboard()
+        self.meter_combo.blockSignals(True)
+        self.meter_combo.clear()
+        self.meter_combo.addItem(NO_METER, "")
+        for info in meters_in(switchboard) if switchboard is not None else []:
+            self.meter_combo.addItem(f"{info.name}   {info.meter.model or '(no model yet)'}", info.meter.id)
+        index = self.meter_combo.findData(chosen)
+        if index < 0 and chosen:
+            self.meter_combo.addItem("(that meter was removed)", chosen)
+            index = self.meter_combo.count() - 1
+        self.meter_combo.setCurrentIndex(max(index, 0))
+        self.meter_combo.blockSignals(False)
+
+    def _toggled(self, on):
+        if self._owner is None:
+            return
+        setattr(self._owner, self._attribute, CurrentTransformers() if on else None)
+        self.load(self._owner)
+        self.changed.emit()
+
+    def _edited(self, *_):
+        cts = getattr(self._owner, self._attribute) if self._owner is not None else None
+        if cts is None:
+            return
+        cts.meter_id = self.meter_combo.currentData() or ""
+        cts.ratio = self.ratio_edit.text().strip()
+        cts.on_main_bus = isinstance(self._owner, MainBreaker) and self.main_bus_check.isChecked()
+        self.changed.emit()
+
+
+class VoltageTapsEditor(QGroupBox):
+    """Voltage taps on an incoming feed (decision 2026-10-22). Each tap feeds one power
+    meter's voltage input; its fuse is numbered FA-1, FA-2, ... through the lineup."""
+    changed = Signal()
+
+    def __init__(self, switchboard_provider=None):
+        super().__init__("Voltage taps")
+        self._switchboard = switchboard_provider or (lambda: None)
+        self._feed = None
+        self.taps_list = QListWidget()
+        self.taps_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.taps_list.currentRowChanged.connect(self._tap_selected)
+        add_button = QPushButton("+ Voltage tap")
+        add_button.clicked.connect(self._add_tap)
+        self.remove_button = QPushButton("Remove")
+        self.remove_button.clicked.connect(self._remove_tap)
+        self.meter_combo = QComboBox()
+        self.meter_combo.currentIndexChanged.connect(self._meter_changed)
+        buttons = QHBoxLayout()
+        buttons.addWidget(add_button)
+        buttons.addWidget(self.remove_button)
+        buttons.addStretch()
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.taps_list)
+        layout.addLayout(buttons)
+        meter_form = QFormLayout()
+        meter_form.addRow("Power meter", self.meter_combo)
+        layout.addLayout(meter_form)
+
+    def load(self, feed, select_row=0):
+        """Show the taps of `feed`, or hide this box when None."""
+        self._feed = feed
+        self.setVisible(feed is not None)
+        taps = feed.voltage_taps if feed is not None else []
+        fuses = self._fuse_names()
+        meters = self._meter_names()
+        self.taps_list.blockSignals(True)
+        self.taps_list.clear()
+        for tap in taps:
+            meter = meters.get(tap.meter_id, "(choose a meter)" if not tap.meter_id else "(meter removed)")
+            self.taps_list.addItem(f"{fuses.get(id(tap), 'FA-?')}   to {meter}")
+        self.taps_list.blockSignals(False)
+        rows = max(len(taps), 1)
+        row_height = self.taps_list.sizeHintForRow(0) if taps else 18
+        self.taps_list.setFixedHeight(rows * row_height + 2 * self.taps_list.frameWidth() + 4)
+        if taps:
+            self.taps_list.setCurrentRow(min(max(select_row, 0), len(taps) - 1))
+        self._tap_selected(self.taps_list.currentRow())
+
+    def refresh_meters(self):
+        if self._feed is not None:
+            self.load(self._feed, self.taps_list.currentRow())
+
+    def _fuse_names(self) -> dict:
+        switchboard = self._switchboard()
+        return {id(info.tap): info.fuse for info in voltage_taps_in(switchboard)} if switchboard else {}
+
+    def _meter_names(self) -> dict:
+        switchboard = self._switchboard()
+        return {info.meter.id: info.name for info in meters_in(switchboard)} if switchboard else {}
+
+    def _tap_selected(self, row):
+        taps = self._feed.voltage_taps if self._feed is not None else []
+        has_tap = 0 <= row < len(taps)
+        self.meter_combo.setEnabled(has_tap)
+        self.remove_button.setEnabled(has_tap)
+        chosen = taps[row].meter_id if has_tap else ""
+        switchboard = self._switchboard()
+        self.meter_combo.blockSignals(True)
+        self.meter_combo.clear()
+        self.meter_combo.addItem(NO_METER, "")
+        for info in meters_in(switchboard) if switchboard is not None else []:
+            self.meter_combo.addItem(f"{info.name}   {info.meter.model or '(no model yet)'}", info.meter.id)
+        index = self.meter_combo.findData(chosen)
+        if index < 0 and chosen:
+            self.meter_combo.addItem("(that meter was removed)", chosen)
+            index = self.meter_combo.count() - 1
+        self.meter_combo.setCurrentIndex(max(index, 0))
+        self.meter_combo.blockSignals(False)
+
+    def _add_tap(self):
+        self._feed.voltage_taps.append(VoltageTap())
+        self.load(self._feed, len(self._feed.voltage_taps) - 1)
+        self.changed.emit()
+
+    def _remove_tap(self):
+        row = self.taps_list.currentRow()
+        if 0 <= row < len(self._feed.voltage_taps):
+            del self._feed.voltage_taps[row]
+            self.load(self._feed, row)
+            self.changed.emit()
+
+    def _meter_changed(self, *_):
+        row = self.taps_list.currentRow()
+        if self._feed is not None and 0 <= row < len(self._feed.voltage_taps):
+            self._feed.voltage_taps[row].meter_id = self.meter_combo.currentData() or ""
+            self.load(self._feed, row)
+            self.changed.emit()
+
+
+class DevicesEditor(QGroupBox):
+    """Devices mounted in this section (decision 2026-10-21). For now: power meters, named
+    PM-1, PM-2, ... through the lineup; the engineer picks each one's model. Nothing is
+    drawn for them on the 3-line yet (they go on the device pages, later)."""
+    changed = Signal()
+
+    def __init__(self, meter_models=(), switchboard_provider=None):
+        super().__init__("Devices in this section")
+        self._meter_models = list(meter_models)
+        self._switchboard = switchboard_provider or (lambda: None)
+        self._section = None
+        self.meters_list = QListWidget()
+        self.meters_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.meters_list.currentRowChanged.connect(self._meter_selected)
+        add_button = QPushButton("+ Power meter")
+        add_button.clicked.connect(self._add_meter)
+        self.remove_button = QPushButton("Remove")
+        self.remove_button.clicked.connect(self._remove_meter)
+        self.model_combo = QComboBox()
+        self.model_combo.currentTextChanged.connect(self._model_changed)
+        buttons = QHBoxLayout()
+        buttons.addWidget(add_button)
+        buttons.addWidget(self.remove_button)
+        buttons.addStretch()
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.meters_list)
+        layout.addLayout(buttons)
+        model_form = QFormLayout()
+        model_form.addRow("Model", self.model_combo)
+        layout.addLayout(model_form)
+
+    def load(self, section, select_row=0):
+        self._section = section
+        meters = section.contents.power_meters
+        names = self._names()
+        self.meters_list.blockSignals(True)
+        self.meters_list.clear()
+        for meter in meters:
+            self.meters_list.addItem(f"{names.get(meter.id, 'PM-?')}   {meter.model or '(choose a model)'}")
+        self.meters_list.blockSignals(False)
+        rows = max(len(meters), 1)
+        row_height = self.meters_list.sizeHintForRow(0) if meters else 18
+        self.meters_list.setFixedHeight(rows * row_height + 2 * self.meters_list.frameWidth() + 4)
+        if meters:
+            self.meters_list.setCurrentRow(min(max(select_row, 0), len(meters) - 1))
+        self._meter_selected(self.meters_list.currentRow())
+
+    def _names(self) -> dict:
+        switchboard = self._switchboard()
+        return {info.meter.id: info.name for info in meters_in(switchboard)} if switchboard else {}
+
+    def _meter_selected(self, row):
+        meters = self._section.contents.power_meters if self._section is not None else []
+        has_meter = 0 <= row < len(meters)
+        self.model_combo.setEnabled(has_meter)
+        self.remove_button.setEnabled(has_meter)
+        model = meters[row].model if has_meter else ""
+        self.model_combo.blockSignals(True)
+        self.model_combo.clear()
+        self.model_combo.addItems([""] + self._meter_models)
+        if model and self.model_combo.findText(model) < 0:
+            self.model_combo.addItem(model)          # a saved model no longer in the list
+        self.model_combo.setCurrentText(model)
+        self.model_combo.blockSignals(False)
+
+    def _add_meter(self):
+        meters = self._section.contents.power_meters
+        meters.append(PowerMeter())
+        self.load(self._section, len(meters) - 1)
+        self.changed.emit()
+
+    def _remove_meter(self):
+        row = self.meters_list.currentRow()
+        meters = self._section.contents.power_meters
+        if 0 <= row < len(meters):
+            del meters[row]
+            self.load(self._section, row)
+            self.changed.emit()
+
+    def _model_changed(self, model):
+        row = self.meters_list.currentRow()
+        meters = self._section.contents.power_meters
+        if 0 <= row < len(meters):
+            meters[row].model = model
+            self.load(self._section, row)
+            self.changed.emit()
+
+
 class SlotEditor(QWidget):
     """One position on a group-mounted level: a feeder breaker (label and its block's
     attributes), a Provision (one line of info), or a Space (nothing to fill in)."""
     changed = Signal()
 
-    def __init__(self, settings, catalog=None):
+    def __init__(self, settings, catalog=None, comms_modules=()):
         super().__init__()
         self._settings = settings
         self._catalog = catalog
@@ -106,15 +422,16 @@ class SlotEditor(QWidget):
         row.addWidget(self.label_edit)
         row.addWidget(self.kind_combo)
         # Communication module on this breaker (decision 2026-10-19; drawing logic later).
-        self.comms_check = QCheckBox("Comms")
-        row.addWidget(self.comms_check)
+        self.comms_combo = comms_combo(comms_modules)
+        self.comms_combo.setToolTip("Communication module")
+        row.addWidget(self.comms_combo)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(row)
         layout.addWidget(self.attributes_box)
         self.label_edit.textEdited.connect(self.changed)
         self.kind_combo.currentTextChanged.connect(self.changed)
-        self.comms_check.toggled.connect(self.changed)
+        self.comms_combo.currentTextChanged.connect(self.changed)
 
     def set_catalog(self, catalog):
         self._catalog = catalog
@@ -141,7 +458,7 @@ class SlotEditor(QWidget):
         else:
             slot = previous if isinstance(previous, Breaker) else Breaker("")
             slot.label = text
-            slot.comms = self.comms_check.isChecked()
+            slot.comms_module = read_comms(self.comms_combo)
         if slot is not self._slot:          # changed kind: its fields change too
             self._slot = slot
             self._rebuild_fields()
@@ -161,18 +478,20 @@ class SlotEditor(QWidget):
                              {self._settings.feeder.label_attribute},   # filled by the label
                              self.changed.emit)
         self.attributes_box.setVisible(block is not None and bool(block.attributes))
-        self.comms_check.setVisible(is_breaker)             # only breakers have comms
-        _set_quietly(self.comms_check, self.comms_check.setChecked,
-                     self._slot.comms if is_breaker else False)
+        self.comms_combo.setVisible(is_breaker)             # only breakers have comms
+        set_comms(self.comms_combo, self._slot.comms_module if is_breaker else "")
 
 
 class ArrangementEditor(QGroupBox):
     """Edits the Above or the Below part of a section."""
     changed = Signal()
 
-    def __init__(self, title: str, part: str, settings, catalog=None):
+    def __init__(self, title: str, part: str, settings, catalog=None, comms_modules=(),
+                 switchboard_provider=None):
         super().__init__(title)
         self._part = part            # "above" or "below"
+        self._switchboard_provider = switchboard_provider
+        self._comms_modules = comms_modules   # communication modules to choose from
         self._settings = settings
         self._catalog = catalog      # library blocks (attributes, prompts); None = no fields
         self._section = None
@@ -201,24 +520,48 @@ class ArrangementEditor(QGroupBox):
         self.termination_feed_combo.currentTextChanged.connect(self._feeds_changed)
         breaker_page = QWidget()
         breaker_form = QFormLayout(breaker_page)
+        self.breaker_form = breaker_form
         breaker_form.addRow("Label", self.breaker_label)
-        self.breaker_comms_check = QCheckBox("Communication module")
-        self.breaker_comms_check.toggled.connect(self._breaker_comms_toggled)
-        breaker_form.addRow("Comms", self.breaker_comms_check)
+        self.breaker_comms_combo = comms_combo(comms_modules)
+        self.breaker_comms_combo.currentTextChanged.connect(self._breaker_comms_changed)
+        breaker_form.addRow("Comms module", self.breaker_comms_combo)
         breaker_form.addRow(self.mounting_label, self.mounting_combo)
         breaker_form.addRow("Breaker Feed Direction", self.breaker_feed_combo)
-        breaker_form.addRow("Termination Feed Direction", self.termination_feed_combo)
         # One field per block attribute, labelled with the prompt written in the block.
         self.breaker_attributes_box = QGroupBox("Breaker block attributes")
         self.breaker_attributes_form = QFormLayout(self.breaker_attributes_box)
+        breaker_form.addRow(self.breaker_attributes_box)
+        self.ct_editor = CtEditor("Current transformers", "cts", settings, catalog, switchboard_provider)
+        self.ct_editor.changed.connect(self.changed)
+        breaker_form.addRow(self.ct_editor)
+        # Main breakers: where the feed is (decision 2026-10-22).
+        self.feed_source_combo = QComboBox()
+        self.feed_source_combo.currentIndexChanged.connect(self._feed_source_changed)
+        breaker_form.addRow("Feed", self.feed_source_combo)
+        # An Incoming feed part: what it goes to (worked out from the lineup).
+        self.feed_info = QLabel()
+        breaker_form.addRow(self.feed_info)
+        # A line-side breaker: the feed it is fed from.
+        self.fed_from_combo = QComboBox()
+        self.fed_from_combo.currentIndexChanged.connect(self._fed_from_changed)
+        breaker_form.addRow("Fed from", self.fed_from_combo)
+        # The termination: a main breaker's incoming feed (with its line-side voltage taps,
+        # decision 2026-10-22), an Incoming feed part, or a single breaker's output.
+        self.termination_box = QGroupBox("Incoming feed")
+        termination_form = QFormLayout(self.termination_box)
+        self.termination_form = termination_form
+        termination_form.addRow("Termination Feed Direction", self.termination_feed_combo)
         self.input_attributes_box = QGroupBox("Input block attributes")
         self.input_attributes_form = QFormLayout(self.input_attributes_box)
-        breaker_form.addRow(self.breaker_attributes_box)
-        breaker_form.addRow(self.input_attributes_box)
+        termination_form.addRow(self.input_attributes_box)
+        self.taps_editor = VoltageTapsEditor(switchboard_provider)
+        self.taps_editor.changed.connect(self.changed)
+        termination_form.addRow(self.taps_editor)
+        breaker_form.addRow(self.termination_box)
 
         self.stack = QStackedWidget()
         self.stack.addWidget(QWidget())          # 0: Empty
-        self.stack.addWidget(breaker_page)       # 1: Main / Single breaker
+        self.stack.addWidget(breaker_page)       # 1: Main / Single breaker / Incoming feed
         self.stack.addWidget(self._build_group_page())  # 2: Group Mounted
 
         layout = QVBoxLayout(self)
@@ -251,9 +594,9 @@ class ArrangementEditor(QGroupBox):
                     self.flip_button = button
             button_layouts.append(row_layout)
 
-        self.left_slot = SlotEditor(self._settings, self._catalog)
-        self.right_slot = SlotEditor(self._settings, self._catalog)
-        self.single_slot = SlotEditor(self._settings, self._catalog)
+        self.left_slot = SlotEditor(self._settings, self._catalog, self._comms_modules)
+        self.right_slot = SlotEditor(self._settings, self._catalog, self._comms_modules)
+        self.single_slot = SlotEditor(self._settings, self._catalog, self._comms_modules)
         for editor in (self.left_slot, self.right_slot, self.single_slot):
             editor.changed.connect(self._slot_edited)
 
@@ -276,6 +619,10 @@ class ArrangementEditor(QGroupBox):
         for row_layout in button_layouts:
             layout.addLayout(row_layout)
         layout.addWidget(self.level_stack)
+        self.base_ct_editor = CtEditor("Current transformers at the base of the vertical bus", "base_cts",
+                                       self._settings, self._catalog, self._switchboard_provider)
+        self.base_ct_editor.changed.connect(self.changed)
+        layout.addWidget(self.base_ct_editor)
         return page
 
     # --- Loading ------------------------------------------------------------------------
@@ -283,27 +630,117 @@ class ArrangementEditor(QGroupBox):
     def load(self, section):
         self._section = section
         arrangement = self._arrangement()
-        kind = {MainBreaker: MAIN, SingleBreaker: SINGLE, GroupMounted: GROUP}.get(
-            type(arrangement), EMPTY
-        )
+        kind = {MainBreaker: MAIN, SingleBreaker: SINGLE, GroupMounted: GROUP, IncomingFeed: FEED,
+                LineSideBreaker: LINE_SIDE}.get(type(arrangement), EMPTY)
         _set_quietly(self.kind_combo, self.kind_combo.setCurrentText, kind)
         self._show_page_for(kind)
-        if kind in (MAIN, SINGLE):
+        if kind in (MAIN, SINGLE, LINE_SIDE):
             _set_quietly(self.breaker_label, self.breaker_label.setText, arrangement.breaker.label)
-            _set_quietly(self.breaker_comms_check, self.breaker_comms_check.setChecked,
-                         arrangement.breaker.comms)
+            set_comms(self.breaker_comms_combo, arrangement.breaker.comms_module)
+        if kind in (MAIN, SINGLE):
             breaker_feed, termination_feed = feed_directions(arrangement, self._part)
             _set_quietly(self.breaker_feed_combo, self.breaker_feed_combo.setCurrentText, breaker_feed)
             _set_quietly(self.termination_feed_combo, self.termination_feed_combo.setCurrentText,
                          termination_feed)
         is_main = kind == MAIN
-        self.mounting_combo.setVisible(is_main)
-        self.mounting_label.setVisible(is_main)
-        if is_main:
+        is_feed = kind == FEED
+        is_line_side = kind == LINE_SIDE
+        if is_feed:
+            _set_quietly(self.termination_feed_combo, self.termination_feed_combo.setCurrentText,
+                         arrangement.termination_feed or side_away_from_bus(self._part))
+        # An Incoming feed part shows only its feed; a main breaker also says where its feed is.
+        for widget in (self.breaker_label, self.breaker_comms_combo, self.breaker_attributes_box):
+            self.breaker_form.setRowVisible(widget, not is_feed)
+        # A line-side breaker's feed directions are fixed for now; it has no CTs yet.
+        for widget in (self.breaker_feed_combo, self.ct_editor):
+            self.breaker_form.setRowVisible(widget, not is_feed and not is_line_side)
+        self.breaker_form.setRowVisible(self.mounting_combo, is_main or is_line_side)
+        self.breaker_form.setRowVisible(self.feed_source_combo, is_main)
+        self.breaker_form.setRowVisible(self.feed_info, is_feed)
+        self.breaker_form.setRowVisible(self.fed_from_combo, is_line_side)
+        self.termination_form.setRowVisible(self.termination_feed_combo, not is_line_side)
+        if is_main or is_line_side:
             _set_quietly(self.mounting_combo, self.mounting_combo.setCurrentText, arrangement.mounting)
+        if is_main:
+            self._load_feed_sources(arrangement)
+        if is_line_side:
+            self._load_fed_from(arrangement)
+        if is_feed:
+            self.feed_info.setText(self._feed_goes_to(arrangement))
         self._rebuild_attribute_fields()
+        self.ct_editor.load(arrangement if kind in (MAIN, SINGLE) else None)
+        self.base_ct_editor.load(arrangement if kind == GROUP else None)
+        feed = arrangement if is_feed else arrangement.feed if is_main else None
+        self.termination_box.setTitle("Output" if kind in (SINGLE, LINE_SIDE) else "Incoming feed")
+        self.breaker_form.setRowVisible(self.termination_box, kind in (SINGLE, LINE_SIDE) or feed is not None)
+        self.taps_editor.load(feed)
         if kind == GROUP:
             self._reload_levels(select_row=0)
+
+    def _load_feed_sources(self, main):
+        """"In this riser", or any Incoming feed part in the lineup."""
+        switchboard = self._switchboard_provider() if self._switchboard_provider else None
+        chosen = "" if main.feed is not None else main.feed_from
+        self.feed_source_combo.blockSignals(True)
+        self.feed_source_combo.clear()
+        self.feed_source_combo.addItem(IN_THIS_RISER, "")
+        for place in standalone_feeds(switchboard) if switchboard is not None else []:
+            self.feed_source_combo.addItem(f"Incoming feed, {place.where.lower()}", place.feed.id)
+        index = self.feed_source_combo.findData(chosen)
+        if main.feed is None and index <= 0:
+            self.feed_source_combo.addItem("(choose a feed)" if not chosen else "(that feed was removed)", chosen)
+            index = self.feed_source_combo.count() - 1
+        self.feed_source_combo.setCurrentIndex(max(index, 0))
+        self.feed_source_combo.blockSignals(False)
+
+    def _load_fed_from(self, line_side):
+        """Every incoming feed in the lineup (a main breaker's own, or one by itself)."""
+        switchboard = self._switchboard_provider() if self._switchboard_provider else None
+        self.fed_from_combo.blockSignals(True)
+        self.fed_from_combo.clear()
+        self.fed_from_combo.addItem("(choose a feed)", "")
+        for found in all_feeds(switchboard) if switchboard is not None else []:
+            self.fed_from_combo.addItem(found.where, found.feed.id)
+        index = self.fed_from_combo.findData(line_side.fed_from)
+        if index < 0:
+            self.fed_from_combo.addItem("(that feed was removed)", line_side.fed_from)
+            index = self.fed_from_combo.count() - 1
+        self.fed_from_combo.setCurrentIndex(index)
+        self.fed_from_combo.blockSignals(False)
+
+    def _fed_from_changed(self, *_):
+        line_side = self._arrangement()
+        if isinstance(line_side, LineSideBreaker):
+            line_side.fed_from = self.fed_from_combo.currentData() or ""
+            self.changed.emit()
+
+    def _feed_goes_to(self, feed) -> str:
+        switchboard = self._switchboard_provider() if self._switchboard_provider else None
+        found = main_fed_by(switchboard, feed.id) if switchboard is not None else None
+        if found is None:
+            return "Goes to: the main bus (main lugs only)"
+        index, part, main = found
+        return f"Feeds: {main.breaker.label or 'the main breaker'} (section {index + 1} {part})"
+
+    def _feed_source_changed(self, *_):
+        main = self._arrangement()
+        if not isinstance(main, MainBreaker):
+            return
+        chosen = self.feed_source_combo.currentData() or ""
+        if self.feed_source_combo.currentText() == IN_THIS_RISER:
+            main.feed = main.feed or IncomingFeed()
+            main.feed_from = ""
+        else:
+            main.feed = None
+            main.feed_from = chosen
+        self.load(self._section)
+        self.changed.emit()
+
+    def refresh_meters(self):
+        """The lineup's power meters changed: update the meter choices."""
+        self.ct_editor.refresh_meters()
+        self.base_ct_editor.refresh_meters()
+        self.taps_editor.refresh_meters()
 
     def _arrangement(self):
         return getattr(self._section.contents, self._part)
@@ -312,7 +749,7 @@ class ArrangementEditor(QGroupBox):
         setattr(self._section.contents, self._part, arrangement)
 
     def _show_page_for(self, kind):
-        self.stack.setCurrentIndex({EMPTY: 0, MAIN: 1, SINGLE: 1, GROUP: 2}[kind])
+        self.stack.setCurrentIndex({EMPTY: 0, MAIN: 1, SINGLE: 1, FEED: 1, LINE_SIDE: 1, GROUP: 2}[kind])
 
     def _reload_levels(self, select_row):
         group = self._arrangement()
@@ -338,12 +775,28 @@ class ArrangementEditor(QGroupBox):
         # Keep the breaker (and its feed directions) when switching between Main and
         # Single, so what was entered survives.
         was_breaker = isinstance(current, (MainBreaker, SingleBreaker))
-        kept = current.breaker if was_breaker else Breaker("")
+        has_breaker = isinstance(current, (MainBreaker, SingleBreaker, LineSideBreaker))
+        kept = current.breaker if has_breaker else Breaker("")
         new = {EMPTY: None, MAIN: MainBreaker(kept), SINGLE: SingleBreaker(kept),
-               GROUP: GroupMounted()}[kind]
+               GROUP: GroupMounted(), FEED: IncomingFeed(), LINE_SIDE: LineSideBreaker(kept)}[kind]
+        # Mains and line-side breakers use the same blocks: keep the mounting.
+        if isinstance(new, (MainBreaker, LineSideBreaker)) and isinstance(current, (MainBreaker, LineSideBreaker)):
+            new.mounting = current.mounting
+        # A main breaker's own feed and an Incoming feed part carry over into each other.
+        if kind == FEED and isinstance(current, MainBreaker) and current.feed is not None:
+            new = current.feed
+        if kind == MAIN and isinstance(current, IncomingFeed):
+            new.feed = current
         if was_breaker and isinstance(new, (MainBreaker, SingleBreaker)):
             new.breaker_feed = current.breaker_feed
-            new.termination_feed = current.termination_feed
+            _, termination_feed = feed_directions(current, self._part)
+            if isinstance(new, MainBreaker):
+                new.feed.termination_feed = termination_feed
+            else:
+                new.termination_feed = termination_feed
+            new.cts = current.cts
+            if isinstance(new, SingleBreaker) and new.cts is not None:
+                new.cts.on_main_bus = False          # a choice for mains only
         self._set_arrangement(new)
         self.load(self._section)
         self.changed.emit()
@@ -352,6 +805,8 @@ class ArrangementEditor(QGroupBox):
         self._catalog = catalog
         for editor in (self.left_slot, self.right_slot, self.single_slot):
             editor.set_catalog(catalog)
+        self.ct_editor.set_catalog(catalog)
+        self.base_ct_editor.set_catalog(catalog)
         if self._section is not None:
             self._rebuild_attribute_fields()
 
@@ -365,11 +820,22 @@ class ArrangementEditor(QGroupBox):
             is_main = isinstance(arrangement, MainBreaker)
             mounting = arrangement.mounting if is_main else FIXED
             breaker_block = self._catalog.get(self._settings.main_breaker.blocks[mounting])
-            io_block = self._catalog.get(self._settings.input_output.block)
             breaker_values = arrangement.breaker.attributes
-            io_values = arrangement.input_attributes if is_main else arrangement.output_attributes
+            if not is_main or arrangement.feed is not None:
+                io_block = self._catalog.get(self._settings.input_output.block)
+                io_values = arrangement.feed.input_attributes if is_main else arrangement.output_attributes
             self.input_attributes_box.setTitle("Input block attributes" if is_main
                                                else "Output block attributes")
+        elif isinstance(arrangement, IncomingFeed) and self._catalog:
+            io_block = self._catalog.get(self._settings.input_output.block)
+            io_values = arrangement.input_attributes
+            self.input_attributes_box.setTitle("Input block attributes")
+        elif isinstance(arrangement, LineSideBreaker) and self._catalog:
+            breaker_block = self._catalog.get(self._settings.main_breaker.blocks[arrangement.mounting])
+            breaker_values = arrangement.breaker.attributes
+            io_block = self._catalog.get(self._settings.input_output.block)
+            io_values = arrangement.output_attributes
+            self.input_attributes_box.setTitle("Output block attributes")
         skip = {self._settings.main_breaker.label_attribute}   # filled by the Label field
         add_attribute_fields(self.breaker_attributes_form, breaker_block, breaker_values, skip,
                              self.changed.emit)
@@ -380,20 +846,28 @@ class ArrangementEditor(QGroupBox):
 
     def _mounting_changed(self, mounting):
         arrangement = self._arrangement()
-        if isinstance(arrangement, MainBreaker):
+        if isinstance(arrangement, (MainBreaker, LineSideBreaker)):
             arrangement.mounting = mounting
             self._rebuild_attribute_fields()     # the other block may have other attributes
             self.changed.emit()
 
     def _feeds_changed(self, *_):
         arrangement = self._arrangement()
-        if isinstance(arrangement, (MainBreaker, SingleBreaker)):
-            arrangement.breaker_feed = self.breaker_feed_combo.currentText()
+        if isinstance(arrangement, IncomingFeed):
             arrangement.termination_feed = self.termination_feed_combo.currentText()
             self.changed.emit()
+        if isinstance(arrangement, (MainBreaker, SingleBreaker)):
+            arrangement.breaker_feed = self.breaker_feed_combo.currentText()
+            termination_feed = self.termination_feed_combo.currentText()
+            if isinstance(arrangement, MainBreaker):
+                if arrangement.feed is not None:     # a feed elsewhere has its own direction
+                    arrangement.feed.termination_feed = termination_feed
+            else:
+                arrangement.termination_feed = termination_feed
+            self.changed.emit()
 
-    def _breaker_comms_toggled(self, checked):
-        self._arrangement().breaker.comms = checked
+    def _breaker_comms_changed(self, *_):
+        self._arrangement().breaker.comms_module = read_comms(self.breaker_comms_combo)
         self.changed.emit()
 
     def _breaker_label_edited(self, text):
@@ -506,7 +980,7 @@ class TieEditor(QGroupBox):
     breaker, it gets one field per attribute of its mounting's block."""
     changed = Signal()
 
-    def __init__(self, settings, catalog=None):
+    def __init__(self, settings, catalog=None, comms_modules=(), switchboard_provider=None):
         super().__init__("Tie breaker")
         self._settings = settings
         self._catalog = catalog
@@ -521,14 +995,17 @@ class TieEditor(QGroupBox):
         form = QFormLayout(self)
         form.addRow(self.include_check)
         form.addRow("Label", self.label_edit)
-        self.comms_check = QCheckBox("Communication module")
-        form.addRow("Comms", self.comms_check)
-        self.comms_check.toggled.connect(self._edited)
+        self.comms_combo = comms_combo(comms_modules)
+        form.addRow("Comms module", self.comms_combo)
+        self.comms_combo.currentTextChanged.connect(self._edited)
         form.addRow("Bus steps", self.steps_combo)
         form.addRow("Mounting", self.mounting_combo)
         self.attributes_box = QGroupBox("Breaker block attributes")
         self.attributes_form = QFormLayout(self.attributes_box)
         form.addRow(self.attributes_box)
+        self.ct_editor = CtEditor("Current transformers", "cts", settings, catalog, switchboard_provider)
+        self.ct_editor.changed.connect(self.changed)
+        form.addRow(self.ct_editor)
         self.include_check.toggled.connect(self._include_toggled)
         self.label_edit.textEdited.connect(self._edited)
         self.steps_combo.currentTextChanged.connect(self._edited)
@@ -539,15 +1016,17 @@ class TieEditor(QGroupBox):
         tie = section.contents.tie
         _set_quietly(self.include_check, self.include_check.setChecked, tie is not None)
         _set_quietly(self.label_edit, self.label_edit.setText, tie.breaker.label if tie else "")
-        _set_quietly(self.comms_check, self.comms_check.setChecked, tie.breaker.comms if tie else False)
+        set_comms(self.comms_combo, tie.breaker.comms_module if tie else "")
         _set_quietly(self.steps_combo, self.steps_combo.setCurrentText, tie.bus_steps if tie else "down")
         _set_quietly(self.mounting_combo, self.mounting_combo.setCurrentText, tie.mounting if tie else MOUNTINGS[0])
-        for widget in (self.label_edit, self.steps_combo, self.mounting_combo, self.comms_check):
+        for widget in (self.label_edit, self.steps_combo, self.mounting_combo, self.comms_combo):
             widget.setEnabled(tie is not None)
         self._rebuild_attribute_fields()
+        self.ct_editor.load(tie)
 
     def set_catalog(self, catalog):
         self._catalog = catalog
+        self.ct_editor.set_catalog(catalog)
         if self._section is not None:
             self._rebuild_attribute_fields()
 
@@ -578,7 +1057,7 @@ class TieEditor(QGroupBox):
         if tie is not None:
             mounting_changed = tie.mounting != self.mounting_combo.currentText()
             tie.breaker.label = self.label_edit.text().strip()
-            tie.breaker.comms = self.comms_check.isChecked()
+            tie.breaker.comms_module = read_comms(self.comms_combo)
             tie.bus_steps = self.steps_combo.currentText()
             tie.mounting = self.mounting_combo.currentText()
             if mounting_changed:
@@ -590,21 +1069,28 @@ class SectionEditor(QWidget):
     """Everything about the selected section."""
     changed = Signal()
 
-    def __init__(self, settings, catalog=None):
+    def __init__(self, settings, catalog=None, comms_modules=(), meter_models=(),
+                 switchboard_provider=None):
+        """`switchboard_provider()` returns the whole lineup (for the power meter list)."""
         super().__init__()
         self.title = QLabel()
         self.title.setStyleSheet("font-weight: bold; font-size: 14px;")
-        self.above_editor = ArrangementEditor("Above the main bus", "above", settings, catalog)
-        self.below_editor = ArrangementEditor("Below the main bus", "below", settings, catalog)
-        self.tie_editor = TieEditor(settings, catalog)
-        for editor in (self.above_editor, self.below_editor, self.tie_editor):
+        self.above_editor = ArrangementEditor("Above the main bus", "above", settings, catalog,
+                                              comms_modules, switchboard_provider)
+        self.below_editor = ArrangementEditor("Below the main bus", "below", settings, catalog,
+                                              comms_modules, switchboard_provider)
+        self.tie_editor = TieEditor(settings, catalog, comms_modules, switchboard_provider)
+        self.devices_editor = DevicesEditor(meter_models, switchboard_provider)
+        for editor in (self.above_editor, self.below_editor, self.tie_editor, self.devices_editor):
             editor.changed.connect(self.changed)
+        self.devices_editor.changed.connect(self._meters_changed)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.title)
         layout.addWidget(self.above_editor)
         layout.addWidget(self.below_editor)
         layout.addWidget(self.tie_editor)
+        layout.addWidget(self.devices_editor)
         layout.addStretch()
         self.load(None, 0)
 
@@ -615,7 +1101,7 @@ class SectionEditor(QWidget):
 
     def load(self, section, number):
         has_section = section is not None
-        for editor in (self.above_editor, self.below_editor, self.tie_editor):
+        for editor in (self.above_editor, self.below_editor, self.tie_editor, self.devices_editor):
             editor.setEnabled(has_section)
         if not has_section:
             self.title.setText("No section selected")
@@ -624,3 +1110,9 @@ class SectionEditor(QWidget):
         self.above_editor.load(section)
         self.below_editor.load(section)
         self.tie_editor.load(section)
+        self.devices_editor.load(section)
+
+    def _meters_changed(self):
+        self.above_editor.refresh_meters()
+        self.below_editor.refresh_meters()
+        self.tie_editor.ct_editor.refresh_meters()

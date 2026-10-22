@@ -33,6 +33,17 @@ class BlockInfo:
     extents_flipped: tuple | None = None          # extents when flipped (if it can flip)
     visibility_states: tuple = ()
     attributes: tuple = ()                        # AttributeInfo, in the block's order
+    # For blocks whose markers and size depend on the visibility state (the CT block):
+    # {state: {"markers": {"A_L": (x, y), ...}, "extents": (left, bottom, right, top)}}.
+    states: dict = None
+    # Every named point marker (device blocks, e.g. a meter's "I1+"), not flipped.
+    markers: dict = None
+
+    def state_marker(self, state: str, name: str) -> Point:
+        return tuple(self.states[state]["markers"][name])
+
+    def state_extents(self, state: str):
+        return tuple(self.states[state]["extents"])
 
     def connection(self, phase: str, flipped: bool) -> Point:
         return tuple(self.connections["flipped" if flipped else "not_flipped"][phase])
@@ -67,6 +78,8 @@ def load_block_catalog(path) -> dict[str, BlockInfo]:
                 visibility_states=tuple(entry.get("visibility_states", [])),
                 attributes=tuple(AttributeInfo(a["tag"], a.get("prompt", ""), a.get("default", ""))
                                  for a in entry.get("attributes", [])),
+                states=entry.get("states") or {},
+                markers={name: tuple(p) for name, p in (entry.get("markers") or {}).items()},
             )
         except (KeyError, TypeError) as error:
             raise SettingsError(f'Block "{name}" in {path.name} is incomplete: {error}')

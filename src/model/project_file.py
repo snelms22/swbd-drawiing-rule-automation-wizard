@@ -6,7 +6,7 @@ label, mounting, feed directions and block attribute values. Page layout, bus he
 positions are NOT saved: they are worked out again from the current rules every time.
 
     {
-      "format_version": 1,
+      "format_version": 2,
       "saved_with": "2.0.0",
       "name": "...",
       "sections": [
@@ -18,9 +18,20 @@ positions are NOT saved: they are worked out again from the current rules every 
 An arrangement ("above" / "below") has a "kind":
     "drawing_info":   the General Drawing Information fields (job number, revision, ...);
                       missing in older files, which then get the defaults.
-    Every breaker also has "comms": true/false (missing = false).
-    "main breaker":   label, mounting, breaker_feed, termination_feed,
-                      breaker_attributes, input_attributes
+    Mains, single breakers, ties and group-mounted parts may have CTs: "cts" / "base_cts" =
+    {"meter": <power meter id>, "ratio", "attributes", "on_main_bus"} or null. Each section
+    has "power_meters": [{"id", "model"}]. (Missing in older files = none.)
+    Every breaker also has "comms_module": e.g. "Siemens COM190", "" = none. (2.1.0 saved a
+    true/false "comms" instead; it can't say which module, so it is read as none.)
+    "main breaker":   label, mounting, breaker_feed, breaker_attributes, and its
+                      "feed": {"id", "termination_feed", "input_attributes",
+                               "voltage_taps": [{"meter": <power meter id>}]}
+                      or "feed": null and "feed_from": <id of an incoming feed elsewhere>
+    "incoming feed":  a feed by itself: the same fields as a main breaker's "feed"
+    "line-side breaker": label, comms_module, mounting, breaker_attributes,
+                      output_attributes, fed_from (the id of the feed it is fed from)
+                      (format 1 kept termination_feed and input_attributes on the main
+                      breaker itself; those files are read into a feed.)
     "single breaker": label, breaker_feed, termination_feed,
                       breaker_attributes, output_attributes
     "group mounted":  levels, nearest the bus first:
@@ -37,7 +48,9 @@ import json
 from pathlib import Path
 
 from src.model.section_contents import (
-    FIXED, Breaker, GroupMounted, MainBreaker, Provision, SectionContents, SingleBreaker, Space,
+    FIXED, Breaker, CurrentTransformers, GroupMounted, IncomingFeed, LineSideBreaker, MainBreaker,
+    PowerMeter,
+    Provision, SectionContents, SingleBreaker, Space, VoltageTap,
     SingleLevel, TieBreaker, TwinLevel,
 )
 from dataclasses import asdict, fields
@@ -47,11 +60,13 @@ from src.model.switchboard import Section, Switchboard
 from src.version import VERSION
 
 EXTENSION = ".swbd"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2     # 2: main breaker and incoming feed split (2026-10-22)
 
 MAIN = "main breaker"
 SINGLE = "single breaker"
 GROUP = "group mounted"
+FEED = "incoming feed"
+LINE_SIDE = "line-side breaker"
 
 
 class ProjectFileError(Exception):
@@ -90,7 +105,21 @@ def _section_to_dict(section: Section) -> dict:
         "above": _arrangement_to_dict(contents.above),
         "below": _arrangement_to_dict(contents.below),
         "tie": _tie_to_dict(contents.tie),
+        "power_meters": [{"id": meter.id, "model": meter.model} for meter in contents.power_meters],
     }
+
+
+def _feed_to_dict(feed):
+    return {"id": feed.id, "termination_feed": feed.termination_feed,
+            "input_attributes": dict(feed.input_attributes),
+            "voltage_taps": [{"meter": tap.meter_id} for tap in feed.voltage_taps]}
+
+
+def _cts_to_dict(cts):
+    if cts is None:
+        return None
+    return {"meter": cts.meter_id, "ratio": cts.ratio, "attributes": dict(cts.attributes),
+            "on_main_bus": cts.on_main_bus}
 
 
 def _arrangement_to_dict(arrangement):
@@ -100,25 +129,40 @@ def _arrangement_to_dict(arrangement):
         return {
             "kind": MAIN,
             "label": arrangement.breaker.label,
-            "comms": arrangement.breaker.comms,
+            "comms_module": arrangement.breaker.comms_module,
             "mounting": arrangement.mounting,
             "breaker_feed": arrangement.breaker_feed,
-            "termination_feed": arrangement.termination_feed,
             "breaker_attributes": dict(arrangement.breaker.attributes),
-            "input_attributes": dict(arrangement.input_attributes),
+            "cts": _cts_to_dict(arrangement.cts),
+            "feed": _feed_to_dict(arrangement.feed) if arrangement.feed is not None else None,
+            "feed_from": arrangement.feed_from,
+        }
+    if isinstance(arrangement, IncomingFeed):
+        return {"kind": FEED, **_feed_to_dict(arrangement)}
+    if isinstance(arrangement, LineSideBreaker):
+        return {
+            "kind": LINE_SIDE,
+            "label": arrangement.breaker.label,
+            "comms_module": arrangement.breaker.comms_module,
+            "mounting": arrangement.mounting,
+            "breaker_attributes": dict(arrangement.breaker.attributes),
+            "output_attributes": dict(arrangement.output_attributes),
+            "fed_from": arrangement.fed_from,
         }
     if isinstance(arrangement, SingleBreaker):
         return {
             "kind": SINGLE,
             "label": arrangement.breaker.label,
-            "comms": arrangement.breaker.comms,
+            "comms_module": arrangement.breaker.comms_module,
             "breaker_feed": arrangement.breaker_feed,
             "termination_feed": arrangement.termination_feed,
             "breaker_attributes": dict(arrangement.breaker.attributes),
             "output_attributes": dict(arrangement.output_attributes),
+            "cts": _cts_to_dict(arrangement.cts),
         }
     if isinstance(arrangement, GroupMounted):
-        return {"kind": GROUP, "levels": [_level_to_dict(level) for level in arrangement.levels]}
+        return {"kind": GROUP, "levels": [_level_to_dict(level) for level in arrangement.levels],
+                "base_cts": _cts_to_dict(arrangement.base_cts)}
     raise TypeError(f"Unknown arrangement: {arrangement!r}")
 
 
@@ -133,7 +177,7 @@ def _slot_to_dict(slot) -> dict:
         return {"provision": slot.info}
     if isinstance(slot, Space):
         return {"space": True}
-    return {"breaker": slot.label, "comms": slot.comms, "attributes": dict(slot.attributes)}
+    return {"breaker": slot.label, "comms_module": slot.comms_module, "attributes": dict(slot.attributes)}
 
 
 def _tie_to_dict(tie):
@@ -141,10 +185,11 @@ def _tie_to_dict(tie):
         return None
     return {
         "label": tie.breaker.label,
-        "comms": tie.breaker.comms,
+        "comms_module": tie.breaker.comms_module,
         "bus_steps": tie.bus_steps,
         "mounting": tie.mounting,
         "breaker_attributes": dict(tie.breaker.attributes),
+        "cts": _cts_to_dict(tie.cts),
     }
 
 
@@ -201,6 +246,8 @@ def _section_from_dict(data: dict) -> Section:
             above=_arrangement_from_dict(data.get("above")),
             below=_arrangement_from_dict(data.get("below")),
             tie=_tie_from_dict(data.get("tie")),
+            power_meters=[PowerMeter(model=str(m.get("model", "")), id=str(m["id"]))
+                          for m in data.get("power_meters") or []],
         ),
         push_to_next_page=bool(data.get("push_to_next_page", False)),
         link_with_next=bool(data.get("link_with_next", False)),
@@ -215,19 +262,30 @@ def _arrangement_from_dict(data):
         return MainBreaker(
             breaker=_breaker(data["label"], data),
             mounting=data["mounting"],
-            input_attributes=_texts(data.get("input_attributes")),
             breaker_feed=data.get("breaker_feed", ""),
-            termination_feed=data.get("termination_feed", ""),
+            cts=_cts_from_dict(data.get("cts")),
+            # Format 1 had the termination on the main breaker itself.
+            feed=(_feed_from_dict(data["feed"]) if data.get("feed") else
+                  None if "feed" in data else _feed_from_dict(data)),
+            feed_from=str(data.get("feed_from", "")),
         )
+    if kind == FEED:
+        return _feed_from_dict(data)
+    if kind == LINE_SIDE:
+        return LineSideBreaker(breaker=_breaker(data["label"], data), mounting=data["mounting"],
+                               output_attributes=_texts(data.get("output_attributes")),
+                               fed_from=str(data.get("fed_from", "")))
     if kind == SINGLE:
         return SingleBreaker(
             breaker=_breaker(data["label"], data),
             output_attributes=_texts(data.get("output_attributes")),
             breaker_feed=data.get("breaker_feed", ""),
             termination_feed=data.get("termination_feed", ""),
+            cts=_cts_from_dict(data.get("cts")),
         )
     if kind == GROUP:
-        return GroupMounted([_level_from_dict(level) for level in data["levels"]])
+        return GroupMounted([_level_from_dict(level) for level in data["levels"]],
+                            base_cts=_cts_from_dict(data.get("base_cts")))
     raise ProjectFileError(f'unknown arrangement "{kind}".')
 
 
@@ -245,7 +303,7 @@ def _slot_from_dict(data: dict):
     if "space" in data:
         return Space()
     return Breaker(data["breaker"], attributes=_texts(data.get("attributes")),
-                   comms=bool(data.get("comms", False)))
+                   comms_module=str(data.get("comms_module", "")))
 
 
 def _tie_from_dict(data):
@@ -255,13 +313,33 @@ def _tie_from_dict(data):
         breaker=_breaker(data["label"], data),
         bus_steps=data["bus_steps"],
         mounting=data["mounting"],
+        cts=_cts_from_dict(data.get("cts")),
     )
 
 
+def _feed_from_dict(data):
+    feed = IncomingFeed(input_attributes=_texts(data.get("input_attributes")),
+                        termination_feed=data.get("termination_feed", ""),
+                        voltage_taps=[VoltageTap(meter_id=str(tap.get("meter", "")))
+                                      for tap in data.get("voltage_taps") or []])
+    if data.get("id"):
+        feed.id = str(data["id"])
+    return feed
+
+
+def _cts_from_dict(data):
+    """A CT set, or None (also for files from before CTs existed)."""
+    if not data:
+        return None
+    return CurrentTransformers(meter_id=str(data.get("meter", "")), ratio=str(data.get("ratio", "")),
+                               attributes=_texts(data.get("attributes")),
+                               on_main_bus=bool(data.get("on_main_bus", False)))
+
+
 def _breaker(label: str, data: dict) -> Breaker:
-    """A main, single or tie breaker: label, block attributes, comms (False if missing)."""
+    """A main, single or tie breaker: label, block attributes, comms module ("" if missing)."""
     return Breaker(label, attributes=_texts(data.get("breaker_attributes")),
-                   comms=bool(data.get("comms", False)))
+                   comms_module=str(data.get("comms_module", "")))
 
 
 def _texts(values) -> dict[str, str]:
@@ -295,7 +373,13 @@ def attributes_no_longer_on_blocks(switchboard: Switchboard, settings, catalog) 
             where = f"Section {number} {part}"
             if isinstance(arrangement, MainBreaker):
                 check(where, mb.blocks[arrangement.mounting], arrangement.breaker.attributes)
+                if arrangement.feed is not None:
+                    check(where, io.block, arrangement.feed.input_attributes)
+            elif isinstance(arrangement, IncomingFeed):
                 check(where, io.block, arrangement.input_attributes)
+            elif isinstance(arrangement, LineSideBreaker):
+                check(where, mb.blocks[arrangement.mounting], arrangement.breaker.attributes)
+                check(where, io.block, arrangement.output_attributes)
             elif isinstance(arrangement, SingleBreaker):
                 check(where, mb.blocks[FIXED], arrangement.breaker.attributes)
                 check(where, io.block, arrangement.output_attributes)

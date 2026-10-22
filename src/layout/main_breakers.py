@@ -37,10 +37,26 @@ its bottom, either straight down to a termination block between it and the main 
 (termination fed from the bottom) or in a U-turn to the LEFT and back up past it
 (termination fed from the top). This case also gets a warning, to check it can be built.
 
+CTs (decision 2026-10-21, current_transformers.py): on the riser between the main bus and
+the breaker, which gets longer to fit them; the riser moves right so they clear the
+section's edge. Not yet on a breaker fed on the bus side (a warning says so).
+
+Voltage taps (decision 2026-10-22, voltage_taps.py): on a main's incoming feed, on the
+straight run between the breaker and the termination, which gets longer to fit them. Not
+yet when the cables U-turn or the breaker is fed on the bus side (a warning says so).
+
+Incoming feeds on their own (decision 2026-10-22, incoming_feeds.py): main lugs only is a
+riser from the main bus straight to the termination; a feed crossing into a main breaker
+is drawn with the main (its line side turns across into the feed's section).
+
 Pure Python, no AutoCAD. Coordinates are frame-relative.
 """
 from dataclasses import dataclass, field
 
+from src.layout.current_transformers import ct_room, place_on_vertical_run, tie_b_inset
+from src.layout.incoming_feeds import crossing_run, feed_left_reach, main_lugs_run
+from src.layout.line_side_breakers import line_side_run, tie_reach
+from src.layout.voltage_taps import place_taps, tap_room
 from src.layout.main_bus import step_zone_width
 from src.model.section_contents import FIXED, TOP, feed_directions, side_away_from_bus
 
@@ -89,6 +105,21 @@ class Note:
 
 
 @dataclass
+class Crossing:
+    """A standalone feed in the next section that a main breaker is fed from."""
+    feed: object            # the IncomingFeed
+    placed: object          # the feed's PlacedSection
+    tap_values: list        # attribute values for its voltage taps
+
+
+@dataclass
+class LineSideTie:
+    """A line-side (load-bank) breaker in the next section tied into a main's feed."""
+    breaker: object         # the LineSideBreaker
+    placed: object          # its PlacedSection
+
+
+@dataclass
 class MainBreakerGeometry:
     # When the main bus starts here: B-phase points from the breaker to the main bus,
     # ending at the main bus height. The page's bus path continues from the last point.
@@ -103,28 +134,38 @@ class MainBreakerGeometry:
 
 
 def main_breaker_geometry(main_breaker, part, placed, settings, catalog, starts_the_bus,
-                          ends_the_bus=False) -> MainBreakerGeometry:
-    """A main breaker: its mounting's block, fed through the input block (INPUT state)."""
+                          ends_the_bus=False, crossing=None, tie=None) -> MainBreakerGeometry:
+    """A main breaker: its mounting's block, fed through the input block (INPUT state).
+    Its source is the input, away from the bus (for the CTs' polarity). Fed from a feed in
+    the next section when `crossing` is given (a Crossing); a line-side breaker in the next
+    section tied into its feed when `tie` is given (a LineSideTie)."""
+    feed = main_breaker.feed
     return riser_breaker_geometry(
         main_breaker.breaker, settings.main_breaker.blocks[main_breaker.mounting],
-        settings.input_output.input_state, main_breaker.input_attributes,
+        settings.input_output.input_state, feed.input_attributes if feed is not None else {},
         feed_directions(main_breaker, part),
-        part, placed, settings, catalog, starts_the_bus, ends_the_bus)
+        part, placed, settings, catalog, starts_the_bus, ends_the_bus,
+        cts=main_breaker.cts, source_away_from_bus=True,
+        tap_count=len(feed.voltage_taps) if feed is not None else 0,
+        crossing=crossing, has_feed=feed is not None or crossing is not None, tie=tie)
 
 
 def single_breaker_geometry(single, part, placed, settings, catalog, starts_the_bus,
                             ends_the_bus=False) -> MainBreakerGeometry:
     """A single-breaker feeder: the fixed-mount breaker block on a riser off the main bus,
-    feeding out through the output block (OUTPUT state)."""
+    feeding out through the output block (OUTPUT state). Its source is the main bus."""
     return riser_breaker_geometry(
         single.breaker, settings.main_breaker.blocks[FIXED],
         settings.input_output.output_state, single.output_attributes,
         feed_directions(single, part),
-        part, placed, settings, catalog, starts_the_bus, ends_the_bus)
+        part, placed, settings, catalog, starts_the_bus, ends_the_bus,
+        cts=single.cts, source_away_from_bus=False)
 
 
 def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, part, placed,
-                           settings, catalog, starts_the_bus, ends_the_bus) -> MainBreakerGeometry:
+                           settings, catalog, starts_the_bus, ends_the_bus,
+                           cts=None, source_away_from_bus=True, tap_count=0,
+                           crossing=None, has_feed=True, tie=None) -> MainBreakerGeometry:
     """A breaker standing on its own riser off the main bus, with the input/output block
     at its cable end, in the `part` ("above" or "below") of a placed section. `feeds` is
     (breaker feed, termination feed), each "top" or "bottom".
@@ -133,7 +174,12 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
     block. Usually the cable end faces away from the bus (a top-fed breaker above it).
     When the breaker is fed on the bus side, the ends swap: the bus reaches the far end
     with a U-turn over (or under) the breaker, coming back beside it on the right, and
-    the breaker moves away from the bus to make room for the cable side."""
+    the breaker moves away from the bus to make room for the cable side.
+
+    `cts`: the breaker's CurrentTransformers, or None. `source_away_from_bus`: where the
+    power comes from, for the CTs' polarity (a main: True; a single breaker: False).
+    `tap_count`: voltage taps on the incoming feed (mains only). `crossing`: the feed is in
+    the next section (mains only). `has_feed` False: no feed to draw (a placeholder says so)."""
     geometry = MainBreakerGeometry()
     breaker_feed, termination_feed = feeds
     mb = settings.main_breaker
@@ -149,6 +195,17 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
             f"takes its cables on the bus side; check that this can be built.")
     # The cables U-turn when they must come back the other way to reach the termination.
     cables_turn = termination_feed != breaker_feed
+
+    room = ct_room(settings, catalog) if cts is not None else None
+    draws_cts = room is not None and not fed_on_bus_side
+    if cts is not None and fed_on_bus_side:
+        geometry.warnings.append(
+            f"Section {placed.number}: CTs on a breaker fed on the bus side are not drawn yet.")
+    taps = tap_room(settings, catalog) if tap_count else None
+    draws_taps = taps is not None and not fed_on_bus_side and not cables_turn
+    if tap_count and (fed_on_bus_side or cables_turn):
+        geometry.warnings.append(
+            f"Section {placed.number}: voltage taps on a feed whose bus U-turns are not drawn yet.")
 
     # `direction` is away from the bus: +1 = up (above the bus), -1 = down.
     if part == "above":
@@ -167,12 +224,20 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
         clearance += mb.gap_breaker_to_input + mb.input_box_height   # termination block
     elif fed_on_bus_side:
         clearance += mb.u_turn_depth + 2 * half                     # the cables' U-turn
+    if draws_cts:
+        clearance = room.riser_gap(settings)                        # room for the CTs
     near_y = bus_near_y + direction * clearance
     base_y = near_y - near_terminals[0][1]
     # The block's left edge sits on the section's content edge (after any bus step zone),
     # or a U-turn's width further right when the cables U-turn to the left.
     cables_turn_left = fed_on_bus_side and cables_turn
     base_x = content_left_x(placed, settings) - block.extents[0] + (mb.u_turn_width if cables_turn_left else 0)
+    if draws_cts:
+        # Far enough right that the CTs (which reach further left than the breaker) clear
+        # the section's edge too.
+        base_x = content_left_x(placed, settings) + max(-block.extents[0], room.left - near_terminals[0][0])
+    if draws_taps:
+        base_x = max(base_x, content_left_x(placed, settings) + taps.left - near_terminals[0][0])
 
     near = [(base_x + x, base_y + y) for x, y in near_terminals]
     far = [(base_x + x, base_y + y) for x, y in far_terminals]
@@ -184,15 +249,36 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
         visibility=mb.visibility,
         label=breaker.label, extents=block.extents,
     ))
+    if draws_cts:
+        # Between the main bus and the breaker's edge, centred.
+        breaker_edge_y = base_y + (block.extents[1] if direction > 0 else block.extents[3])
+        source_above = (part == "above") == source_away_from_bus
+        geometry.blocks.append(ct_placement(
+            settings, catalog, placed.section.ct_attributes.get(part, {}), source_above,
+            near[0][0], min(bus_near_y, breaker_edge_y), max(bus_near_y, breaker_edge_y)))
 
     # Cable side: from the breaker's cable end to where the input/output block sits.
     if not cables_turn:
         # Straight on, the way the cables leave the breaker.
         leaving = -direction if fed_on_bus_side else direction
         input_x = cable_end[0][0]
-        input_y = cable_end[0][1] + leaving * mb.gap_breaker_to_input
-        for phase, (x, y) in zip("ABC", cable_end):
-            geometry.bus_lines.append(BusLine(phase, (input_x + x - cable_end[0][0], input_y), (x, y)))
+        run = line_side_run(settings, taps if draws_taps else None, tap_count if draws_taps else 0,
+                            tie is not None)
+        input_y = cable_end[0][1] + leaving * run
+        if crossing is not None:
+            input_x, input_y = _add_crossing(geometry, cable_end, leaving, crossing, settings, catalog)
+            io_attributes = crossing.feed.input_attributes
+        else:
+            for phase, (x, y) in zip("ABC", cable_end):
+                geometry.bus_lines.append(BusLine(phase, (input_x + x - cable_end[0][0], input_y), (x, y)))
+        if tie is not None:
+            _add_line_side_breaker(geometry, cable_end, leaving, tie, part, settings, catalog)
+        if draws_taps and crossing is None:
+            # Nearest the breaker, or beyond the load-bank tie.
+            start_y = cable_end[0][1] + (leaving * tie_reach(settings) if tie is not None else 0.0)
+            _add_taps(geometry, settings, catalog, taps, input_x, start_y, leaving,
+                      tap_count, placed.section.tap_attributes.get(part, []),
+                      overhang=0.0 if tie is not None else None)
     elif fed_on_bus_side:
         # Toward the bus, across to the LEFT (the bus's own U-turn is on the right), and
         # back past the breaker to the termination.
@@ -243,6 +329,23 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
                 block=dot_block, layer=settings.main_bus.layer,
                 position=(riser_x[phase], bus_y[phase]), extents=dot_extents))
 
+    if not has_feed:
+        # Fed from another section that can't be drawn (see the warnings): keep its place.
+        geometry.placeholders.append(Placeholder(
+            "NO FEED", input_x - 3, min(input_y, input_y + direction * mb.input_box_height),
+            input_x + 13, max(input_y, input_y + direction * mb.input_box_height)))
+        return geometry
+    _add_termination(geometry, settings, catalog, input_x, input_y, termination_feed, io_state,
+                     io_attributes, base_x + block.extents[0] + (input_x - near[0][0]),
+                     base_x + block.extents[2] + (input_x - near[0][0]))
+    return geometry
+
+
+def _add_termination(geometry, settings, catalog, input_x, input_y, termination_feed, io_state,
+                     io_attributes, box_left, box_right):
+    """The input/output block with its CONN_A on the A-phase bus end at (input_x, input_y),
+    or a placeholder box between box_left and box_right if it isn't catalogued."""
+    mb = settings.main_breaker
     io = settings.input_output
     io_block = catalog.get(io.block)
     if io_block is not None and io_block.connections:
@@ -258,13 +361,126 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
     else:
         # Input block not catalogued: keep its room as a placeholder box, on the side
         # the termination is fed from.
-        shift = input_x - near[0][0]
-        box_left = base_x + block.extents[0] + shift
-        box_right = base_x + block.extents[2] + shift
         box_far_y = input_y + (1 if termination_feed == TOP else -1) * mb.input_box_height
         geometry.placeholders.append(Placeholder(
             "OUTPUT" if io_state == io.output_state else "INPUT",
             box_left, min(input_y, box_far_y), box_right, max(input_y, box_far_y)))
+
+
+def _add_crossing(geometry, cable_end, leaving, crossing, settings, catalog):
+    """The main's line side running on to where its input would sit, across into the
+    feed's section, and on to the feed's termination (see incoming_feeds.py), with the
+    feed's voltage taps on that last run. Returns where the termination's A phase ends."""
+    half = settings.main_bus.phase_spacing
+    feed = crossing.feed
+    taps = tap_room(settings, catalog) if feed.voltage_taps else None
+    near_y = cable_end[0][1] + leaving * settings.main_breaker.gap_breaker_to_input
+    # A is on top of a horizontal run: going up, C is nearest the breaker; going down, A.
+    top_y = near_y + 2 * half if leaving > 0 else near_y
+    turn_ys = [top_y - k * half for k in range(3)]
+    outer_y = turn_ys[0] if leaving > 0 else turn_ys[2]
+    feed_x = content_left_x(crossing.placed, settings) + feed_left_reach(settings, catalog, taps, feed)
+    end_y = outer_y + leaving * crossing_run(settings, taps, feed)
+    for k, (phase, (x, y)) in enumerate(zip("ABC", cable_end)):
+        fx = feed_x + k * half
+        geometry.bus_lines += [BusLine(phase, (x, y), (x, turn_ys[k])),
+                               BusLine(phase, (x, turn_ys[k]), (fx, turn_ys[k])),
+                               BusLine(phase, (fx, turn_ys[k]), (fx, end_y))]
+    if taps is not None:
+        _add_taps(geometry, settings, catalog, taps, feed_x, outer_y, leaving,
+                  len(feed.voltage_taps), crossing.tap_values, overhang=0.0)
+    return feed_x, end_y
+
+
+def _add_line_side_breaker(geometry, far, leaving, tie, part, settings, catalog):
+    """A line-side breaker in the next section, tied into the main's line side nearest the
+    main breaker (see line_side_breakers.py): the tie with its dots, the breaker, and its
+    output termination."""
+    half = settings.main_bus.phase_spacing
+    ls, mb, io = settings.line_side_breakers, settings.main_breaker, settings.input_output
+    breaker = tie.breaker
+    near_y = far[0][1] + leaving * ls.tie_gap
+    # A is on top of a horizontal run: going up, C is nearest the main breaker; going down, A.
+    top_y = near_y + 2 * half if leaving > 0 else near_y
+    tie_ys = [top_y - k * half for k in range(3)]
+    outer_y = tie_ys[0] if leaving > 0 else tie_ys[2]
+
+    block_name = mb.blocks[breaker.mounting]
+    block = catalog[block_name]
+    # Its line side faces the tie (toward the main bus); its output end faces away.
+    near_terminals, far_terminals = ((block.bottom_terminals, block.top_terminals) if leaving > 0
+                                     else (block.top_terminals, block.bottom_terminals))
+    io_reach = feed_left_reach(settings, catalog, None, None)
+    a_x = content_left_x(tie.placed, settings) + max(near_terminals[0][0] - block.extents[0], io_reach)
+    base_x = a_x - near_terminals[0][0]
+    base_y = outer_y + leaving * ls.gap_to_breaker - near_terminals[0][1]
+    geometry.blocks.append(BlockPlacement(
+        block=block_name, layer=mb.block_layer, position=(base_x, base_y),
+        attributes=_filled({**breaker.breaker.attributes, mb.label_attribute: breaker.breaker.label}),
+        visibility=mb.visibility, label=breaker.breaker.label, extents=block.extents))
+
+    dot_block = settings.main_bus.junction_dot_block
+    dot_extents = catalog[dot_block].extents if dot_block in catalog else (-0.75, -0.75, 0.75, 0.75)
+    output_y = base_y + far_terminals[0][1] + leaving * ls.gap_breaker_to_output
+    for k, phase in enumerate("ABC"):
+        x = a_x + k * half
+        line_side_y = base_y + near_terminals[k][1]
+        load_side_y = base_y + far_terminals[k][1]
+        geometry.bus_lines += [BusLine(phase, (x, line_side_y), (x, tie_ys[k])),
+                               BusLine(phase, (x, tie_ys[k]), (far[k][0], tie_ys[k])),
+                               BusLine(phase, (x, load_side_y), (x, output_y))]
+        geometry.blocks.append(BlockPlacement(
+            block=dot_block, layer=settings.main_bus.layer, position=(far[k][0], tie_ys[k]),
+            extents=dot_extents))
+    _add_termination(geometry, settings, catalog, a_x, output_y, side_away_from_bus(part),
+                     io.output_state, breaker.output_attributes, a_x - 3, a_x + 13)
+
+
+def _add_taps(geometry, settings, catalog, taps, a_x, start_y, direction, count, values, overhang=None):
+    config = settings.voltage_taps
+    for index, (position, extents) in enumerate(
+            place_taps(settings, catalog, taps, a_x, start_y, direction, count, overhang)):
+        geometry.blocks.append(BlockPlacement(
+            block=config.block, layer=config.layer, position=position,
+            attributes=_filled(values[index] if index < len(values) else {}),
+            visibility=config.vertical_state, label="TAP", extents=extents))
+
+
+def main_lugs_geometry(feed, part, placed, settings, catalog, starts_the_bus,
+                       ends_the_bus=False) -> MainBreakerGeometry:
+    """An incoming feed by itself with no main breaker (main lugs only): a riser from the
+    main bus straight to its termination, with its voltage taps on it nearest the bus."""
+    geometry = MainBreakerGeometry()
+    half = settings.main_bus.phase_spacing
+    plan = placed.section.bus
+    bus_y = {"A": plan.body_y + half, "B": plan.body_y, "C": plan.body_y - half}
+    direction = +1 if part == "above" else -1
+    bus_near_y = bus_y["A"] if direction > 0 else bus_y["C"]
+    taps = tap_room(settings, catalog) if feed.voltage_taps else None
+    a_x = content_left_x(placed, settings) + feed_left_reach(settings, catalog, taps, feed)
+    end_y = bus_near_y + direction * main_lugs_run(settings, taps, feed)
+    xs = {phase: a_x + k * half for k, phase in enumerate("ABC")}
+
+    if starts_the_bus:
+        geometry.bus_start_path = [(xs["B"], end_y), (xs["B"], plan.body_y)]
+    elif ends_the_bus:
+        geometry.bus_end_path = [(xs["B"], plan.body_y), (xs["B"], end_y)]
+    else:
+        dot_block = settings.main_bus.junction_dot_block
+        dot_extents = catalog[dot_block].extents if dot_block in catalog else (-0.75, -0.75, 0.75, 0.75)
+        for phase in "ABC":
+            geometry.bus_lines.append(BusLine(phase, (xs[phase], end_y), (xs[phase], bus_y[phase])))
+            geometry.blocks.append(BlockPlacement(
+                block=dot_block, layer=settings.main_bus.layer,
+                position=(xs[phase], bus_y[phase]), extents=dot_extents))
+    if taps is not None:
+        _add_taps(geometry, settings, catalog, taps, a_x, bus_near_y, direction,
+                  len(feed.voltage_taps), placed.section.tap_attributes.get(part, []), overhang=0.0)
+    # Drawn fed from the side away from the bus (a U-turned feed is not drawn yet; feeds.py
+    # warns about it).
+    _add_termination(geometry, settings, catalog, a_x, end_y, side_away_from_bus(part),
+                     settings.input_output.input_state, feed.input_attributes,
+                     a_x - 3, a_x + 13)
     return geometry
 
 
@@ -327,10 +543,28 @@ def content_left_x(placed, settings) -> float:
     return placed.component_left_x + step
 
 
-def tie_breaker_placement(tie, tie_x, body_y, exit_y, settings, catalog):
-    """The tie's breaker block, centred on the bus's vertical run at x `tie_x`.
-    Returns (BlockPlacement, lower terminal y, upper terminal y), or None if the block
-    isn't catalogued. The bus runs up to the lower terminals and on from the upper ones."""
+def ct_placement(settings, catalog, attributes, source_above, a_x, low_y, high_y) -> BlockPlacement:
+    """The CT block on a vertical run (see current_transformers.py)."""
+    state, position, extents = place_on_vertical_run(settings, catalog, source_above, a_x, low_y, high_y)
+    config = settings.current_transformers
+    return BlockPlacement(block=config.block, layer=config.layer, position=position,
+                          attributes=_filled(attributes), visibility=state,
+                          label="CTs", extents=extents)
+
+
+def tie_bus_x(placed, settings, catalog=None) -> float:
+    """The tie's B phase: near the section's right edge (further in with CTs)."""
+    tie = placed.section.contents.tie if placed.section.contents is not None else None
+    room = ct_room(settings, catalog) if tie is not None and tie.cts is not None else None
+    return placed.component_right_x - tie_b_inset(tie, settings, room)
+
+
+def tie_breaker_placement(tie, tie_x, body_y, exit_y, settings, catalog, ct_attributes=None):
+    """The tie's breaker block on the bus's vertical run at x `tie_x`: centred, or with
+    CTs between where the bus enters (`body_y`) and the breaker.
+    Returns ([BlockPlacement, ...], lower terminal y, upper terminal y), or None if the
+    block isn't catalogued. The bus runs up to the lower terminals and on from the upper
+    ones."""
     name = settings.main_breaker.blocks[tie.mounting]
     block = catalog.get(name)
     if block is None or not block.top_terminals:
@@ -340,16 +574,32 @@ def tie_breaker_placement(tie, tie_x, body_y, exit_y, settings, catalog):
     pole_length = top_a[1] - block.bottom_terminals[0][1]
     middle = (body_y + exit_y) / 2
     upper_y, lower_y = middle + pole_length / 2, middle - pole_length / 2
+    going_up = exit_y > body_y
+    room = ct_room(settings, catalog) if tie.cts is not None else None
+    if room is not None:
+        # The breaker sits `tie_body_gap` from where the bus enters; the CTs go between.
+        toward = 1 if going_up else -1
+        near_y = body_y + toward * room.tie_body_gap(settings)
+        lower_y, upper_y = (near_y, near_y + pole_length) if going_up else (near_y - pole_length, near_y)
     # The vertical run has A on the left: A is at tie_x - half.
     position = (tie_x - half - top_a[0], upper_y - top_a[1])
-    placement = BlockPlacement(
+    placements = [BlockPlacement(
         block=name, layer=settings.main_breaker.block_layer, position=position,
         attributes=_filled({**tie.breaker.attributes,
                             settings.main_breaker.label_attribute: tie.breaker.label}),
         visibility=settings.main_breaker.visibility, label=tie.breaker.label,
         extents=block.extents,
-    )
-    return placement, lower_y, upper_y
+    )]
+    if room is not None:
+        # From the main bus's nearest phase to the breaker's edge. The source is the side
+        # the bus enters on.
+        if going_up:
+            low, high = body_y + half, position[1] + block.extents[1]
+        else:
+            low, high = position[1] + block.extents[3], body_y - half
+        placements.append(ct_placement(settings, catalog, ct_attributes or {},
+                                       not going_up, tie_x - half, low, high))
+    return placements, lower_y, upper_y
 
 
 def _filled(values: dict) -> dict:

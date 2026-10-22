@@ -17,13 +17,16 @@ from src.model.switchboard import new_switchboard  # noqa: E402
 from src.ui.main_window import MainWindow  # noqa: E402
 from src.version import VERSION  # noqa: E402
 
+# One application for the whole module; the window is deleted by the test itself, so it
+# doesn't outlive the application when Python shuts down (that crashed the test run).
+APP = QApplication.instance() or QApplication([])
+
 
 def test_main_window_opens_with_the_real_settings():
-    app = QApplication.instance() or QApplication([])
     window = MainWindow(load_settings("config/layout_settings.json"), new_switchboard(),
                         None, "no AutoCAD in tests", load_block_catalog("catalog/blocks.json"),
                         load_drawing_info_settings("config/drawing_info.json"))
     assert window.windowTitle() == f"Switchboard Configurator {VERSION} - Untitled"
     window._unsaved = False
     window.close()
-    del app
+    del window
