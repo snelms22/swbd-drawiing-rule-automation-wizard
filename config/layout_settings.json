@@ -63,9 +63,9 @@
   "placeholder_sizes": {
     "note": "PLACEHOLDERS until the real blocks are catalogued. Widths include labels. A single-breaker feeder is drawn like a main breaker, so it uses the same height. group_mounted_width is only used when the feeder block isn't catalogued.",
     "main_breaker_width": 30.0,
-    "main_breaker_height": 75.0,
+    "main_breaker_height": 57.0,
     "single_breaker_width": 30.0,
-    "single_breaker_height": 75.0,
+    "single_breaker_height": 57.0,
     "group_mounted_width": 145.0,
     "tie_breaker_width": 30.0
   },
@@ -94,7 +94,7 @@
     "label_attribute": "BREAKER_NAME",
     "visibility": "1 BOM",
     "gap_bus_to_breaker": 15.0,
-    "gap_breaker_to_input": 30.0,
+    "gap_breaker_to_input": 12.0,
     "input_box_height": 15.0,
     "u_turn_note": "U-turns for main and single breakers (2026-10-13). When the termination is fed from the other side than the breaker, the bus leaves the breaker, turns, runs u_turn_width to the right and comes back u_turn_termination_rise, where the termination block sits. The turn is just far enough that the termination's text stays u_turn_text_clearance clear of the breaker and its text (sizes from catalog/blocks.json). u_turn_depth is used for the U-turns of a breaker fed on the bus side.",
     "u_turn_depth": 28.43,
@@ -118,6 +118,10 @@
     "tilde_state_vertical_bus": "VERTICAL",
     "tilde_flip_horizontal_bus": "Flip state1",
     "tilde_flip_note": "Where the bus arrives on a page, the tilde is mirrored with only this flip setting, so its A/B/C letters sit on the incoming side (tested on the block 2026-10-13: Flip state1 mirrors left-right; Flip state2 is for the vertical state).",
+    "tilde_flip_vertical_bus": "Flip state2",
+    "bracket_flip_horizontal_bus": "Flip state1",
+    "bracket_flip_vertical_bus": "Flip state2",
+    "flip_note_vertical": "Tested on the blocks 2026-10-22: on both the tilde and the bracket, Flip state1 mirrors left-right (horizontal bus) and Flip state2 up-down (vertical bus). Only the one named here is turned on. A vertical bus cut (or continued) with its bracket BELOW the end, e.g. the bottom of a column below the main bus, is flipped up-down (Sammy, 2026-10-22).",
     "bracket_block": "BRACKET_TEXT_R0",
     "bracket_state_horizontal_bus": "VERTICAL BRACKET",
     "bracket_state_vertical_bus": "HORIZONTAL BRACKET",
@@ -182,6 +186,6 @@
     "note": "A line-side (load-bank) breaker tied into a main breaker's feed in the next section (decision 2026-10-22), measured from Sabey-011475 (52-LBBA into 52-MA-GEN-A). The tie leaves the main's line side nearest the breaker: tie_gap from the main breaker's line-side terminals to the tie's nearest phase (A on top of the tie, staggered, a dot where each phase tees into the riser). The line-side breaker's line-side terminals are gap_to_breaker beyond the tie's outer phase; its output termination gap_breaker_to_output beyond its other end.",
     "tie_gap": 11.2,
     "gap_to_breaker": 16.0,
-    "gap_breaker_to_output": 25.0
+    "gap_breaker_to_output": 15.0
   }
 }

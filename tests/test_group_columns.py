@@ -80,6 +80,11 @@ def test_split_column_is_cut_and_continued_with_break_blocks():
     ]
     labels = [b.attributes for b in page.parts.blocks if b.block == "TEST_BRACKET"]
     assert labels == [{"HORIZONTAL_LABLE": "BUS CONTINUES"}, {"HORIZONTAL_LABLE": "FROM BELOW"}]
+    # The cut at the bottom of column 1 has its bracket below the end: both blocks are
+    # flipped up-down with Flip state2 only (2026-10-22). Column 2's start isn't flipped.
+    flips = [(b.flipped, b.flip_parameter) for b in page.parts.blocks
+             if b.block in ("TEST_TILDE", "TEST_BRACKET")]
+    assert flips == [(True, "Flip state2"), (True, "Flip state2"), (False, ""), (False, "")]
     # Column 2's bus runs from its start (60) to 10 past its level (A 50, C 40): y 30.
     column_2 = [(l.start, l.end) for l in page.parts.bus_lines if l.start[0] == l.end[0] == 148]
     assert column_2 == [((148, 60), (148, 30))]

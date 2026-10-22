@@ -187,8 +187,9 @@ def _add_column(geometry, dots, group, part, level_indices, column_index, a_x, i
 def _vertical_break_blocks(a_x, end_y, outward, label, settings, catalog) -> list:
     """Tilde + bracket where a vertical bus is cut or starts: the tilde on the A-phase end,
     the bracket over B, `bracket_gap` past the end (`outward` +1 = up, -1 = down), with
-    `label` in it. Neither is flipped (as in ES_11 and ES_12). Returns [] if the blocks
-    aren't catalogued."""
+    `label` in it. Where the bracket is below the end (`outward` -1), both are flipped
+    up-down with their vertical-bus flip setting (Sammy, 2026-10-22). Returns [] if the
+    blocks aren't catalogued."""
     br = settings.bus_break
     tilde = catalog.get(br.tilde_block)
     bracket = catalog.get(br.bracket_block)
@@ -196,12 +197,15 @@ def _vertical_break_blocks(a_x, end_y, outward, label, settings, catalog) -> lis
         return []
     conn_a = tilde.connection("A", False)
     b_x = a_x + settings.main_bus.phase_spacing
+    flipped = outward < 0
     return [
         BlockPlacement(block=br.tilde_block, layer=br.layer,
                        position=(a_x - conn_a[0], end_y - conn_a[1]),
-                       visibility=br.tilde_state_vertical_bus, extents=tilde.extents),
+                       visibility=br.tilde_state_vertical_bus, extents=tilde.extents,
+                       flipped=flipped, flip_parameter=br.tilde_flip_vertical_bus if flipped else ""),
         BlockPlacement(block=br.bracket_block, layer=br.layer,
                        position=(b_x, end_y + outward * br.bracket_gap),
                        attributes={br.label_attribute_vertical_bus: label}, label=label,
-                       visibility=br.bracket_state_vertical_bus, extents=bracket.extents),
+                       visibility=br.bracket_state_vertical_bus, extents=bracket.extents,
+                       flipped=flipped, flip_parameter=br.bracket_flip_vertical_bus if flipped else ""),
     ]

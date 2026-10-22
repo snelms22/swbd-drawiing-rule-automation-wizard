@@ -266,6 +266,32 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-10-22 — Bus-break blocks: which flip, and flipped on a vertical bus's bottom end
+**Decision:**
+- Tested on the blocks: on both 3P_TIDE_R0 and BRACKET_TEXT_R0, **Flip state1** mirrors
+  left-right (horizontal bus) and **Flip state2** up-down (vertical bus). The program only
+  ever turns on the one named in config (`bus_break.*_flip_*`). Before, an incoming page
+  break's bracket got every flip setting at once.
+- A vertical bus cut or continued with its bracket **below** the end (e.g. the bottom of a
+  too-tall column below the main bus) has its tilde and bracket flipped up-down. Replaces the
+  earlier "neither is flipped (as in ES_11 and ES_12)".
+- Known, in the block (not the program): BRACKET_TEXT_R0's label keeps its middle-left
+  justification when flipped left-right, so "FROM ES_nn" runs back over the bracket and the
+  bus. Same whether flipped by hand or by the program (checked 2026-10-22).
+**Reason:** Sammy, 2026-10-22 (section 6 of the showcase drawing).
+**Status:** Approved (flip rule); bracket label: Sammy to decide
+
+### 2026-10-22 — Less room between breakers and their feeds
+**Decision:** `main_breaker.gap_breaker_to_input` 30 -> **12** (main breaker to its
+termination, single breaker to its output; also the starting length of a crossing feed's run
+and of a main-lugs riser, 15 + 12); `line_side_breakers.gap_breaker_to_output` 25 -> **15**;
+the placeholder heights the bus planner reserves for main and single breaker risers
+75 -> **57** (down by the same 18 as the gap). Voltage taps still lengthen the run when there
+are any.
+**Reason:** Sammy, 2026-10-22: that much space isn't needed, and less fits more on a section
+vertically (a single breaker under a main with CTs and a crossing feed now fits).
+**Status:** Approved
+
 ### 2026-10-22 — Incoming feed and main breaker split (option B); voltage taps on the feed
 **Decision:**
 - **Option B:** the incoming feed and the main breaker are separate things in the data.

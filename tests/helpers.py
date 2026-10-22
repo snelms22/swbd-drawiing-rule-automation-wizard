@@ -103,6 +103,8 @@ TEST_SETTINGS = LayoutSettings(
     bus_break=BusBreakSettings(
         layer="0", tilde_block="TEST_TILDE", tilde_state_horizontal_bus="HORIZONTAL",
         tilde_state_vertical_bus="VERTICAL", tilde_flip_horizontal_bus="Flip state1",
+        tilde_flip_vertical_bus="Flip state2", bracket_flip_horizontal_bus="Flip state1",
+        bracket_flip_vertical_bus="Flip state2",
         bracket_block="TEST_BRACKET",
         bracket_state_horizontal_bus="VERTICAL BRACKET",
         bracket_state_vertical_bus="HORIZONTAL BRACKET", bracket_gap=2.0,

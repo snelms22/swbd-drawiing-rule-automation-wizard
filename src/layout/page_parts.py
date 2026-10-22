@@ -367,8 +367,9 @@ def _break_blocks(end_x, bus_y, direction, other_page, settings, catalog) -> lis
         BlockPlacement(block=br.bracket_block, layer=br.layer, position=(bracket_x, bus_y),
                        attributes={br.label_attribute_horizontal_bus: label}, label=label,
                        visibility=br.bracket_state_horizontal_bus,
-                       flipped=not leaving,          # mirrored to face the arriving bus
-                       extents=bracket.extents),
+                       # Mirrored left-right to face the arriving bus (only that flip).
+                       flipped=not leaving, flip_parameter=br.bracket_flip_horizontal_bus,
+                       extents=bracket.oriented_extents(not leaving)),
     ]
 
 

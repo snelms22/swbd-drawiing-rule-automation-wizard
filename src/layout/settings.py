@@ -124,6 +124,9 @@ class BusBreakSettings:
     tilde_state_horizontal_bus: str
     tilde_state_vertical_bus: str
     tilde_flip_horizontal_bus: str   # the one flip setting that mirrors the tilde left-right
+    tilde_flip_vertical_bus: str     # ... that mirrors it up-down (on a vertical bus)
+    bracket_flip_horizontal_bus: str # the bracket's left-right flip
+    bracket_flip_vertical_bus: str   # the bracket's up-down flip
     bracket_block: str
     bracket_state_horizontal_bus: str
     bracket_state_vertical_bus: str
@@ -402,6 +405,9 @@ def load_settings(path) -> LayoutSettings:
             tilde_state_horizontal_bus=_read_text(data, "bus_break", "tilde_state_horizontal_bus"),
             tilde_state_vertical_bus=_read_text(data, "bus_break", "tilde_state_vertical_bus"),
             tilde_flip_horizontal_bus=_read_text(data, "bus_break", "tilde_flip_horizontal_bus"),
+            tilde_flip_vertical_bus=_read_text(data, "bus_break", "tilde_flip_vertical_bus"),
+            bracket_flip_horizontal_bus=_read_text(data, "bus_break", "bracket_flip_horizontal_bus"),
+            bracket_flip_vertical_bus=_read_text(data, "bus_break", "bracket_flip_vertical_bus"),
             bracket_block=_read_text(data, "bus_break", "bracket_block"),
             bracket_state_horizontal_bus=_read_text(data, "bus_break", "bracket_state_horizontal_bus"),
             bracket_state_vertical_bus=_read_text(data, "bus_break", "bracket_state_vertical_bus"),

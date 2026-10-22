@@ -260,6 +260,7 @@ def test_page_break_gets_tilde_and_labelled_brackets_on_both_pages():
     assert start_x == page2.placed_sections[0].component_left_x
     assert bracket2.position == (start_x - 2.0, start_y)
     assert bracket2.attributes == {"VERTICAL_LABLE": "FROM ES_01"} and bracket2.flipped
+    assert bracket2.flip_parameter == "Flip state1"          # only its left-right flip
     assert not [p for p in page1.parts.placeholders if p.text == "TO NEXT PAGE"]
     # The tilde faces the way the bus goes: as is where it leaves; mirrored where it
     # arrives, with only its left-right flip, so its letters sit on the incoming side.
