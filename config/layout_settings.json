@@ -166,7 +166,8 @@
     ],
     "shorting_kit_attribute": "STB#",
     "meter_attribute": "LOCATION",
-    "ratio_attribute": "CURRENT_RATIO"
+    "ratio_attribute": "CURRENT_RATIO",
+    "sheet_attribute": "SHEET#"
   },
   "voltage_taps": {
     "note": "Voltage tap block (Sammy's 3P_Voltage_Tap, decision 2026-10-22). On a vertical run (a main's incoming feed, between the breaker and the termination) the vertical_state is used, its vertical_markers (A, B, C) on the phases; the wires leave to the right to 'TO FA-n SHEET #'. Each tap keeps `clearance` from the breaker, the next tap and the termination; the run grows to fit. The program fills in the fuse number; the sheet keeps its default until device pages exist.",
@@ -187,5 +188,28 @@
     "tie_gap": 11.2,
     "gap_to_breaker": 16.0,
     "gap_breaker_to_output": 15.0
+  },
+  "device_pages": {
+    "note": "Device pages after the 3-line pages (decision 2026-10-23): power meters and the fuses of voltage taps, grouped by the section they live in under a heading, as many as fit (rows left to right, then down; clear of the title block). Devices in the same section are wired; anything leaving the section, and anything from the 3-line, gets a TO / FROM bracket (the bus-break bracket block).",
+    "heading_format": "SECTION {number}",
+    "heading_gap": 4.0,
+    "unit_gap": 12.0,
+    "row_gap": 10.0,
+    "group_gap": 6.0,
+    "wire_spacing": 5.0,
+    "stub_length": 8.0,
+    "from_tap_label": "FROM {page}",
+    "to_meter_label": "TO {meter} SHEET {sheet}",
+    "sheet_format": "{page}",
+    "placeholder_width": 100.0,
+    "placeholder_height": 40.0,
+    "wire_break_note": "A tilde on the end of every wire that goes to or comes from a fuse through a TO / FROM bracket (Sammy, 2026-10-23): one TILDE_R0 per wire, its CONN point on the wire end, in its VERTICAL state (the wires stand up), text empty.",
+    "wire_break_block": "TILDE_R0",
+    "wire_break_state": "VERTICAL",
+    "wire_break_marker": "CONN",
+    "wire_break_text_attribute": "TEXT_H",
+    "remote_display_note": "A meter's remote display stands to the left of the meter: the USB line runs remote_display_gap left from the meter's USB marker, then up remote_display_rise into the display's USB marker (at its bottom).",
+    "remote_display_gap": 12.0,
+    "remote_display_rise": 6.0
   }
 }

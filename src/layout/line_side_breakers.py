@@ -19,7 +19,7 @@ the main bus unless something else in it does, and the two sections stay on one 
 
 Pure Python, no AutoCAD.
 """
-from src.layout.section_builder import riser_has_cts
+from src.layout.section_builder import riser_bus_gap
 
 
 def line_side_run(settings, taps, tap_count: int, has_tie: bool) -> float:
@@ -48,13 +48,12 @@ def breaker_pole(settings, catalog, mounting) -> float:
     return block.top_terminals[0][1] - block.bottom_terminals[0][1]
 
 
-def line_side_breaker_height(settings, catalog, room, main, part, line_side) -> float:
+def line_side_breaker_height(settings, catalog, room, main, part, line_side, taps=None) -> float:
     """Room a line-side breaker needs from the main bus (its section is drawn from the
     main's bus height): the main's riser up to its line-side terminals, the tie, the gap,
     the line-side breaker, the gap to its output, and the output block."""
     ls = settings.line_side_breakers
-    main_gap = (room.riser_gap(settings) if riser_has_cts(main, part, room)
-                else settings.main_breaker.gap_bus_to_breaker)
+    main_gap = riser_bus_gap(main, part, settings, room, taps)
     return (main_gap + breaker_pole(settings, catalog, main.mounting) + tie_reach(settings)
             + ls.gap_to_breaker + breaker_pole(settings, catalog, line_side.mounting)
             + ls.gap_breaker_to_output + settings.main_breaker.input_box_height)

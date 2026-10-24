@@ -60,6 +60,7 @@ def page_shapes(page, settings, placeholder_layer: str) -> list:
     shapes += [BlockInsert(b.layer, b.block, b.position, dict(b.attributes), b.visibility,
                            b.flipped, b.flip_parameter)
                for b in parts.blocks]
+    shapes += [Line(wire.layer, wire.start, wire.end) for wire in parts.wires]
     shapes += _waiting_block_shapes(parts.placeholders, placeholder_layer, settings)
     shapes += _note_shapes(parts.notes, settings)
     return shapes

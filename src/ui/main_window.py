@@ -61,6 +61,7 @@ class MainWindow(QMainWindow):
                  drawing_info_settings=None, device_settings=None):
         super().__init__()
         self._drawing_info_settings = drawing_info_settings
+        self._device_settings = device_settings   # meters, fuses (device pages); None = none
         self._catalog = catalog     # library block sizes/terminals; None = placeholders only
         self._settings = settings
         self._switchboard = switchboard
@@ -106,7 +107,8 @@ class MainWindow(QMainWindow):
         comms_modules = device_settings.comms_modules if device_settings else []
         meter_models = device_settings.power_meter_models if device_settings else []
         self.editor = SectionEditor(settings, catalog, comms_modules, meter_models,
-                                    switchboard_provider=lambda: self._switchboard)
+                                    switchboard_provider=lambda: self._switchboard,
+                                    fuse=device_settings.fuse if device_settings else None)
         self.editor.changed.connect(self._edited)
         self.drawing_info_editor = DrawingInfoEditor(drawing_info_settings)
         self.drawing_info_editor.changed.connect(self._edited)
@@ -514,7 +516,8 @@ class MainWindow(QMainWindow):
         try:
             result = generate_drawing(self._switchboard, self._settings, self._autocad_settings,
                                       self._catalog, output_folder=folder,
-                                      drawing_info_settings=self._drawing_info_settings)
+                                      drawing_info_settings=self._drawing_info_settings,
+                                      device_settings=self._device_settings)
         except GenerateError as error:
             QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "Drawing not made", str(error))
@@ -535,7 +538,7 @@ class MainWindow(QMainWindow):
 
     def refresh(self):
         self.drawing_info_editor.refresh_preview()     # line 2 counts the breakers
-        result = fit_pages(self._switchboard, self._settings, self._catalog)
+        result = fit_pages(self._switchboard, self._settings, self._catalog, self._device_settings)
         self.preview.show_layout(result)
         self.warning_list.clear()
         missing_job = job_number_problem(self._switchboard)     # required for a drawing

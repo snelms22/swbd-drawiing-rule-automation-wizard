@@ -159,3 +159,11 @@ def test_tie_breaker_uses_the_breaker_block_and_splits_the_bus():
     # Tie: bus B at 35, steps up 70 to 105; breaker centred at 70, terminals at 65 and 75.
     assert first[-1][1] == 65 and second[0][1] == 75
     assert ties[0].position[1] == 75             # base point on the top terminals
+
+
+def test_a_single_breaker_can_be_draw_out():
+    section = Section(SectionContents(above=MainBreaker(Breaker("52-M1")),
+                                      below=SingleBreaker(Breaker("52-F1"), mounting="draw-out")))
+    page = layout(section).pages[0]
+    single = [b for b in page.parts.blocks if b.label == "52-F1"][0]
+    assert single.block == "TEST_BKR_DO"

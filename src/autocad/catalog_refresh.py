@@ -266,12 +266,17 @@ def block_roles(layout_settings, device_settings=None) -> dict[str, str]:
     roles[layout_settings.feeder.block] = FEEDER
     roles[layout_settings.current_transformers.block] = CURRENT_TRANSFORMERS
     roles[layout_settings.voltage_taps.block] = VOLTAGE_TAP
+    roles[layout_settings.device_pages.wire_break_block] = LABEL
     return roles
 
 
-def blocks_read_per_state(layout_settings) -> set[str]:
+def blocks_read_per_state(layout_settings, device_settings=None) -> set[str]:
     """Blocks whose markers and size are read in every visibility state."""
-    return {layout_settings.current_transformers.block, layout_settings.voltage_taps.block}
+    names = {layout_settings.current_transformers.block, layout_settings.voltage_taps.block,
+             layout_settings.bus_break.bracket_block, layout_settings.device_pages.wire_break_block}
+    if device_settings is not None and device_settings.fuse is not None:
+        names.add(device_settings.fuse.block)
+    return names
 
 
 def block_usage(layout_settings) -> dict[str, tuple[str, str]]:
@@ -445,7 +450,7 @@ def audit_blocks(app, layout_settings, autocad_settings, catalog_file,
     readings, missing, failed = read_library_blocks(app, autocad_settings.block_library_file,
                                             autocad_settings.objectdbx_program_id, sorted(roles),
                                             block_usage(layout_settings),
-                                            blocks_read_per_state(layout_settings))
+                                            blocks_read_per_state(layout_settings, device_settings))
     new_blocks = dict(old_blocks)
     for name, reading in readings.items():
         named = reading.get("named_markers") if roles[name] == DEVICE else None

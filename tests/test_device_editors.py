@@ -3,12 +3,12 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QFormLayout  # noqa: E402
 
 from src.layout.block_catalog import load_block_catalog  # noqa: E402
 from src.layout.settings import load_settings  # noqa: E402
 from src.model.devices import load_device_settings  # noqa: E402
-from src.model.section_contents import Breaker, MainBreaker, SectionContents  # noqa: E402
+from src.model.section_contents import Breaker, MainBreaker, SectionContents, SingleBreaker  # noqa: E402
 from src.model.switchboard import Section, Switchboard  # noqa: E402
 from src.ui.section_editor import SectionEditor  # noqa: E402
 
@@ -23,14 +23,17 @@ def test_adding_a_meter_and_ticking_cts_fills_the_model():
     switchboard = Switchboard("Test", [section])
     editor = SectionEditor(load_settings("config/layout_settings.json"),
                            load_block_catalog("catalog/blocks.json"), devices.comms_modules,
-                           devices.power_meter_models, switchboard_provider=lambda: switchboard)
+                           devices.power_meter_models, switchboard_provider=lambda: switchboard,
+                           fuse=devices.fuse)
     editor.load(section, 1)
 
     editor.devices_editor._add_meter()
     editor.devices_editor.model_combo.setCurrentText("Janitza UMG 801")
     meter = section.contents.power_meters[0]
     assert meter.model == "Janitza UMG 801"
-    assert editor.devices_editor.meters_list.item(0).text().startswith("PM-1")
+    assert editor.devices_editor.meters_list.item(0).text().startswith("PM-1-1")
+    editor.devices_editor.remote_display_check.setChecked(True)
+    assert meter.remote_display
 
     ct_editor = editor.above_editor.ct_editor
     ct_editor.setChecked(True)
@@ -50,7 +53,22 @@ def test_adding_a_meter_and_ticking_cts_fills_the_model():
     taps_editor._add_tap()
     taps_editor.meter_combo.setCurrentIndex(taps_editor.meter_combo.findData(meter.id))
     assert section.contents.above.feed.voltage_taps[0].meter_id == meter.id
-    assert taps_editor.taps_list.item(0).text() == "FA-1   to PM-1"
+    assert taps_editor.taps_list.item(0).text() == "FA-1-1   to PM-1-1   (line side)"
+    # The fuse's rating is filled by the engineer; its number by the program (no field).
+    fields = {taps_editor.fuse_form.itemAt(row, QFormLayout.FieldRole).widget().toolTip(): row
+              for row in range(taps_editor.fuse_form.rowCount())}
+    assert "Attribute CURRENT" in fields and "Attribute FUSE_DWG_NUM" not in fields
+    rating = taps_editor.fuse_form.itemAt(fields["Attribute CURRENT"], QFormLayout.FieldRole).widget()
+    rating.setText("1A")
+    rating.textEdited.emit("1A")
+    assert section.contents.above.feed.voltage_taps[0].fuse_attributes["CURRENT"] == "1A"
+
+    # Moved to the main's load side (decision 2026-10-23): the same tap, now on the main.
+    tap = section.contents.above.feed.voltage_taps[0]
+    taps_editor.side_combo.setCurrentText("Load side")
+    assert section.contents.above.feed.voltage_taps == []
+    assert section.contents.above.load_side_taps == [tap]
+    assert taps_editor.taps_list.item(0).text() == "FA-1-1   to PM-1-1   (load side)"
     editor.close()
     del editor
 
@@ -92,5 +110,19 @@ def test_a_main_breaker_can_be_fed_from_the_next_section():
     assert fed_from.itemText(1) == "Feed of 52-M1, section 2 above"
     fed_from.setCurrentIndex(1)
     assert load_bank.fed_from == main.feed.id
+    editor.close()
+    del editor
+
+
+def test_a_single_breaker_has_a_mounting_choice():
+    section = Section(SectionContents(below=SingleBreaker(Breaker("52-F1"))))
+    switchboard = Switchboard("Test", [section])
+    editor = SectionEditor(load_settings("config/layout_settings.json"), load_block_catalog("catalog/blocks.json"),
+                           switchboard_provider=lambda: switchboard)
+    editor.load(section, 1)
+    below = editor.below_editor
+    assert below.breaker_form.isRowVisible(below.mounting_combo)
+    below.mounting_combo.setCurrentText("draw-out")
+    assert section.contents.below.mounting == "draw-out"
     editor.close()
     del editor

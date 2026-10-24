@@ -44,6 +44,9 @@ section's edge. Not yet on a breaker fed on the bus side (a warning says so).
 Voltage taps (decision 2026-10-22, voltage_taps.py): on a main's incoming feed, on the
 straight run between the breaker and the termination, which gets longer to fit them. Not
 yet when the cables U-turn or the breaker is fed on the bus side (a warning says so).
+Load-side taps (decision 2026-10-23): on the riser between the breaker and the main bus,
+nearest the breaker, then the CTs; the riser gets longer. Not yet on a breaker fed on the
+bus side.
 
 Incoming feeds on their own (decision 2026-10-22, incoming_feeds.py): main lugs only is a
 riser from the main bus straight to the termination; a feed crossing into a main breaker
@@ -56,9 +59,9 @@ from dataclasses import dataclass, field
 from src.layout.current_transformers import ct_room, place_on_vertical_run, tie_b_inset
 from src.layout.incoming_feeds import crossing_run, feed_left_reach, main_lugs_run
 from src.layout.line_side_breakers import line_side_run, tie_reach
-from src.layout.voltage_taps import place_taps, tap_room
+from src.layout.voltage_taps import bus_side_gap, load_side_reach, place_taps, tap_room
 from src.layout.main_bus import step_zone_width
-from src.model.section_contents import FIXED, TOP, feed_directions, side_away_from_bus
+from src.model.section_contents import TOP, feed_directions, side_away_from_bus
 
 Point = tuple[float, float]
 
@@ -147,15 +150,17 @@ def main_breaker_geometry(main_breaker, part, placed, settings, catalog, starts_
         part, placed, settings, catalog, starts_the_bus, ends_the_bus,
         cts=main_breaker.cts, source_away_from_bus=True,
         tap_count=len(feed.voltage_taps) if feed is not None else 0,
-        crossing=crossing, has_feed=feed is not None or crossing is not None, tie=tie)
+        crossing=crossing, has_feed=feed is not None or crossing is not None, tie=tie,
+        load_tap_count=len(main_breaker.load_side_taps))
 
 
 def single_breaker_geometry(single, part, placed, settings, catalog, starts_the_bus,
                             ends_the_bus=False) -> MainBreakerGeometry:
-    """A single-breaker feeder: the fixed-mount breaker block on a riser off the main bus,
-    feeding out through the output block (OUTPUT state). Its source is the main bus."""
+    """A single-breaker feeder: its mounting's breaker block (fixed or draw-out, the same
+    blocks as main breakers) on a riser off the main bus, feeding out through the output
+    block (OUTPUT state). Its source is the main bus."""
     return riser_breaker_geometry(
-        single.breaker, settings.main_breaker.blocks[FIXED],
+        single.breaker, settings.main_breaker.blocks[single.mounting],
         settings.input_output.output_state, single.output_attributes,
         feed_directions(single, part),
         part, placed, settings, catalog, starts_the_bus, ends_the_bus,
@@ -165,7 +170,8 @@ def single_breaker_geometry(single, part, placed, settings, catalog, starts_the_
 def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, part, placed,
                            settings, catalog, starts_the_bus, ends_the_bus,
                            cts=None, source_away_from_bus=True, tap_count=0,
-                           crossing=None, has_feed=True, tie=None) -> MainBreakerGeometry:
+                           crossing=None, has_feed=True, tie=None,
+                           load_tap_count=0) -> MainBreakerGeometry:
     """A breaker standing on its own riser off the main bus, with the input/output block
     at its cable end, in the `part` ("above" or "below") of a placed section. `feeds` is
     (breaker feed, termination feed), each "top" or "bottom".
@@ -179,7 +185,9 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
     `cts`: the breaker's CurrentTransformers, or None. `source_away_from_bus`: where the
     power comes from, for the CTs' polarity (a main: True; a single breaker: False).
     `tap_count`: voltage taps on the incoming feed (mains only). `crossing`: the feed is in
-    the next section (mains only). `has_feed` False: no feed to draw (a placeholder says so)."""
+    the next section (mains only). `has_feed` False: no feed to draw (a placeholder says so).
+    `load_tap_count`: voltage taps between the breaker and the main bus (mains only); the
+    section's tap values hold the feed's taps first, then these."""
     geometry = MainBreakerGeometry()
     breaker_feed, termination_feed = feeds
     mb = settings.main_breaker
@@ -201,11 +209,18 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
     if cts is not None and fed_on_bus_side:
         geometry.warnings.append(
             f"Section {placed.number}: CTs on a breaker fed on the bus side are not drawn yet.")
-    taps = tap_room(settings, catalog) if tap_count else None
-    draws_taps = taps is not None and not fed_on_bus_side and not cables_turn
+    taps = tap_room(settings, catalog) if tap_count or load_tap_count else None
+    draws_taps = taps is not None and tap_count > 0 and not fed_on_bus_side and not cables_turn
     if tap_count and (fed_on_bus_side or cables_turn):
         geometry.warnings.append(
             f"Section {placed.number}: voltage taps on a feed whose bus U-turns are not drawn yet.")
+    draws_load_taps = taps is not None and load_tap_count > 0 and not fed_on_bus_side
+    if load_tap_count and fed_on_bus_side:
+        geometry.warnings.append(
+            f"Section {placed.number}: load-side voltage taps on a breaker fed on the bus side "
+            f"are not drawn yet.")
+    tap_values = placed.section.tap_attributes.get(part, [])
+    line_tap_values, load_tap_values = tap_values[:tap_count], tap_values[tap_count:]
 
     # `direction` is away from the bus: +1 = up (above the bus), -1 = down.
     if part == "above":
@@ -224,8 +239,10 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
         clearance += mb.gap_breaker_to_input + mb.input_box_height   # termination block
     elif fed_on_bus_side:
         clearance += mb.u_turn_depth + 2 * half                     # the cables' U-turn
-    if draws_cts:
-        clearance = room.riser_gap(settings)                        # room for the CTs
+    if draws_cts or draws_load_taps:
+        # Room for the load-side taps and the CTs.
+        clearance = bus_side_gap(settings, taps if draws_load_taps else None, load_tap_count,
+                                 room if draws_cts else None)
     near_y = bus_near_y + direction * clearance
     base_y = near_y - near_terminals[0][1]
     # The block's left edge sits on the section's content edge (after any bus step zone),
@@ -236,7 +253,7 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
         # Far enough right that the CTs (which reach further left than the breaker) clear
         # the section's edge too.
         base_x = content_left_x(placed, settings) + max(-block.extents[0], room.left - near_terminals[0][0])
-    if draws_taps:
+    if draws_taps or draws_load_taps:
         base_x = max(base_x, content_left_x(placed, settings) + taps.left - near_terminals[0][0])
 
     near = [(base_x + x, base_y + y) for x, y in near_terminals]
@@ -249,9 +266,15 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
         visibility=mb.visibility,
         label=breaker.label, extents=block.extents,
     ))
+    # What the CTs go after, coming from the breaker: its edge, or the last load-side tap.
+    breaker_edge_y = base_y + (block.extents[1] if direction > 0 else block.extents[3])
+    if draws_load_taps:
+        # Nearest the breaker, going toward the main bus.
+        _add_taps(geometry, settings, catalog, taps, near[0][0], near[0][1], -direction,
+                  load_tap_count, load_tap_values)
+        breaker_edge_y = near[0][1] - direction * load_side_reach(settings, taps, load_tap_count)
     if draws_cts:
-        # Between the main bus and the breaker's edge, centred.
-        breaker_edge_y = base_y + (block.extents[1] if direction > 0 else block.extents[3])
+        # Between the main bus and the breaker's edge (or the last tap), centred.
         source_above = (part == "above") == source_away_from_bus
         geometry.blocks.append(ct_placement(
             settings, catalog, placed.section.ct_attributes.get(part, {}), source_above,
@@ -277,7 +300,7 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
             # Nearest the breaker, or beyond the load-bank tie.
             start_y = cable_end[0][1] + (leaving * tie_reach(settings) if tie is not None else 0.0)
             _add_taps(geometry, settings, catalog, taps, input_x, start_y, leaving,
-                      tap_count, placed.section.tap_attributes.get(part, []),
+                      tap_count, line_tap_values,
                       overhang=0.0 if tie is not None else None)
     elif fed_on_bus_side:
         # Toward the bus, across to the LEFT (the bus's own U-turn is on the right), and

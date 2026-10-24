@@ -1,4 +1,4 @@
-"""Tests for the incoming feed split and voltage taps (decision 2026-10-22; src/layout/
+"""Tests for the incoming feed split and voltage taps (decisions 2026-10-22/23; src/layout/
 voltage_taps.py, src/model/section_contents.py, src/model/project_file.py).
 
 Test numbers (tests/helpers.py): tap block TEST_TAP reaches 2 above its A marker and 12
@@ -8,11 +8,12 @@ terminals at most. Usual run from the breaker to the termination: 30.
 import json
 
 from src.layout.page_fitter import fit_pages
-from src.layout.voltage_taps import tap_room
-from src.model.devices import device_problems, voltage_taps_in
+from src.layout.current_transformers import ct_room
+from src.layout.voltage_taps import bus_side_gap, tap_room
+from src.model.devices import LINE_SIDE, LOAD_SIDE, device_problems, voltage_taps_in
 from src.model.project_file import open_project, save_project
 from src.model.section_contents import (
-    Breaker, IncomingFeed, MainBreaker, PowerMeter, SectionContents, VoltageTap,
+    Breaker, CurrentTransformers, IncomingFeed, MainBreaker, PowerMeter, SectionContents, VoltageTap,
 )
 from src.model.switchboard import Section, Switchboard
 from tests.helpers import TEST_CATALOG, TEST_SETTINGS
@@ -58,14 +59,14 @@ def test_taps_sit_on_the_feed_between_breaker_and_termination():
     assert first.position == (16, 65 + 3.5 + 5 + 12)
     assert second.position == (16, first.position[1] + 14 + 5)
     assert first.visibility == "FROM_LEFT"
-    assert (first.attributes, second.attributes) == ({"FUSE_DRW_NUM": "1"}, {"FUSE_DRW_NUM": "2"})
+    assert (first.attributes, second.attributes) == ({"FUSE_DRW_NUM": "1-1"}, {"FUSE_DRW_NUM": "1-2"})
 
 
 def test_fuses_are_numbered_through_the_lineup():
     switchboard = board(SectionContents(above=main_with_taps(1)),
                         SectionContents(below=main_with_taps(2, label="52-M2")))
     assert [(t.fuse, t.section_number, t.part) for t in voltage_taps_in(switchboard)] == [
-        ("FA-1", 1, "above"), ("FA-2", 2, "below"), ("FA-3", 2, "below")]
+        ("FA-1-1", 1, "above"), ("FA-2-2", 2, "below"), ("FA-2-3", 2, "below")]
 
 
 def test_taps_on_a_u_turned_feed_are_not_drawn_yet():
@@ -78,7 +79,7 @@ def test_taps_on_a_u_turned_feed_are_not_drawn_yet():
 def test_a_tap_needs_a_meter():
     main = MainBreaker(Breaker("52-M1"), feed=IncomingFeed(voltage_taps=[VoltageTap()]))
     assert device_problems(board(SectionContents(above=main))) == [
-        "Section 1 above (feed of 52-M1): choose the power meter voltage tap FA-1 feeds."]
+        "Section 1 above (feed of 52-M1): choose the power meter voltage tap FA-1-1 feeds."]
 
 
 def test_the_feed_and_its_taps_are_saved(tmp_path):
@@ -99,3 +100,71 @@ def test_a_format_1_file_is_read_into_a_feed(tmp_path):
     main = open_project(path).sections[0].contents.above
     assert (main.feed.termination_feed, main.feed.input_attributes) == ("bottom", {"LOCATION": "FROM UTILITY"})
     assert main.feed.voltage_taps == []
+
+
+# Load-side taps (decision 2026-10-23): between the main breaker and the main bus.
+
+def main_with_load_taps(count, cts=None, **main):
+    return MainBreaker(Breaker("52-M1"), cts=cts,
+                       load_side_taps=[VoltageTap(meter_id="m1") for _ in range(count)], **main)
+
+
+def test_the_riser_grows_for_load_side_taps():
+    room = tap_room(TEST_SETTINGS, TEST_CATALOG)
+    cts = ct_room(TEST_SETTINGS, TEST_CATALOG)
+    assert bus_side_gap(TEST_SETTINGS, room, 0) == 15                 # the usual gap
+    # Breaker overhang 3.5, then 5 clear + 14 per tap, then 5 clear to the bus.
+    assert bus_side_gap(TEST_SETTINGS, room, 2) == 3.5 + 2 * 19 + 5
+    # With CTs, their run (55, its own clearance included) comes after the taps.
+    assert bus_side_gap(TEST_SETTINGS, room, 2, cts) == 3.5 + 2 * 19 + 55
+
+
+def test_load_side_taps_sit_between_the_breaker_and_the_main_bus():
+    page = layout(board(SectionContents(above=main_with_load_taps(2)))).pages[0]
+    # Bus A at 40; the breaker's bottom terminals move up to 40 + 46.5 = 86.5. The taps go
+    # down from there: 3.5 + 5 clear, then the tap's top (2 above its A marker).
+    first, second = taps_on(page)
+    assert first.position == (16, 86.5 - 3.5 - 5 - 2)
+    assert second.position == (16, first.position[1] - 12 - 5 - 2)
+    # 5 clear of the main bus.
+    assert second.position[1] - 12 - 40 == 5
+
+
+def test_load_side_taps_come_before_the_cts():
+    page = layout(board(SectionContents(above=main_with_load_taps(
+        2, cts=CurrentTransformers(meter_id="m1"))))).pages[0]
+    taps = taps_on(page)
+    ct = next(b for b in page.parts.blocks if b.block == "TEST_CT")
+    last_tap_bottom = min(t.position[1] for t in taps) - 12
+    # The CTs fit between the main bus (A at 40) and the last tap.
+    assert 40 <= ct.position[1] + ct.extents[1] and ct.position[1] + ct.extents[3] <= last_tap_bottom
+
+
+def test_line_side_taps_are_numbered_before_load_side_taps():
+    main = main_with_load_taps(2)
+    main.feed.voltage_taps = [VoltageTap(meter_id="m1")]
+    switchboard = board(SectionContents(above=main))
+    assert [(t.fuse, t.side) for t in voltage_taps_in(switchboard)] == [
+        ("FA-1-1", LINE_SIDE), ("FA-1-2", LOAD_SIDE), ("FA-1-3", LOAD_SIDE)]
+    page = layout(switchboard).pages[0]
+    line_tap = max(taps_on(page), key=lambda tap: tap.position[1])    # above the breaker
+    assert line_tap.attributes == {"FUSE_DRW_NUM": "1-1"}
+
+
+def test_a_main_fed_from_another_section_keeps_its_load_side_taps():
+    main = main_with_load_taps(1, feed=None)
+    assert [t.where for t in voltage_taps_in(board(SectionContents(above=main)))] == [
+        "Section 1 above (load side of 52-M1)"]
+
+
+def test_load_side_taps_on_a_breaker_fed_on_the_bus_side_are_not_drawn_yet():
+    result = layout(board(SectionContents(above=main_with_load_taps(1, breaker_feed="bottom"))))
+    assert not taps_on(result.pages[0])
+    assert any("load-side voltage taps on a breaker fed on the bus side are not drawn yet" in w
+               for w in result.warnings)
+
+
+def test_load_side_taps_are_saved(tmp_path):
+    original = board(SectionContents(above=main_with_load_taps(2)))
+    original.sections[0].contents.above.load_side_taps[0].fuse_attributes = {"CURRENT": "1A"}
+    assert open_project(save_project(original, tmp_path / "job.swbd")) == original

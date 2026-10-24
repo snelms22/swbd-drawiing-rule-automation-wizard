@@ -1,6 +1,9 @@
 {
   "note": "Device choices the engineer picks from (decision 2026-10-21). Edit the lists here; no code change needed.",
-  "comms_modules": ["Siemens COM190", "Siemens COM800"],
+  "comms_modules": [
+    "Siemens COM190",
+    "Siemens COM800"
+  ],
   "comms_modules_note": "Communication module on a breaker. COM190: on the larger 3WA breakers, connected directly (CAT6 to the Ethernet switch). COM800: for the smaller 3VA breakers, which each get a COM060 module chained to a COM800 gateway. The engineer chooses for now.",
   "power_meters_note": "Power meter models, by the name the engineer picks (always with the brand). For each: its library block, and the blocks wired into it. 'lands_on' pairs each marker of an input block with the meter marker it connects to; this is where a meter's own wiring quirks are written down once (decision 2026-10-22). Audit Blocks checks every pair exists and lines up. A model with an empty block is offered but not drawn yet.",
   "power_meters": {
@@ -9,23 +12,80 @@
       "voltage_input": {
         "block": "Voltage_UMG801_Input",
         "note": "The UMG 801 is wired B to VN and C to V3, V2 unused (as in CORRECTED_FIXED_011511).",
-        "lands_on": {"V_A": "V1", "V_B": "VN", "V_C": "V3"}
+        "lands_on": {
+          "V_A": "V1",
+          "V_B": "VN",
+          "V_C": "V3"
+        },
+        "number_attribute": "I1_STB",
+        "sheet_attribute": "1FUSE_SHT_NUM"
       },
       "current_inputs_note": "One per CT set: the first set on I1-I3, the second on I5-I7 (as in Sabey-011510: STB-1 and STB-2 into one meter). I4 and I8 are not used yet.",
       "current_inputs": [
         {
           "block": "CT_Current_Input",
-          "lands_on": {"CT_A+": "I1+", "CT_A-": "I1-", "CT_B+": "I2+", "CT_B-": "I2-", "CT_C+": "I3+", "CT_C-": "I3-"}
+          "lands_on": {
+            "CT_A+": "I1+",
+            "CT_A-": "I1-",
+            "CT_B+": "I2+",
+            "CT_B-": "I2-",
+            "CT_C+": "I3+",
+            "CT_C-": "I3-"
+          },
+          "number_attribute": "I_STB",
+          "sheet_attribute": "STB_SHT_NUM"
         },
         {
           "block": "CT_Current_Input",
-          "lands_on": {"CT_A+": "I5+", "CT_A-": "I5-", "CT_B+": "I6+", "CT_B-": "I6-", "CT_C+": "I7+", "CT_C-": "I7-"}
+          "lands_on": {
+            "CT_A+": "I5+",
+            "CT_A-": "I5-",
+            "CT_B+": "I6+",
+            "CT_B-": "I6-",
+            "CT_C+": "I7+",
+            "CT_C-": "I7-"
+          },
+          "number_attribute": "I_STB",
+          "sheet_attribute": "STB_SHT_NUM"
         }
-      ]
+      ],
+      "number_attribute": "NO.",
+      "number_attribute_note": "The program fills in what follows the block's 'PM-': the meter's section and number, e.g. 3-1 (decision 2026-10-23).",
+      "usb_marker": "USB"
     },
     "Schneider PM8000": {
       "block": "",
       "note": "Block not built yet."
     }
+  },
+  "voltage_tap_fuse_note": "The fuse a voltage tap feeds, drawn on the device pages in the tap's section (decision 2026-10-23). The engineer fills the rating; the program fills the number after 'FA-'. Drawn standing up (state), line side up, load side down; wires to a meter in the same section are drawn by the program on these layers, one per phase.",
+  "voltage_tap_fuse": {
+    "block": "3P_2P_FUSE_DISCONECT",
+    "state": "3-POLE VERTICAL",
+    "line_markers": {
+      "A": "CONN_A_LINE_V",
+      "B": "CONN_B_LINE_V",
+      "C": "CONN_C_LINE_V"
+    },
+    "load_markers": {
+      "A": "CONN_A_LOAD_V",
+      "B": "CONN_B_LOAD_V",
+      "C": "CONN_C_LOAD_V"
+    },
+    "number_attribute": "FUSE_DWG_NUM",
+    "layer": "0",
+    "wire_layers": {
+      "A": "WIRE - 480A-BRN",
+      "B": "WIRE - 480B-ORG",
+      "C": "WIRE - 480C-YEL"
+    }
+  },
+  "remote_display_note": "A remote display for a power meter (decision 2026-10-23): a checkbox on the meter; drawn beside it on the device page, the meter's USB marker joined to the display's USB marker by a line on usb_layer. The program fills the number after 'RD-' (s-n).",
+  "remote_display": {
+    "block": "Remote_Distplay",
+    "usb_marker": "USB",
+    "number_attribute": "RD_DWG_NUM",
+    "layer": "0",
+    "usb_layer": "0"
   }
 }

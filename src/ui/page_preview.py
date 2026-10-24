@@ -115,11 +115,9 @@ class PagePreview(QWidget):
         # Label
         margin_note = "relaxed margin" if page.side_margin == s.margin_relaxed else "standard margin"
         painter.setPen(QColor("#1f2933"))
-        painter.drawText(
-            QPointF(PADDING_PX, page_top_px - 6),
-            f"Page {page.number}  ({len(page.placed_sections)} sections, {margin_note} "
-            f"{page.side_margin:g})",
-        )
+        what = (f"{len(page.placed_sections)} sections, {margin_note} {page.side_margin:g}"
+                if page.placed_sections else "devices")
+        painter.drawText(QPointF(PADDING_PX, page_top_px - 6), f"Page {page.number}  ({what})")
 
         # Page outline (the drawable area)
         page_rect = self._rect(0, 0, W, H, page_top_px)
@@ -177,6 +175,10 @@ class PagePreview(QWidget):
 
     def _draw_main_breaker_parts(self, painter: QPainter, parts, page_top_px: float):
         """Extra bus runs, library blocks (as their outline box), and waiting-block boxes."""
+        painter.setPen(QPen(BUS_COLOR, 0.8))
+        for wire in parts.wires:             # device page wires: thinner than bus
+            painter.drawLine(self._to_screen(*wire.start, page_top_px),
+                             self._to_screen(*wire.end, page_top_px))
         painter.setPen(QPen(BUS_COLOR, 1.2))
         for line in parts.bus_lines:
             painter.drawLine(self._to_screen(*line.start, page_top_px),

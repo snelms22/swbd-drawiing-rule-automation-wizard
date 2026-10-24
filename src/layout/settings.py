@@ -157,8 +157,32 @@ class CurrentTransformerSettings:
     clearance: float                   # from the CT set to the bus or breaker beside it
     ct_number_attributes: list         # the three CT numbers (A, B, C)
     shorting_kit_attribute: str        # shorting-kit number
-    meter_attribute: str               # the meter it feeds ("PM-1")
+    meter_attribute: str               # the meter it feeds ("PM-3-1")
+    sheet_attribute: str               # the sheet that meter is on
     ratio_attribute: str               # current ratio
+
+
+@dataclass(frozen=True)
+class DevicePageSettings:
+    """Device pages: meters and fuses, grouped by section (decision 2026-10-23)."""
+    heading_format: str          # e.g. "SECTION {number}"
+    heading_gap: float           # heading text to the devices under it
+    unit_gap: float              # between devices side by side
+    row_gap: float               # between rows
+    group_gap: float             # extra space before the next section's heading
+    wire_spacing: float          # between the wires' corners (and wires to the fuse)
+    stub_length: float           # wire stub to a TO / FROM bracket
+    from_tap_label: str          # a fuse's line side, e.g. "FROM {page}" (the 3-line page)
+    to_meter_label: str          # a fuse's load side when its meter is in another section
+    sheet_format: str            # how a sheet number is written, e.g. "{page}"
+    placeholder_width: float     # a meter whose block isn't built yet
+    placeholder_height: float
+    wire_break_block: str        # tilde on each wire end at a TO / FROM bracket
+    wire_break_state: str        # its state on a vertical wire
+    wire_break_marker: str       # its connection point (on the wire end)
+    wire_break_text_attribute: str   # its text, left empty
+    remote_display_gap: float    # meter USB to the remote display, sideways
+    remote_display_rise: float   # ... then up into the display's USB
 
 
 @dataclass(frozen=True)
@@ -177,7 +201,7 @@ class VoltageTapSettings:
     vertical_state: str                # visibility state on a vertical run (e.g. "FROM_LEFT")
     vertical_markers: list             # its A, B, C markers in that state (e.g. LA, LB, LC)
     clearance: float                   # from the breaker, the next tap, the termination
-    fuse_number_attribute: str         # the n of "FA-n"
+    fuse_number_attribute: str         # after "FA-": "s-n" (section-number)
     sheet_attribute: str               # the sheet the fuse is on
 
 
@@ -238,6 +262,7 @@ class LayoutSettings:
     current_transformers: CurrentTransformerSettings
     voltage_taps: VoltageTapSettings
     line_side_breakers: LineSideBreakerSettings
+    device_pages: DevicePageSettings
 
     @property
     def keepout_left_x(self) -> float:
@@ -361,6 +386,26 @@ def load_settings(path) -> LayoutSettings:
             input_state=_read_text(data, "input_output", "input_state"),
             output_state=_read_text(data, "input_output", "output_state"),
         ),
+        device_pages=DevicePageSettings(
+            heading_format=_read_text(data, "device_pages", "heading_format"),
+            heading_gap=_read_number(data, "device_pages", "heading_gap"),
+            unit_gap=_read_number(data, "device_pages", "unit_gap"),
+            row_gap=_read_number(data, "device_pages", "row_gap"),
+            group_gap=_read_number(data, "device_pages", "group_gap"),
+            wire_spacing=_read_number(data, "device_pages", "wire_spacing"),
+            stub_length=_read_number(data, "device_pages", "stub_length"),
+            from_tap_label=_read_text(data, "device_pages", "from_tap_label"),
+            to_meter_label=_read_text(data, "device_pages", "to_meter_label"),
+            sheet_format=_read_text(data, "device_pages", "sheet_format"),
+            placeholder_width=_read_number(data, "device_pages", "placeholder_width"),
+            placeholder_height=_read_number(data, "device_pages", "placeholder_height"),
+            wire_break_block=_read_text(data, "device_pages", "wire_break_block"),
+            wire_break_state=_read_text(data, "device_pages", "wire_break_state"),
+            wire_break_marker=_read_text(data, "device_pages", "wire_break_marker"),
+            wire_break_text_attribute=_read_text(data, "device_pages", "wire_break_text_attribute"),
+            remote_display_gap=_read_number(data, "device_pages", "remote_display_gap"),
+            remote_display_rise=_read_number(data, "device_pages", "remote_display_rise"),
+        ),
         line_side_breakers=LineSideBreakerSettings(
             tie_gap=_read_number(data, "line_side_breakers", "tie_gap"),
             gap_to_breaker=_read_number(data, "line_side_breakers", "gap_to_breaker"),
@@ -385,6 +430,7 @@ def load_settings(path) -> LayoutSettings:
             ct_number_attributes=list(data["current_transformers"]["ct_number_attributes"]),
             shorting_kit_attribute=_read_text(data, "current_transformers", "shorting_kit_attribute"),
             meter_attribute=_read_text(data, "current_transformers", "meter_attribute"),
+            sheet_attribute=_read_text(data, "current_transformers", "sheet_attribute"),
             ratio_attribute=_read_text(data, "current_transformers", "ratio_attribute"),
         ),
         feeder=FeederSettings(

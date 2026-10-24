@@ -1,16 +1,19 @@
 """Voltage taps on the 3-line (decision 2026-10-22).
 
 A voltage tap is Sammy's block (config "voltage_taps", e.g. 3P_Voltage_Tap), placed at
-scale 1, never exploded. For now taps sit on a main breaker's incoming feed: on the
-straight run between the breaker's line-side terminals and the termination. On that
-vertical run the block's FROM_LEFT state is used: its markers LA / LB / LC sit on the A, B
-and C phases and the wires leave to the right, ending in "TO FA-n SHEET #".
+scale 1, never exploded. On a vertical run the block's FROM_LEFT state is used: its markers
+LA / LB / LC sit on the A, B and C phases and the wires leave to the right, ending in
+"TO FA-n SHEET #". A tap on a main breaker is on one of its two sides:
+- LINE side (on its feed): the straight run between the breaker's line-side terminals and
+  the termination. The run (`gap_breaker_to_input`) becomes a minimum: it grows so each tap
+  gets `clearance` from the breaker (and its text), from the next tap, and from the
+  termination.
+- LOAD side (decision 2026-10-23): the riser between the breaker and the main bus. Nearest
+  the breaker come the taps, then the CTs (if any), then the main bus; the riser grows to
+  fit them (`bus_side_gap`).
+Taps stack outward from the breaker in the order they were entered.
 
-The run (`gap_breaker_to_input`) becomes a minimum: it grows so each tap gets `clearance`
-from the breaker (and its text), from the next tap, and from the termination. Taps stack
-outward from the breaker in the order they were entered.
-
-Numbering (src/model/devices.py): fuses FA-1, FA-2, ... through the lineup.
+Numbering (src/model/devices.py): fuses FA-s-n through the lineup (s = the tap's section).
 
 Pure Python, no AutoCAD. Coordinates are frame-relative.
 """
@@ -43,6 +46,24 @@ class TapRoom:
         start = self.breaker_overhang if overhang is None else overhang
         needed = start + tap_count * (clearance + self.height) + clearance
         return max(usual, needed)
+
+
+def load_side_reach(settings, taps: TapRoom, tap_count: int) -> float:
+    """From a breaker's near (bus-side) terminals to the far edge of its last load-side tap."""
+    return taps.breaker_overhang + tap_count * (settings.voltage_taps.clearance + taps.height)
+
+
+def bus_side_gap(settings, taps: TapRoom | None, tap_count: int, cts=None) -> float:
+    """Main bus (nearest phase) to a breaker's near terminals, with `tap_count` load-side
+    taps (`taps` = their TapRoom) and CTs (`cts` = their CtRoom, or None) between. At least
+    `gap_bus_to_breaker`."""
+    gap = cts.riser_gap(settings) if cts is not None else settings.main_breaker.gap_bus_to_breaker
+    if taps is None or tap_count == 0:
+        return gap
+    # After the last tap: the CTs' run (which has its own clearance at both ends), or
+    # one clearance to the main bus.
+    after = cts.run if cts is not None else settings.voltage_taps.clearance
+    return max(gap, load_side_reach(settings, taps, tap_count) + after)
 
 
 def tap_room(settings, catalog) -> TapRoom | None:
@@ -90,16 +111,17 @@ def place_taps(settings, catalog, room: TapRoom, a_x: float, line_side_y: float,
     return placements
 
 
-def tap_attributes(settings, number: int) -> dict[str, str]:
-    """The tap block's attribute values: its fuse number (the n of FA-n). The sheet keeps
-    its default until the device pages exist."""
-    return {settings.voltage_taps.fuse_number_attribute: str(number)}
+def tap_attributes(settings, code: str) -> dict[str, str]:
+    """The tap block's attribute values: its fuse number after "FA-" ("s-n"). The sheet
+    keeps its default until the device pages exist."""
+    return {settings.voltage_taps.fuse_number_attribute: code}
 
 
 def lineup_tap_attributes(switchboard, settings) -> list[dict[str, list]]:
-    """For each section: {"above" / "below": [attribute values per tap, in feed order]}."""
+    """For each section: {"above" / "below": [attribute values per tap]}: the feed's taps,
+    then a main's load-side taps (the order of voltage_taps_in)."""
     per_section = [{} for _ in switchboard.sections]
     for tap in voltage_taps_in(switchboard):
         per_section[tap.section_number - 1].setdefault(tap.part, []).append(
-            tap_attributes(settings, tap.number))
+            tap_attributes(settings, tap.code))
     return per_section

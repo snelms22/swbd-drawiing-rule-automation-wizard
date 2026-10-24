@@ -70,18 +70,23 @@ def new_device_id() -> str:
 
 @dataclass
 class PowerMeter:
-    """A power meter mounted in a section (decision 2026-10-21). Named PM-1, PM-2, ... in
-    lineup order; the model is labelled with its brand, e.g. "Janitza UMG 801"."""
+    """A power meter mounted in a section (decision 2026-10-21). Named PM-s-n (s = its section,
+    n through the lineup, decision 2026-10-23); the model is labelled with its brand, e.g. "Janitza UMG 801"."""
     model: str = ""
     id: str = field(default_factory=new_device_id)
+    remote_display: bool = False    # a remote display (RD-s-n) on its USB (decision 2026-10-23)
 
 
 @dataclass
 class VoltageTap:
-    """A fused voltage tap on a feed's line side, for a power meter's voltage input
-    (decision 2026-10-22). Its fuse is numbered FA-1, FA-2, ... through the lineup and is
-    drawn on the device pages; the 3-line shows the tap and "TO FA-n SHEET #"."""
+    """A fused voltage tap for a power meter's voltage input (decision 2026-10-22): on a
+    feed (a main breaker's line side) or on a main breaker's load side, between the
+    breaker and the main bus (decision 2026-10-23). Its fuse is numbered FA-s-n (s = the tap's section, n through
+    the lineup) and is drawn on the device pages; the 3-line shows the tap and
+    "TO FA-s-n SHEET #"."""
     meter_id: str = ""              # the PowerMeter it feeds; "" = not chosen yet
+    # Values for its fuse block's attributes, e.g. the rating (decision 2026-10-23).
+    fuse_attributes: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -130,6 +135,9 @@ class MainBreaker:
     # section (`feed_from` = that IncomingFeed's id; "" = not chosen yet).
     feed: IncomingFeed | None = field(default_factory=IncomingFeed)
     feed_from: str = ""
+    # Voltage taps on its load side, between the breaker and the main bus (decision
+    # 2026-10-23). Line-side taps belong to its feed.
+    load_side_taps: list[VoltageTap] = field(default_factory=list)
 
 
 @dataclass
@@ -152,6 +160,7 @@ class SingleBreaker:
     breaker_feed: str = ""          # "top" / "bottom"; "" = the side away from the bus
     termination_feed: str = ""      # "top" / "bottom"; "" = the side away from the bus
     cts: CurrentTransformers | None = None
+    mounting: str = FIXED           # "fixed" or "draw-out", same blocks as main breakers (2026-10-23)
 
 
 @dataclass

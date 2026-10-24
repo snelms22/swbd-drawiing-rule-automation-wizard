@@ -83,6 +83,8 @@ class PageParts:
     blocks: list = field(default_factory=list)
     placeholders: list = field(default_factory=list)
     notes: list = field(default_factory=list)          # plain text, e.g. provision notes
+    # Wires the program draws itself, each on its own layer (device pages, 2026-10-23).
+    wires: list = field(default_factory=list)
     bus_start_path: list | None = None
     bus_end_path: list | None = None
     ground_bus: GroundBusLine | None = None

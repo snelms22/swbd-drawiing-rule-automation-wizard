@@ -5,12 +5,17 @@ and numbered through the lineup. Pure Python.
     Meter models:  each model's block and the blocks wired into it (voltage input, one
                    current input per CT set), with the meter marker each input marker
                    lands on (decision 2026-10-22). pairing_problems() checks them.
-    Power meters:  PM-1, PM-2, ... in lineup order (section by section).
+Device names hold the section the device lives in (decision 2026-10-23): fuse 12 in
+section 3 is FA-3-12. Numbers count through the whole lineup; the block holds the prefix
+("FA-") and the program fills the rest ("3-12", the device's `code`).
+
+    Power meters:  PM-s-n, n in lineup order; s = the section it is mounted in. Its remote
+                   display, if it has one: RD-s-n, n counting displays through the lineup.
     CT sets:       numbered in lineup order: in each section the part above the bus, the
-                   part below it, then the tie. Set k has CTs 3k-2, 3k-1, 3k (CT1-3, CT4-6,
-                   ...) and shorting kit k (STB-1, ...).
-    Voltage taps:  fuses FA-1, FA-2, ... in lineup order (per section: above, below; each
-                   feed's taps in the order entered). Decision 2026-10-22.
+                   part below it, then the tie. Set k in section s has CTs s-(3k-2),
+                   s-(3k-1), s-3k and shorting kit STB-s-k.
+    Voltage taps:  fuses FA-s-n, n in lineup order (per section: above, below; each feed's
+                   taps in the order entered); s = the tap's section, where the fuse lives.
 """
 import json
 from dataclasses import dataclass
@@ -25,6 +30,8 @@ class InputBlock:
     """A block wired into a device, e.g. a meter's voltage input."""
     block: str
     lands_on: dict          # {this block's marker: the device marker it connects to}
+    number_attribute: str = ""   # gets the number of what it comes from (after "FA-", "STB-")
+    sheet_attribute: str = ""    # gets the sheet that is on
 
 
 @dataclass(frozen=True)
@@ -33,6 +40,15 @@ class MeterModel:
     block: str                      # "" = block not built yet
     voltage_input: InputBlock | None
     current_inputs: tuple           # InputBlock per CT set, in the order sets are wired
+    number_attribute: str = ""      # gets the meter's number after "PM-"
+    usb_marker: str = ""            # where a remote display's USB line starts
+
+    def voltage_terminals(self) -> dict:
+        """{phase: meter marker} for wiring a fuse straight to the meter: from the voltage
+        input's pairs, whose markers are named V_A, V_B, V_C."""
+        if self.voltage_input is None:
+            return {}
+        return {marker[-1]: target for marker, target in self.voltage_input.lands_on.items()}
 
     def input_blocks(self) -> list[tuple[str, InputBlock]]:
         """(what it is, the input) for each input, for messages."""
@@ -42,9 +58,33 @@ class MeterModel:
 
 
 @dataclass(frozen=True)
+class FuseSettings:
+    """The fuse a voltage tap feeds, on the device pages (decision 2026-10-23)."""
+    block: str
+    state: str                      # visibility state it is drawn in (standing up)
+    line_markers: dict              # {phase: marker} line side (up)
+    load_markers: dict              # {phase: marker} load side (down)
+    number_attribute: str           # gets the fuse's number after "FA-"
+    layer: str
+    wire_layers: dict               # {phase: layer} for the wires the program draws
+
+
+@dataclass(frozen=True)
+class RemoteDisplaySettings:
+    """A meter's remote display, on its USB (decision 2026-10-23)."""
+    block: str
+    usb_marker: str
+    number_attribute: str           # gets its number after "RD-"
+    layer: str
+    usb_layer: str                  # the USB line from the meter
+
+
+@dataclass(frozen=True)
 class DeviceSettings:
     comms_modules: list          # e.g. ["Siemens COM190", "Siemens COM800"]
     power_meters: dict           # {model name: MeterModel}
+    fuse: FuseSettings | None = None
+    remote_display: RemoteDisplaySettings | None = None
 
     @property
     def power_meter_models(self) -> list[str]:
@@ -57,6 +97,10 @@ class DeviceSettings:
             if model.block:
                 names.append(model.block)
                 names += [i.block for _, i in model.input_blocks()]
+        if self.fuse is not None:
+            names.append(self.fuse.block)
+        if self.remote_display is not None:
+            names.append(self.remote_display.block)
         return sorted(set(names))
 
 
@@ -67,6 +111,8 @@ def load_device_settings(path) -> DeviceSettings:
         return DeviceSettings(
             comms_modules=list(data["comms_modules"]),
             power_meters={name: _meter_model(name, entry) for name, entry in data["power_meters"].items()},
+            fuse=_fuse(data["voltage_tap_fuse"]) if "voltage_tap_fuse" in data else None,
+            remote_display=RemoteDisplaySettings(**data["remote_display"]) if "remote_display" in data else None,
         )
     except FileNotFoundError:
         raise SettingsError(f"Settings file not found: {path}")
@@ -76,11 +122,22 @@ def load_device_settings(path) -> DeviceSettings:
 
 def _meter_model(name, entry) -> MeterModel:
     def input_block(data):
-        return InputBlock(block=str(data["block"]), lands_on={str(k): str(v) for k, v in data["lands_on"].items()})
+        return InputBlock(block=str(data["block"]), lands_on={str(k): str(v) for k, v in data["lands_on"].items()},
+                          number_attribute=str(data.get("number_attribute", "")),
+                          sheet_attribute=str(data.get("sheet_attribute", "")))
     voltage = entry.get("voltage_input")
     return MeterModel(name=name, block=str(entry.get("block", "")),
                       voltage_input=input_block(voltage) if voltage else None,
-                      current_inputs=tuple(input_block(i) for i in entry.get("current_inputs", [])))
+                      current_inputs=tuple(input_block(i) for i in entry.get("current_inputs", [])),
+                      number_attribute=str(entry.get("number_attribute", "")),
+                      usb_marker=str(entry.get("usb_marker", "")))
+
+
+def _fuse(data) -> FuseSettings:
+    return FuseSettings(block=str(data["block"]), state=str(data["state"]),
+                        line_markers=dict(data["line_markers"]), load_markers=dict(data["load_markers"]),
+                        number_attribute=str(data["number_attribute"]), layer=str(data.get("layer", "0")),
+                        wire_layers=dict(data["wire_layers"]))
 
 
 TOLERANCE = 0.05     # markers closer than this count as the same point
@@ -126,9 +183,24 @@ def pairing_problems(model: MeterModel, markers: dict) -> list[str]:
 
 @dataclass
 class MeterInfo:
-    name: str               # "PM-1"
-    section_number: int     # where it is mounted
+    number: int             # n of PM-s-n, through the lineup
+    section_number: int     # s: where it is mounted
     meter: object           # the PowerMeter
+    display_number: int = 0  # n of its remote display RD-s-n (through the lineup); 0 = none
+
+    @property
+    def display_code(self) -> str:
+        """What the program fills in after the remote display block's "RD-": "s-n"."""
+        return f"{self.section_number}-{self.display_number}"
+
+    @property
+    def code(self) -> str:
+        """What the program fills in after the block's "PM-": "s-n"."""
+        return f"{self.section_number}-{self.number}"
+
+    @property
+    def name(self) -> str:
+        return f"PM-{self.code}"
 
 
 @dataclass
@@ -141,14 +213,25 @@ class CtSetInfo:
 
     @property
     def ct_numbers(self) -> list[str]:
-        return [str(3 * self.number - 2 + i) for i in range(3)]
+        """The three CTs' numbers, "s-n"."""
+        return [f"{self.section_number}-{3 * self.number - 2 + i}" for i in range(3)]
+
+    @property
+    def code(self) -> str:
+        """The shorting kit's number after "STB-": "s-k"."""
+        return f"{self.section_number}-{self.number}"
+
+    @property
+    def shorting_kit(self) -> str:
+        return f"STB-{self.code}"
 
 
 def meters_in(switchboard) -> list[MeterInfo]:
-    found = []
+    found, displays = [], 0
     for number, section in enumerate(switchboard.sections, start=1):
         for meter in section.contents.power_meters:
-            found.append(MeterInfo(f"PM-{len(found) + 1}", number, meter))
+            displays += int(meter.remote_display)
+            found.append(MeterInfo(len(found) + 1, number, meter, displays if meter.remote_display else 0))
     return found
 
 
@@ -172,39 +255,55 @@ def ct_sets_in(switchboard) -> list[CtSetInfo]:
     return found
 
 
+# Which side of a main breaker a voltage tap is on (decision 2026-10-23).
+LINE_SIDE = "line"
+LOAD_SIDE = "load"
+
+
 @dataclass
 class TapInfo:
-    number: int             # FA-n
+    number: int             # n of FA-s-n, through the lineup
     where: str              # e.g. "Section 1 above (feed of 52-M1)"
     tap: object             # the VoltageTap
     section_number: int
     part: str               # "above" or "below"
-    index: int              # its place in the feed's list of taps
+    index: int              # its place in its list of taps (the feed's, or the main's load side)
+    side: str = LINE_SIDE   # LINE_SIDE (on a feed) or LOAD_SIDE (a main's load side)
+
+    @property
+    def code(self) -> str:
+        """What the program fills in after the block's "FA-": "s-n"."""
+        return f"{self.section_number}-{self.number}"
 
     @property
     def fuse(self) -> str:
-        return f"FA-{self.number}"
+        return f"FA-{self.code}"
 
 
 def voltage_taps_in(switchboard) -> list[TapInfo]:
+    """Every voltage tap, numbered through the lineup. In each part the feed's (line-side)
+    taps come first, then a main's load-side taps; the 3-line reads them in that order."""
     found = []
     for number, section in enumerate(switchboard.sections, start=1):
         for part in ("above", "below"):
             arrangement = getattr(section.contents, part)
-            if isinstance(arrangement, MainBreaker) and arrangement.feed is not None:
-                feed, where = arrangement.feed, f"feed of {arrangement.breaker.label or 'main breaker'}"
+            lists = []
+            if isinstance(arrangement, MainBreaker):
+                label = arrangement.breaker.label or "main breaker"
+                if arrangement.feed is not None:
+                    lists.append((arrangement.feed.voltage_taps, f"feed of {label}", LINE_SIDE))
+                lists.append((arrangement.load_side_taps, f"load side of {label}", LOAD_SIDE))
             elif isinstance(arrangement, IncomingFeed):
-                feed, where = arrangement, "incoming feed"
-            else:
-                continue
-            for index, tap in enumerate(feed.voltage_taps):
-                found.append(TapInfo(len(found) + 1, f"Section {number} {part} ({where})",
-                                     tap, number, part, index))
+                lists.append((arrangement.voltage_taps, "incoming feed", LINE_SIDE))
+            for taps, where, side in lists:
+                for index, tap in enumerate(taps):
+                    found.append(TapInfo(len(found) + 1, f"Section {number} {part} ({where})",
+                                         tap, number, part, index, side))
     return found
 
 
 def meter_name(switchboard, meter_id: str) -> str:
-    """The meter's name (e.g. "PM-1"), or "" if there is no such meter."""
+    """The meter's name (e.g. "PM-3-1"), or "" if there is no such meter."""
     for info in meters_in(switchboard):
         if info.meter.id == meter_id:
             return info.name

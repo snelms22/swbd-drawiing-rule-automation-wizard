@@ -113,3 +113,15 @@ def test_attributes_the_block_no_longer_has_are_reported_not_dropped():
     assert found == ["Section 1 above: attribute OLDTAG is no longer on block TEST_BKR "
                      "(its value is kept in the project)."]
     assert board.sections[0].contents.above.breaker.attributes["OLDTAG"] == "x"
+
+
+def test_single_breaker_mounting_is_saved_and_older_files_are_fixed(tmp_path):
+    original = Switchboard("Job", [Section(SectionContents(below=SingleBreaker(Breaker("52-F1"),
+                                                                               mounting="draw-out")))])
+    assert open_project(save_project(original, tmp_path / "job.swbd")) == original
+    old = tmp_path / "old.swbd"
+    old.write_text('{"format_version": 2, "name": "Old", "sections": [{"above": null, "tie": null, '
+                   '"below": {"kind": "single breaker", "label": "52-F1", "breaker_feed": "", '
+                   '"termination_feed": "", "breaker_attributes": {}, "output_attributes": {}}}]}',
+                   encoding="utf-8")
+    assert open_project(old).sections[0].contents.below.mounting == "fixed"

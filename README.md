@@ -109,7 +109,21 @@ Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.m
    grouped by section; meter inputs paired in `config/devices.json`, DECISIONS 2026-10-22).
    Later: power supply block (24V), shipping-split connections between sections.
 3h. **Re-assess the editor** (Sammy, 2026-10-22): once more is built, review the UI as a whole:
-   where things are placed and how the engineer works with it.
+   where things are placed and how the engineer works with it. Wanted (Sammy, 2026-10-23):
+   - **Duplicate a section** (with everything in it).
+   - **The mouse wheel must not change drop-downs** while scrolling the editor (only when the
+     drop-down was clicked).
+   - **Copy and paste breakers** with Ctrl+C / Ctrl+V (and more copy / paste generally).
+3i. **Remote display** (`Remote_Distplay` block, RD-s-n): a checkbox on each power meter; drawn
+   beside its meter on the device page, meter USB to display USB on layer 0 (approved 2026-10-23).
+3i2. **Voltage taps on either side of a main** (built 2026-10-23, for review): line side or
+   load side (between the breaker and the main bus, before the CTs).
+3j. **Taps off taps** (Sammy, 2026-10-23), both possible, as in PRIME-014034 (FA-1 to PM-1 and
+   FA-2 to the power supply PS-1 off the same tap):
+   - off a fuse's **load side**: another fuse, shown on the device pages;
+   - off a fuse's **line side**: shown on the 3-line.
+   The branches usually feed different devices: a power meter and e.g. an ATC or a power supply
+   (24V), whose blocks / devices come next.
 4. Later polish (Sammy, in the block library): `BRACKET_TEXT_R0` label doesn't mirror its
    justification when flipped ("FROM ES_nn" runs back over the bus); `SIE_BKR_3P_3L_ASSY_R0`
    FRAME attributes (shared tag, no prompt, don't move on flip). No code workaround for now.

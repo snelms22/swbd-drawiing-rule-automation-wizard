@@ -87,12 +87,14 @@ def drawing_path(switchboard, output_folder: Path, drawing_info_settings=None, n
 
 
 def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=None,
-                     now=None, output_folder=None, drawing_info_settings=None) -> GenerateResult:
+                     now=None, output_folder=None, drawing_info_settings=None,
+                     device_settings=None) -> GenerateResult:
     """`output_folder`: where the drawing goes (the folder the person picked, decision
-    2026-10-15); config's output_folder when not given (development)."""
+    2026-10-15); config's output_folder when not given (development). `device_settings`
+    (config/devices.json) adds the device pages."""
     if drawing_info_settings is not None and job_number_problem(switchboard):
         raise GenerateError(MISSING_JOB_NUMBER)
-    layout = fit_pages(switchboard, layout_settings, catalog)
+    layout = fit_pages(switchboard, layout_settings, catalog, device_settings)
     if not layout.pages:
         raise GenerateError("There is nothing to draw: the switchboard has no sections.")
 
@@ -146,6 +148,11 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
                                         autocad_settings.objectdbx_program_id)
         if missing:
             raise GenerateError(f"These blocks are not in the block library: {', '.join(missing)}")
+
+    # The wires the program draws go on the same layers as the blocks' own wires (they
+    # usually came in with the blocks; made here only if not).
+    for layer in sorted({wire.layer for page in layout.pages for wire in page.parts.wires}):
+        drawing.ensure_layer(layer)
 
     for page in layout.pages:
         x, y = origins[page.number]

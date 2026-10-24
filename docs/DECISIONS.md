@@ -266,6 +266,98 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-10-23 — Voltage taps on either side of a main breaker
+**Decision:**
+- Each voltage tap on a main breaker is on its **line side** (between the termination and
+  the breaker, as before) or its **load side** (between the breaker and the main bus). The
+  engineer picks "Side of the main breaker" for each tap in the main's tap list.
+- Load-side taps are saved on the main breaker (`load_side_taps`), not on its feed, so a main
+  fed from another section still has them. A tap moved to the other side goes to the end of
+  that side's list. Line side is only offered when the main's feed is in its own riser.
+- Placement on the load side: nearest the breaker, the taps (each `clearance` from the
+  breaker's text and from the next tap, in the order entered), then the CTs (if any), then
+  the main bus. The riser grows to fit them; one function (`bus_side_gap`) sizes the section
+  and places the blocks, so the preview and the drawing agree.
+- Numbering: in each part, the feed's (line-side) taps first, then the load-side taps
+  (FA-s-n through the lineup, as before).
+- Not drawn yet on a breaker fed on the bus side (its riser is a U-turn); a warning says so,
+  as for CTs.
+- Editor: the voltage tap list moved out of the "Incoming feed" box to just below it, so it
+  still shows for a main whose feed is in another section.
+**Reason:** Sammy, 2026-10-23.
+**Status:** Built 2026-10-23, for Sammy's review
+
+### 2026-10-23 — Remote display on a power meter; CT sheet filled by the program
+**Decision:**
+- **Remote display:** a "Remote display" checkbox on each power meter. Drawn on the device page
+  to the left of its meter (`Remote_Distplay` block), joined meter USB marker to display USB
+  marker by a line on layer 0 (as in PRIME-014034): left `remote_display_gap`, then up
+  `remote_display_rise`. Named RD-s-n (s = the meter's section, n through the lineup); the
+  program fills RD_DWG_NUM. Block, markers and layers in config/devices.json.
+- **CT block SHEET#** (the meter's sheet) is filled by the program and no longer offered in the
+  editor.
+- **Taps off taps** (load side on the device pages, line side on the 3-line) and the mouse wheel
+  not changing drop-downs: on the docket (README 3h, 3j).
+**Reason:** Sammy, 2026-10-23.
+**Status:** Approved; remote display and CT sheet built
+
+### 2026-10-23 — Single breakers can be fixed or draw-out
+**Decision:** a single breaker has a Mounting choice (fixed / draw-out), using the same blocks as
+main breakers (`main_breaker.blocks`). Saved with the project; older files open as fixed.
+**Reason:** Sammy, 2026-10-23 (found rebuilding a test drawing: single breakers were always fixed).
+**Status:** Approved; built
+
+### 2026-10-23 — The library's blocks win over the template's; tildes on fuse wires
+**Decision:**
+- **Block source:** for every block the program inserts, drawings get the **symbol library's**
+  version. A block of the same name that came with the HYPER_A template is renamed
+  "<name>_TEMPLATE" first, so what the template drew with it (e.g. the legend) keeps its look.
+  Found because HYPER_A carries an old TILDE_R0 (fixed "X" text, no attribute).
+- **Tildes on fuse wires:** every wire end that goes to or comes from a fuse through a TO / FROM
+  bracket on the device pages gets a TILDE_R0 (one per wire, CONN on the wire end, VERTICAL
+  state, its TEXT_H set empty). Wires inside a section (fuse to its meter) have none.
+**Reason:** Sammy, 2026-10-23.
+**Status:** Approved; built
+
+### 2026-10-23 — Device names hold their section; device pages: wires inside a section
+**Decision:**
+- **Naming (every device):** the name holds the section the device lives in: fuse 12 in
+  section 3 is **FA-3-12**. The number counts through the whole lineup. The block holds the
+  prefix ("FA-", "PM-", "STB-", "CT"); the program fills the rest ("3-12"). Applies to fuses
+  (FA), power meters (PM), shorting kits (STB) and the CTs themselves (set 1 in section 2:
+  CTs 2-1, 2-2, 2-3, STB-2-1).
+- **Where devices live:** a meter in the section it's mounted in; CTs and their shorting kit
+  where the CTs are drawn; a voltage tap's fuse in the **tap's** section.
+- **Device pages, connections:** devices in the same section are joined by **lines drawn by the
+  program** (no block), on the layers of the wires they carry (voltage: WIRE - 480A-BRN /
+  480B-ORG / 480C-YEL; current: CT+ white / CT- black). Only where a connection leaves the
+  section does it get TO/FROM (and always for a tap or shorting block shown on the 3-line).
+  E.g. a fuse and its meter in the same section are wired (no voltage input block); in
+  different sections the fuse's load side says "TO PM-..." and the meter's voltage input block
+  says "FROM FA-... SHEET #".
+- **Fuse block:** `3P_2P_FUSE_DISCONECT` (CONN_A/B/C_LINE/LOAD_H/V markers, 3- and 2-pole
+  states). The engineer fills its rating (CURRENT); the program fills the number
+  (FUSE_DWG_NUM).
+- **Fuse line side** (from the tap on the 3-line): wire stubs on the 480A/B/C layers ending in
+  BRACKET_TEXT_R0 "FROM ES_0n".
+- **Page layout:** grouped by section ("SECTION n" heading), as many as fit; Sammy approves on
+  seeing it.
+- **As built (2026-10-23, for review):** device pages follow the 3-line pages (ES_nn). Each
+  meter is a "unit" with its CT inputs under it and, when its fuse is in the same section, the
+  fuse above it, wired (levels `wire_spacing` apart, picked so no two wires run on top of each
+  other); a fuse whose meter is elsewhere is a unit on its own (FROM above, "TO PM-s-n SHEET n"
+  below). Each section is a column running the full height of the page with its label at the
+  top (Sammy, 2026-10-23: uses the empty space below, better as devices are added); its units
+  stack down it and carry on in another column beside it, then on the next page (label
+  repeated); sections sit side by side; clear of the title block. One voltage tap per meter is connected; more get a warning and are
+  drawn on their own. A meter takes as many CT sets as its model has current inputs (UMG 801:
+  2); more get a warning. A meter whose block isn't built yet (PM8000) is a labelled box.
+  Spacing in config `device_pages`. Sheet numbers are the page numbers ("{page}"); the 3-line
+  CT SHEET# and tap TO_SHEET are filled from the device pages, and the device pages' CT input
+  and voltage input sheets from the 3-line.
+**Reason:** Sammy, 2026-10-23.
+**Status:** Approved (naming built 2026-10-23); device pages built, for Sammy's review
+
 ### 2026-10-22 — Bus-break blocks: which flip, and flipped on a vertical bus's bottom end
 **Decision:**
 - Tested on the blocks: on both 3P_TIDE_R0 and BRACKET_TEXT_R0, **Flip state1** mirrors

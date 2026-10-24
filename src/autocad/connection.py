@@ -143,10 +143,13 @@ class Drawing:
     # --- Writing -----------------------------------------------------------------------
 
     def import_blocks(self, names, library_file, objectdbx_program_id) -> list[str]:
-        """Copy block definitions this drawing doesn't have yet from the library drawing.
+        """Copy the block definitions the program inserts from the library drawing. The
+        library's version always wins (decision 2026-10-23): a block of the same name that
+        came with the template is renamed "<name>_TEMPLATE" first, so what the template drew
+        with it (e.g. the legend) keeps its look, and new inserts get the library's version.
         The library is read in the background (ObjectDBX): it is never opened in AutoCAD's
         window and never changed. Returns the names that are missing from the library."""
-        needed = sorted(set(names) - self.block_names())
+        needed = sorted(set(names))
         if not needed:
             return []
         # Read a temporary copy of the saved library: AutoCAD can't read the library file
@@ -158,6 +161,14 @@ class Drawing:
         library_names = {_retry(lambda: library.Blocks.Item(i).Name)
                          for i in range(_retry(lambda: library.Blocks.Count))}
         found = [name for name in needed if name in library_names]
+        present = self.block_names()
+        for name in found:
+            if name in present:
+                old_name = f"{name}_TEMPLATE"
+                while old_name in present:
+                    old_name += "_"
+                _retry(lambda n=name, o=old_name: setattr(self.document.Blocks.Item(n), "Name", o))
+                present.add(old_name)
         if found:
             definitions = [_retry(lambda n=n: library.Blocks.Item(n)) for n in found]
             # Pass the raw COM objects: with the wrapped ones, a list of exactly ONE block

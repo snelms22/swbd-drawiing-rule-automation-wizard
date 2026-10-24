@@ -51,7 +51,8 @@ def test_describe_changes_names_what_changed():
 
 def test_blocks_in_use_come_from_config():
     assert blocks_in_use(TEST_SETTINGS) == ["BUS_NODE", "TEST_BKR", "TEST_BKR_DO", "TEST_BRACKET", "TEST_CT",
-                                            "TEST_FEEDER", "TEST_LUGS", "TEST_LUGS_N", "TEST_TAP", "TEST_TILDE"]
+                                            "TEST_FEEDER", "TEST_LUGS", "TEST_LUGS_N", "TEST_TAP", "TEST_TILDE",
+                                            "TEST_WIRE_TILDE"]
 
 
 def test_catalog_reads_attributes_and_states(tmp_path):

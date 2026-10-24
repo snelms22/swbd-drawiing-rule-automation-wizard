@@ -30,10 +30,10 @@ from PySide6.QtWidgets import (
 
 from src.layout.current_transformers import program_filled_tags
 from src.layout.section_builder import single_level_sides
-from src.model.devices import meters_in, voltage_taps_in
+from src.model.devices import LINE_SIDE, LOAD_SIDE, meters_in, voltage_taps_in
 from src.model.feeds import all_feeds, main_fed_by, standalone_feeds
 from src.model.section_contents import (
-    FEED_DIRECTIONS, FIXED, MOUNTINGS, Breaker, CurrentTransformers, GroupMounted, IncomingFeed,
+    FEED_DIRECTIONS, MOUNTINGS, Breaker, CurrentTransformers, GroupMounted, IncomingFeed,
     LineSideBreaker, MainBreaker, PowerMeter, Provision, SingleBreaker, SingleLevel, Space, TieBreaker, TwinLevel,
     VoltageTap, feed_directions, side_away_from_bus,
 )
@@ -129,7 +129,7 @@ NO_METER = "Choose a power meter"
 class CtEditor(QGroupBox):
     """CTs on a main, single or tie breaker, or at the base of a group-mounted part
     (decision 2026-10-21). Ticking the box adds a CT set. The engineer picks the power meter
-    it feeds and the ratio; the program numbers it (CT1-3, STB-1, ...), places it wherever it
+    it feeds and the ratio; the program numbers it (CTs s-1..s-3, STB-s-1, ...), places it wherever it
     fits and fills in the meter. `attribute` is where the set is kept on the part ("cts", or
     "base_cts" on a group-mounted part)."""
     changed = Signal()
@@ -216,14 +216,20 @@ class CtEditor(QGroupBox):
 
 
 class VoltageTapsEditor(QGroupBox):
-    """Voltage taps on an incoming feed (decision 2026-10-22). Each tap feeds one power
-    meter's voltage input; its fuse is numbered FA-1, FA-2, ... through the lineup."""
+    """Voltage taps on an incoming feed (decision 2026-10-22) and, for a main breaker, on its
+    load side (decision 2026-10-23): each tap says which side of the main it is on. Each tap
+    feeds one power meter's voltage input; its fuse is numbered FA-s-n (decision 2026-10-23)."""
     changed = Signal()
 
-    def __init__(self, switchboard_provider=None):
+    def __init__(self, switchboard_provider=None, catalog=None, fuse=None):
+        """`fuse`: the fuse settings (config/devices.json): its block's attributes get one
+        field each, except the number the program fills in (decision 2026-10-23)."""
         super().__init__("Voltage taps")
         self._switchboard = switchboard_provider or (lambda: None)
+        self._catalog = catalog
+        self._fuse = fuse
         self._feed = None
+        self._main = None
         self.taps_list = QListWidget()
         self.taps_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.taps_list.currentRowChanged.connect(self._tap_selected)
@@ -231,6 +237,11 @@ class VoltageTapsEditor(QGroupBox):
         add_button.clicked.connect(self._add_tap)
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(self._remove_tap)
+        # Which side of the main breaker: its line side (on its feed) or its load side.
+        self.side_combo = QComboBox()
+        self.side_combo.addItem("Line side", LINE_SIDE)
+        self.side_combo.addItem("Load side", LOAD_SIDE)
+        self.side_combo.currentIndexChanged.connect(self._side_changed)
         self.meter_combo = QComboBox()
         self.meter_combo.currentIndexChanged.connect(self._meter_changed)
         buttons = QHBoxLayout()
@@ -240,33 +251,63 @@ class VoltageTapsEditor(QGroupBox):
         layout = QVBoxLayout(self)
         layout.addWidget(self.taps_list)
         layout.addLayout(buttons)
-        meter_form = QFormLayout()
-        meter_form.addRow("Power meter", self.meter_combo)
-        layout.addLayout(meter_form)
+        self.tap_form = QFormLayout()
+        self.tap_form.addRow("Side of the main breaker", self.side_combo)
+        self.tap_form.addRow("Power meter", self.meter_combo)
+        layout.addLayout(self.tap_form)
+        self.fuse_box = QGroupBox("Fuse block attributes")
+        self.fuse_form = QFormLayout(self.fuse_box)
+        layout.addWidget(self.fuse_box)
 
-    def load(self, feed, select_row=0):
-        """Show the taps of `feed`, or hide this box when None."""
-        self._feed = feed
-        self.setVisible(feed is not None)
-        taps = feed.voltage_taps if feed is not None else []
+    def set_catalog(self, catalog):
+        self._catalog = catalog
+        self.refresh_meters()
+
+    def load(self, feed, main=None, select_row=0):
+        """Show the taps of `feed` (line side) and of `main` (its load side), or hide this box
+        when both are None."""
+        self._feed, self._main = feed, main
+        self.setVisible(feed is not None or main is not None)
+        self.tap_form.setRowVisible(self.side_combo, main is not None)
+        rows = self._rows()
         fuses = self._fuse_names()
         meters = self._meter_names()
         self.taps_list.blockSignals(True)
         self.taps_list.clear()
-        for tap in taps:
+        for taps, index in rows:
+            tap = taps[index]
             meter = meters.get(tap.meter_id, "(choose a meter)" if not tap.meter_id else "(meter removed)")
-            self.taps_list.addItem(f"{fuses.get(id(tap), 'FA-?')}   to {meter}")
+            side = ""
+            if main is not None:
+                side = "   (load side)" if taps is main.load_side_taps else "   (line side)"
+            self.taps_list.addItem(f"{fuses.get(id(tap), 'FA-?')}   to {meter}{side}")
         self.taps_list.blockSignals(False)
-        rows = max(len(taps), 1)
-        row_height = self.taps_list.sizeHintForRow(0) if taps else 18
-        self.taps_list.setFixedHeight(rows * row_height + 2 * self.taps_list.frameWidth() + 4)
-        if taps:
-            self.taps_list.setCurrentRow(min(max(select_row, 0), len(taps) - 1))
+        count = max(len(rows), 1)
+        row_height = self.taps_list.sizeHintForRow(0) if rows else 18
+        self.taps_list.setFixedHeight(count * row_height + 2 * self.taps_list.frameWidth() + 4)
+        if rows:
+            self.taps_list.setCurrentRow(min(max(select_row, 0), len(rows) - 1))
         self._tap_selected(self.taps_list.currentRow())
 
     def refresh_meters(self):
-        if self._feed is not None:
-            self.load(self._feed, self.taps_list.currentRow())
+        if self._feed is not None or self._main is not None:
+            self.load(self._feed, self._main, self.taps_list.currentRow())
+
+    def _rows(self) -> list:
+        """(list the tap is in, its index) for each row: the feed's taps, then the main's
+        load-side taps (the order they are numbered in)."""
+        rows = []
+        for taps in (self._feed.voltage_taps if self._feed is not None else None,
+                     self._main.load_side_taps if self._main is not None else None):
+            if taps is not None:
+                rows += [(taps, index) for index in range(len(taps))]
+        return rows
+
+    def _selected(self):
+        """(list, index) of the selected tap, or None."""
+        rows = self._rows()
+        row = self.taps_list.currentRow()
+        return rows[row] if 0 <= row < len(rows) else None
 
     def _fuse_names(self) -> dict:
         switchboard = self._switchboard()
@@ -276,12 +317,17 @@ class VoltageTapsEditor(QGroupBox):
         switchboard = self._switchboard()
         return {info.meter.id: info.name for info in meters_in(switchboard)} if switchboard else {}
 
-    def _tap_selected(self, row):
-        taps = self._feed.voltage_taps if self._feed is not None else []
-        has_tap = 0 <= row < len(taps)
-        self.meter_combo.setEnabled(has_tap)
-        self.remove_button.setEnabled(has_tap)
-        chosen = taps[row].meter_id if has_tap else ""
+    def _tap_selected(self, *_):
+        selected = self._selected()
+        tap = selected[0][selected[1]] if selected else None
+        self.meter_combo.setEnabled(tap is not None)
+        self.remove_button.setEnabled(tap is not None)
+        # Only a main with its feed in this riser has a line side to put taps on.
+        self.side_combo.setEnabled(tap is not None and self._feed is not None)
+        on_load_side = (self._main is not None and selected is not None
+                        and selected[0] is self._main.load_side_taps)
+        _set_quietly(self.side_combo, self.side_combo.setCurrentIndex, 1 if on_load_side else 0)
+        chosen = tap.meter_id if tap is not None else ""
         switchboard = self._switchboard()
         self.meter_combo.blockSignals(True)
         self.meter_combo.clear()
@@ -294,30 +340,60 @@ class VoltageTapsEditor(QGroupBox):
             index = self.meter_combo.count() - 1
         self.meter_combo.setCurrentIndex(max(index, 0))
         self.meter_combo.blockSignals(False)
+        # The fuse's own fields (e.g. its rating), from its block.
+        block = (self._catalog.get(self._fuse.block) if self._catalog and self._fuse and tap is not None
+                 else None)
+        add_attribute_fields(self.fuse_form, block, tap.fuse_attributes if tap is not None else {},
+                             {self._fuse.number_attribute} if self._fuse else set(), self.changed.emit)
+        self.fuse_box.setVisible(block is not None and self.fuse_form.rowCount() > 0)
 
     def _add_tap(self):
-        self._feed.voltage_taps.append(VoltageTap())
-        self.load(self._feed, len(self._feed.voltage_taps) - 1)
+        # On the feed (line side) when there is one, else on the main's load side.
+        taps = self._feed.voltage_taps if self._feed is not None else self._main.load_side_taps
+        taps.append(VoltageTap())
+        self.load(self._feed, self._main, self._row_of(taps, len(taps) - 1))
         self.changed.emit()
 
+    def _row_of(self, taps, index) -> int:
+        for row, (row_taps, row_index) in enumerate(self._rows()):
+            if row_taps is taps and row_index == index:
+                return row
+        return 0
+
     def _remove_tap(self):
-        row = self.taps_list.currentRow()
-        if 0 <= row < len(self._feed.voltage_taps):
-            del self._feed.voltage_taps[row]
-            self.load(self._feed, row)
+        selected = self._selected()
+        if selected is not None:
+            taps, index = selected
+            del taps[index]
+            self.load(self._feed, self._main, self.taps_list.currentRow())
             self.changed.emit()
 
     def _meter_changed(self, *_):
-        row = self.taps_list.currentRow()
-        if self._feed is not None and 0 <= row < len(self._feed.voltage_taps):
-            self._feed.voltage_taps[row].meter_id = self.meter_combo.currentData() or ""
-            self.load(self._feed, row)
+        selected = self._selected()
+        if selected is not None:
+            taps, index = selected
+            taps[index].meter_id = self.meter_combo.currentData() or ""
+            self.load(self._feed, self._main, self.taps_list.currentRow())
             self.changed.emit()
+
+    def _side_changed(self, *_):
+        """Move the selected tap to the end of the other side's list."""
+        selected = self._selected()
+        if selected is None or self._main is None or self._feed is None:
+            return
+        taps, index = selected
+        to_load_side = self.side_combo.currentData() == LOAD_SIDE
+        target = self._main.load_side_taps if to_load_side else self._feed.voltage_taps
+        if target is taps:
+            return
+        target.append(taps.pop(index))
+        self.load(self._feed, self._main, self._row_of(target, len(target) - 1))
+        self.changed.emit()
 
 
 class DevicesEditor(QGroupBox):
     """Devices mounted in this section (decision 2026-10-21). For now: power meters, named
-    PM-1, PM-2, ... through the lineup; the engineer picks each one's model. Nothing is
+    PM-s-n (s = section, n through the lineup); the engineer picks each one's model. Nothing is
     drawn for them on the 3-line yet (they go on the device pages, later)."""
     changed = Signal()
 
@@ -342,8 +418,11 @@ class DevicesEditor(QGroupBox):
         layout = QVBoxLayout(self)
         layout.addWidget(self.meters_list)
         layout.addLayout(buttons)
+        self.remote_display_check = QCheckBox("Remote display (on the meter's USB)")
+        self.remote_display_check.toggled.connect(self._remote_display_toggled)
         model_form = QFormLayout()
         model_form.addRow("Model", self.model_combo)
+        model_form.addRow(self.remote_display_check)
         layout.addLayout(model_form)
 
     def load(self, section, select_row=0):
@@ -379,6 +458,16 @@ class DevicesEditor(QGroupBox):
             self.model_combo.addItem(model)          # a saved model no longer in the list
         self.model_combo.setCurrentText(model)
         self.model_combo.blockSignals(False)
+        self.remote_display_check.setEnabled(has_meter)
+        _set_quietly(self.remote_display_check, self.remote_display_check.setChecked,
+                     meters[row].remote_display if has_meter else False)
+
+    def _remote_display_toggled(self, on):
+        row = self.meters_list.currentRow()
+        meters = self._section.contents.power_meters if self._section is not None else []
+        if 0 <= row < len(meters):
+            meters[row].remote_display = on
+            self.changed.emit()
 
     def _add_meter(self):
         meters = self._section.contents.power_meters
@@ -487,7 +576,7 @@ class ArrangementEditor(QGroupBox):
     changed = Signal()
 
     def __init__(self, title: str, part: str, settings, catalog=None, comms_modules=(),
-                 switchboard_provider=None):
+                 switchboard_provider=None, fuse=None):
         super().__init__(title)
         self._part = part            # "above" or "below"
         self._switchboard_provider = switchboard_provider
@@ -545,8 +634,8 @@ class ArrangementEditor(QGroupBox):
         self.fed_from_combo = QComboBox()
         self.fed_from_combo.currentIndexChanged.connect(self._fed_from_changed)
         breaker_form.addRow("Fed from", self.fed_from_combo)
-        # The termination: a main breaker's incoming feed (with its line-side voltage taps,
-        # decision 2026-10-22), an Incoming feed part, or a single breaker's output.
+        # The termination: a main breaker's incoming feed, an Incoming feed part, or a
+        # single breaker's output.
         self.termination_box = QGroupBox("Incoming feed")
         termination_form = QFormLayout(self.termination_box)
         self.termination_form = termination_form
@@ -554,10 +643,12 @@ class ArrangementEditor(QGroupBox):
         self.input_attributes_box = QGroupBox("Input block attributes")
         self.input_attributes_form = QFormLayout(self.input_attributes_box)
         termination_form.addRow(self.input_attributes_box)
-        self.taps_editor = VoltageTapsEditor(switchboard_provider)
-        self.taps_editor.changed.connect(self.changed)
-        termination_form.addRow(self.taps_editor)
         breaker_form.addRow(self.termination_box)
+        # Voltage taps: on the feed, and on a main's load side (decisions 2026-10-22/23). Below
+        # the feed's box, so a main fed from another section still shows its load-side taps.
+        self.taps_editor = VoltageTapsEditor(switchboard_provider, catalog, fuse)
+        self.taps_editor.changed.connect(self.changed)
+        breaker_form.addRow(self.taps_editor)
 
         self.stack = QStackedWidget()
         self.stack.addWidget(QWidget())          # 0: Empty
@@ -654,12 +745,12 @@ class ArrangementEditor(QGroupBox):
         # A line-side breaker's feed directions are fixed for now; it has no CTs yet.
         for widget in (self.breaker_feed_combo, self.ct_editor):
             self.breaker_form.setRowVisible(widget, not is_feed and not is_line_side)
-        self.breaker_form.setRowVisible(self.mounting_combo, is_main or is_line_side)
+        self.breaker_form.setRowVisible(self.mounting_combo, kind in (MAIN, SINGLE, LINE_SIDE))
         self.breaker_form.setRowVisible(self.feed_source_combo, is_main)
         self.breaker_form.setRowVisible(self.feed_info, is_feed)
         self.breaker_form.setRowVisible(self.fed_from_combo, is_line_side)
         self.termination_form.setRowVisible(self.termination_feed_combo, not is_line_side)
-        if is_main or is_line_side:
+        if kind in (MAIN, SINGLE, LINE_SIDE):
             _set_quietly(self.mounting_combo, self.mounting_combo.setCurrentText, arrangement.mounting)
         if is_main:
             self._load_feed_sources(arrangement)
@@ -673,7 +764,7 @@ class ArrangementEditor(QGroupBox):
         feed = arrangement if is_feed else arrangement.feed if is_main else None
         self.termination_box.setTitle("Output" if kind in (SINGLE, LINE_SIDE) else "Incoming feed")
         self.breaker_form.setRowVisible(self.termination_box, kind in (SINGLE, LINE_SIDE) or feed is not None)
-        self.taps_editor.load(feed)
+        self.taps_editor.load(feed, arrangement if is_main else None)
         if kind == GROUP:
             self._reload_levels(select_row=0)
 
@@ -779,8 +870,8 @@ class ArrangementEditor(QGroupBox):
         kept = current.breaker if has_breaker else Breaker("")
         new = {EMPTY: None, MAIN: MainBreaker(kept), SINGLE: SingleBreaker(kept),
                GROUP: GroupMounted(), FEED: IncomingFeed(), LINE_SIDE: LineSideBreaker(kept)}[kind]
-        # Mains and line-side breakers use the same blocks: keep the mounting.
-        if isinstance(new, (MainBreaker, LineSideBreaker)) and isinstance(current, (MainBreaker, LineSideBreaker)):
+        # Mains, single and line-side breakers use the same blocks: keep the mounting.
+        if has_breaker and isinstance(new, (MainBreaker, SingleBreaker, LineSideBreaker)):
             new.mounting = current.mounting
         # A main breaker's own feed and an Incoming feed part carry over into each other.
         if kind == FEED and isinstance(current, MainBreaker) and current.feed is not None:
@@ -807,6 +898,7 @@ class ArrangementEditor(QGroupBox):
             editor.set_catalog(catalog)
         self.ct_editor.set_catalog(catalog)
         self.base_ct_editor.set_catalog(catalog)
+        self.taps_editor.set_catalog(catalog)
         if self._section is not None:
             self._rebuild_attribute_fields()
 
@@ -818,8 +910,7 @@ class ArrangementEditor(QGroupBox):
         breaker_values, io_values = {}, {}
         if isinstance(arrangement, (MainBreaker, SingleBreaker)) and self._catalog:
             is_main = isinstance(arrangement, MainBreaker)
-            mounting = arrangement.mounting if is_main else FIXED
-            breaker_block = self._catalog.get(self._settings.main_breaker.blocks[mounting])
+            breaker_block = self._catalog.get(self._settings.main_breaker.blocks[arrangement.mounting])
             breaker_values = arrangement.breaker.attributes
             if not is_main or arrangement.feed is not None:
                 io_block = self._catalog.get(self._settings.input_output.block)
@@ -846,7 +937,7 @@ class ArrangementEditor(QGroupBox):
 
     def _mounting_changed(self, mounting):
         arrangement = self._arrangement()
-        if isinstance(arrangement, (MainBreaker, LineSideBreaker)):
+        if isinstance(arrangement, (MainBreaker, SingleBreaker, LineSideBreaker)):
             arrangement.mounting = mounting
             self._rebuild_attribute_fields()     # the other block may have other attributes
             self.changed.emit()
@@ -1070,15 +1161,15 @@ class SectionEditor(QWidget):
     changed = Signal()
 
     def __init__(self, settings, catalog=None, comms_modules=(), meter_models=(),
-                 switchboard_provider=None):
+                 switchboard_provider=None, fuse=None):
         """`switchboard_provider()` returns the whole lineup (for the power meter list)."""
         super().__init__()
         self.title = QLabel()
         self.title.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.above_editor = ArrangementEditor("Above the main bus", "above", settings, catalog,
-                                              comms_modules, switchboard_provider)
+                                              comms_modules, switchboard_provider, fuse)
         self.below_editor = ArrangementEditor("Below the main bus", "below", settings, catalog,
-                                              comms_modules, switchboard_provider)
+                                              comms_modules, switchboard_provider, fuse)
         self.tie_editor = TieEditor(settings, catalog, comms_modules, switchboard_provider)
         self.devices_editor = DevicesEditor(meter_models, switchboard_provider)
         for editor in (self.above_editor, self.below_editor, self.tie_editor, self.devices_editor):

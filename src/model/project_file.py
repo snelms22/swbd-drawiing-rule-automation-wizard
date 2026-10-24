@@ -20,19 +20,22 @@ An arrangement ("above" / "below") has a "kind":
                       missing in older files, which then get the defaults.
     Mains, single breakers, ties and group-mounted parts may have CTs: "cts" / "base_cts" =
     {"meter": <power meter id>, "ratio", "attributes", "on_main_bus"} or null. Each section
-    has "power_meters": [{"id", "model"}]. (Missing in older files = none.)
+    has "power_meters": [{"id", "model", "remote_display"}]. (Missing in older files = none.)
     Every breaker also has "comms_module": e.g. "Siemens COM190", "" = none. (2.1.0 saved a
     true/false "comms" instead; it can't say which module, so it is read as none.)
     "main breaker":   label, mounting, breaker_feed, breaker_attributes, and its
                       "feed": {"id", "termination_feed", "input_attributes",
-                               "voltage_taps": [{"meter": <power meter id>}]}
-                      or "feed": null and "feed_from": <id of an incoming feed elsewhere>
+                               "voltage_taps": [{"meter": <power meter id>,
+                                                 "fuse_attributes": {...}}]}
+                      or "feed": null and "feed_from": <id of an incoming feed elsewhere>;
+                      "load_side_taps": voltage taps between it and the main bus, like
+                      the feed's "voltage_taps" (missing in older files = none)
     "incoming feed":  a feed by itself: the same fields as a main breaker's "feed"
     "line-side breaker": label, comms_module, mounting, breaker_attributes,
                       output_attributes, fed_from (the id of the feed it is fed from)
                       (format 1 kept termination_feed and input_attributes on the main
                       breaker itself; those files are read into a feed.)
-    "single breaker": label, breaker_feed, termination_feed,
+    "single breaker": label, mounting (missing in older files = fixed), breaker_feed, termination_feed,
                       breaker_attributes, output_attributes
     "group mounted":  levels, nearest the bus first:
                       {"type": "twin", "left": slot, "right": slot}
@@ -105,14 +108,19 @@ def _section_to_dict(section: Section) -> dict:
         "above": _arrangement_to_dict(contents.above),
         "below": _arrangement_to_dict(contents.below),
         "tie": _tie_to_dict(contents.tie),
-        "power_meters": [{"id": meter.id, "model": meter.model} for meter in contents.power_meters],
+        "power_meters": [{"id": meter.id, "model": meter.model, "remote_display": meter.remote_display}
+                         for meter in contents.power_meters],
     }
 
 
 def _feed_to_dict(feed):
     return {"id": feed.id, "termination_feed": feed.termination_feed,
             "input_attributes": dict(feed.input_attributes),
-            "voltage_taps": [{"meter": tap.meter_id} for tap in feed.voltage_taps]}
+            "voltage_taps": _taps_to_list(feed.voltage_taps)}
+
+
+def _taps_to_list(taps):
+    return [{"meter": tap.meter_id, "fuse_attributes": dict(tap.fuse_attributes)} for tap in taps]
 
 
 def _cts_to_dict(cts):
@@ -136,6 +144,7 @@ def _arrangement_to_dict(arrangement):
             "cts": _cts_to_dict(arrangement.cts),
             "feed": _feed_to_dict(arrangement.feed) if arrangement.feed is not None else None,
             "feed_from": arrangement.feed_from,
+            "load_side_taps": _taps_to_list(arrangement.load_side_taps),
         }
     if isinstance(arrangement, IncomingFeed):
         return {"kind": FEED, **_feed_to_dict(arrangement)}
@@ -154,6 +163,7 @@ def _arrangement_to_dict(arrangement):
             "kind": SINGLE,
             "label": arrangement.breaker.label,
             "comms_module": arrangement.breaker.comms_module,
+            "mounting": arrangement.mounting,
             "breaker_feed": arrangement.breaker_feed,
             "termination_feed": arrangement.termination_feed,
             "breaker_attributes": dict(arrangement.breaker.attributes),
@@ -246,7 +256,8 @@ def _section_from_dict(data: dict) -> Section:
             above=_arrangement_from_dict(data.get("above")),
             below=_arrangement_from_dict(data.get("below")),
             tie=_tie_from_dict(data.get("tie")),
-            power_meters=[PowerMeter(model=str(m.get("model", "")), id=str(m["id"]))
+            power_meters=[PowerMeter(model=str(m.get("model", "")), id=str(m["id"]),
+                                     remote_display=bool(m.get("remote_display", False)))
                           for m in data.get("power_meters") or []],
         ),
         push_to_next_page=bool(data.get("push_to_next_page", False)),
@@ -268,6 +279,7 @@ def _arrangement_from_dict(data):
             feed=(_feed_from_dict(data["feed"]) if data.get("feed") else
                   None if "feed" in data else _feed_from_dict(data)),
             feed_from=str(data.get("feed_from", "")),
+            load_side_taps=_taps_from_list(data.get("load_side_taps")),
         )
     if kind == FEED:
         return _feed_from_dict(data)
@@ -282,6 +294,7 @@ def _arrangement_from_dict(data):
             breaker_feed=data.get("breaker_feed", ""),
             termination_feed=data.get("termination_feed", ""),
             cts=_cts_from_dict(data.get("cts")),
+            mounting=data.get("mounting", FIXED),      # older files: always fixed
         )
     if kind == GROUP:
         return GroupMounted([_level_from_dict(level) for level in data["levels"]],
@@ -320,11 +333,16 @@ def _tie_from_dict(data):
 def _feed_from_dict(data):
     feed = IncomingFeed(input_attributes=_texts(data.get("input_attributes")),
                         termination_feed=data.get("termination_feed", ""),
-                        voltage_taps=[VoltageTap(meter_id=str(tap.get("meter", "")))
-                                      for tap in data.get("voltage_taps") or []])
+                        voltage_taps=_taps_from_list(data.get("voltage_taps")))
     if data.get("id"):
         feed.id = str(data["id"])
     return feed
+
+
+def _taps_from_list(items):
+    return [VoltageTap(meter_id=str(tap.get("meter", "")),
+                       fuse_attributes=_texts(tap.get("fuse_attributes")))
+            for tap in items or []]
 
 
 def _cts_from_dict(data):
@@ -381,7 +399,7 @@ def attributes_no_longer_on_blocks(switchboard: Switchboard, settings, catalog) 
                 check(where, mb.blocks[arrangement.mounting], arrangement.breaker.attributes)
                 check(where, io.block, arrangement.output_attributes)
             elif isinstance(arrangement, SingleBreaker):
-                check(where, mb.blocks[FIXED], arrangement.breaker.attributes)
+                check(where, mb.blocks[arrangement.mounting], arrangement.breaker.attributes)
                 check(where, io.block, arrangement.output_attributes)
             elif isinstance(arrangement, GroupMounted):
                 for level in arrangement.levels:

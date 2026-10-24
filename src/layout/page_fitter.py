@@ -27,6 +27,7 @@ Rules applied (each one is recorded in docs/DECISIONS.md):
 from dataclasses import dataclass, field
 
 from src.layout.current_transformers import ct_room, lineup_ct_attributes, tie_step_height
+from src.layout.device_pages import device_pages, three_line_sheet_values
 from src.layout.voltage_taps import lineup_tap_attributes, tap_room
 from src.layout.feeders import feeder_block
 from src.layout.incoming_feeds import crossing_height
@@ -114,10 +115,12 @@ class LayoutResult:
     warnings: list[str]
 
 
-def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) -> LayoutResult:
+def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None,
+              devices=None) -> LayoutResult:
     """Work out each section's size from its contents, then fit the sections onto pages.
     With a block catalog, main breakers are drawn with their real block; without one they
-    are placeholder boxes."""
+    are placeholder boxes. With the device settings (config/devices.json), the device pages
+    follow the 3-line pages (decision 2026-10-23)."""
     sections = switchboard.sections
     feeder = feeder_block(settings, catalog)      # None = group-mounted widths are placeholders
     room = ct_room(settings, catalog)             # None = CT block not catalogued: no CTs drawn
@@ -159,7 +162,8 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) 
                   - line_side_run(settings, taps, tap_count, False))
         name = f"{tie.feed.part}_height"
         setattr(sizes[main_index], name, getattr(sizes[main_index], name) + growth)
-        breaker_height = line_side_breaker_height(settings, catalog, room, main, tie.part, tie.breaker)
+        breaker_height = line_side_breaker_height(settings, catalog, room, main, tie.part, tie.breaker,
+                                                  taps)
         setattr(sizes[tie.section_index], f"{tie.part}_height", breaker_height)
         # Drawn from the main's bus height: the main's section must leave room for it too.
         setattr(sizes[main_index], name, max(getattr(sizes[main_index], name), breaker_height))
@@ -247,7 +251,28 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None) 
         boxes[tie.feed.section_index].line_side_ties[tie.feed.part] = (tie.section_index, tie.part)
     result = fit_boxes(boxes, settings, catalog)
     result.warnings[:0] = bus_warnings     # bus problems first: they explain later ones
+    if devices is not None and catalog is not None:
+        _add_device_pages(result, switchboard, settings, devices, catalog)
     return result
+
+
+def _add_device_pages(result, switchboard, settings, devices, catalog):
+    """The device pages after the 3-line pages, and the 3-line blocks that point at them
+    (a CT set's meter, a tap's fuse) given those pages' sheet numbers."""
+    section_pages = {placed.number: page.number for page in result.pages for placed in page.placed_sections}
+    devices_result = device_pages(switchboard, settings, devices, catalog, len(result.pages) + 1, section_pages)
+    lookups = three_line_sheet_values(settings, devices, devices_result.sheets)
+    for page in result.pages:
+        for block in page.parts.blocks:
+            for (block_name, name_attribute), (sheet_attribute, sheets) in lookups.items():
+                device = block.attributes.get(name_attribute)
+                if block.block == block_name and device in sheets:
+                    block.attributes[sheet_attribute] = sheets[device]
+    for page in devices_result.pages:
+        result.pages.append(Page(number=page["number"], side_margin=settings.margin_standard,
+                                 parts=PageParts(blocks=page["blocks"], wires=page["wires"],
+                                                 placeholders=page["placeholders"], notes=page["notes"])))
+    result.warnings += devices_result.warnings
 
 
 def _has_cts(sections) -> bool:

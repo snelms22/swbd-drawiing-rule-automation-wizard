@@ -15,8 +15,8 @@ The run is made long enough for the block plus `clearance` at each end (and the 
 block's own overhang), and the block is centred in it. Where the block reaches further
 sideways than what is already there, the section widens to make room.
 
-Numbering (src/model/devices.py): CT set k gets CT numbers 3k-2..3k and shorting kit k;
-LOCATION is the power meter it feeds (PM-n).
+Numbering (src/model/devices.py): CT set k in section s gets CT numbers s-(3k-2)..s-3k and
+shorting kit s-k; LOCATION is the power meter it feeds (PM-s-n).
 
 Pure Python, no AutoCAD. Coordinates are frame-relative.
 """
@@ -141,14 +141,15 @@ def tie_b_inset(tie, settings, room: CtRoom | None) -> float:
     return settings.placeholder_sizes.tie_breaker_width / 2
 
 
-def ct_attributes(settings, number: int, meter: str, cts) -> dict[str, str]:
+def ct_attributes(settings, ct_set, meter: str, cts) -> dict[str, str]:
     """The CT block's attribute values: what the engineer entered, then what the program
-    fills in (CT numbers, shorting kit number, the meter, the ratio)."""
+    fills in (CT numbers, shorting kit number, the meter, the ratio). `ct_set` is the
+    set's CtSetInfo (its numbers hold its section, decision 2026-10-23)."""
     config = settings.current_transformers
     values = dict(cts.attributes)
-    for tag, ct_number in zip(config.ct_number_attributes, range(3 * number - 2, 3 * number + 1)):
-        values[tag] = str(ct_number)
-    values[config.shorting_kit_attribute] = str(number)
+    for tag, ct_number in zip(config.ct_number_attributes, ct_set.ct_numbers):
+        values[tag] = ct_number
+    values[config.shorting_kit_attribute] = ct_set.code
     if meter:
         values[config.meter_attribute] = meter
     if cts.ratio:
@@ -162,12 +163,13 @@ def lineup_ct_attributes(switchboard, settings) -> list[dict[str, dict]]:
     for ct_set in ct_sets_in(switchboard):
         meter = meter_name(switchboard, ct_set.cts.meter_id)
         per_section[ct_set.section_number - 1][ct_set.part] = ct_attributes(
-            settings, ct_set.number, meter, ct_set.cts)
+            settings, ct_set, meter, ct_set.cts)
     return per_section
 
 
 def program_filled_tags(settings) -> set[str]:
-    """CT block attributes the program fills in (the editor doesn't offer them)."""
+    """CT block attributes the program fills in (the editor doesn't offer them). The sheet
+    is the meter's device page (filled when the device pages are laid out)."""
     config = settings.current_transformers
     return {*config.ct_number_attributes, config.shorting_kit_attribute, config.meter_attribute,
-            config.ratio_attribute}
+            config.ratio_attribute, config.sheet_attribute}

@@ -22,7 +22,8 @@ Useful facts:
 """
 from src.layout.block_catalog import BlockInfo
 from src.layout.settings import (
-    CurrentTransformerSettings, DividerSettings, LineSideBreakerSettings, VoltageTapSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
+    CurrentTransformerSettings, DevicePageSettings, DividerSettings, LineSideBreakerSettings,
+    VoltageTapSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
     BusBreakSettings, FeederSettings, InputOutputSettings, MainBreakerSettings, MainBusSettings, PlaceholderSizes,
     SectionLabelSettings, TextSettings,
 )
@@ -93,6 +94,15 @@ TEST_SETTINGS = LayoutSettings(
         vertical_state_source_below="CT LEFT - POLARITY BOTTOM", vertical_marker_suffix="_L",
         clearance=5.0, ct_number_attributes=["CT_A_DWG#", "CT_B_DWG#", "CT_C_DWG#"],
         shorting_kit_attribute="STB#", meter_attribute="LOCATION", ratio_attribute="CURRENT_RATIO",
+        sheet_attribute="SHEET#",
+    ),
+    device_pages=DevicePageSettings(
+        heading_format="SECTION {number}", heading_gap=4.0, unit_gap=10.0, row_gap=10.0,
+        group_gap=5.0, wire_spacing=5.0, stub_length=8.0, from_tap_label="FROM {page}",
+        to_meter_label="TO {meter} SHEET {sheet}", sheet_format="{page}",
+        placeholder_width=100.0, placeholder_height=40.0,
+        wire_break_block="TEST_WIRE_TILDE", wire_break_state="VERTICAL", wire_break_marker="CONN",
+        wire_break_text_attribute="TEXT_H", remote_display_gap=12.0, remote_display_rise=6.0,
     ),
     line_side_breakers=LineSideBreakerSettings(tie_gap=10.0, gap_to_breaker=15.0,
                                                gap_breaker_to_output=25.0),
@@ -189,6 +199,12 @@ TEST_CATALOG = {
         visibility_states=("FROM_LEFT", "FROM_TOP", "FROM_BOTTOM"),
         states={"FROM_LEFT": {"markers": {"LA": (0.0, 0.0), "LB": (5.0, -5.0), "LC": (10.0, -10.0)},
                               "extents": (-1.0, -12.0, 30.0, 2.0)}},
+    ),
+    # Shaped like TILDE_R0: a small squiggle centred on its CONN point.
+    "TEST_WIRE_TILDE": BlockInfo(
+        name="TEST_WIRE_TILDE", top_terminals=(), bottom_terminals=(), extents=(-1.25, -1.25, 1.25, 1.25),
+        visibility_states=("HORIZONTAL", "VERTICAL"),
+        states={"VERTICAL": {"markers": {"CONN": (0.0, 0.0)}, "extents": (-1.25, -0.83, 1.25, 0.83)}},
     ),
     "TEST_BRACKET": BlockInfo(
         name="TEST_BRACKET", top_terminals=(), bottom_terminals=(),

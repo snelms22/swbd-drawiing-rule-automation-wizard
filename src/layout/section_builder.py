@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 
 from src.layout.current_transformers import tie_column_width
 from src.layout.incoming_feeds import feed_width, main_lugs_height
+from src.layout.voltage_taps import bus_side_gap
 
 from src.model.section_contents import (
     Breaker, GroupMounted, IncomingFeed, LineSideBreaker, MainBreaker, SectionContents, SingleBreaker,
@@ -298,6 +299,23 @@ def riser_has_taps(arrangement, part, taps) -> bool:
     return breaker_feed == termination_feed == side_away_from_bus(part)
 
 
+def riser_load_side_taps(arrangement, part, taps) -> int:
+    """How many load-side voltage taps are drawn on this main breaker's riser (none yet for
+    a breaker fed on the bus side: its riser is a U-turn)."""
+    if not isinstance(arrangement, MainBreaker) or taps is None:
+        return 0
+    breaker_feed, _ = feed_directions(arrangement, part)
+    return len(arrangement.load_side_taps) if breaker_feed == side_away_from_bus(part) else 0
+
+
+def riser_bus_gap(arrangement, part, settings, room=None, taps=None) -> float:
+    """Main bus to a main / single breaker's near terminals: the usual gap, or longer for
+    CTs and load-side voltage taps."""
+    has_cts = riser_has_cts(arrangement, part, room)
+    return bus_side_gap(settings, taps, riser_load_side_taps(arrangement, part, taps),
+                        room if has_cts else None)
+
+
 def riser_has_cts(arrangement, part, room) -> bool:
     """Are CTs drawn on this main / single breaker's riser? (Not yet for a breaker fed on
     the bus side: its riser is a U-turn.)"""
@@ -325,9 +343,9 @@ def _arrangement_width(arrangement, part, settings, room=None, taps=None) -> flo
             # The riser moves right so the CTs clear the section's edge; the CTs reach
             # further right than the breaker.
             width = max(width + room.left, room.left + room.right)
-        if riser_has_taps(arrangement, part, taps):
+        if riser_has_taps(arrangement, part, taps) or riser_load_side_taps(arrangement, part, taps):
             # The taps' wires and "TO FA-n" reach right of the riser.
-            width = max(width, (room.left if has_cts else taps.left) + taps.right)
+            width = max(width, max(room.left if has_cts else 0.0, taps.left) + taps.right)
         return width
     if isinstance(arrangement, GroupMounted):
         return sizes.group_mounted_width
@@ -350,8 +368,9 @@ def _arrangement_height(arrangement, part, settings, room=None, taps=None) -> fl
         if breaker_feed != side_away_from_bus(part):
             # Fed on the bus side: the bus's U-turn goes past the breaker's far end.
             height += settings.main_breaker.u_turn_depth + 2 * settings.main_bus.phase_spacing
-        if riser_has_cts(arrangement, part, room):
-            height += room.riser_gap(settings) - settings.main_breaker.gap_bus_to_breaker
+        # CTs and load-side taps between the breaker and the main bus.
+        height += (riser_bus_gap(arrangement, part, settings, room, taps)
+                   - settings.main_breaker.gap_bus_to_breaker)
         if riser_has_taps(arrangement, part, taps):
             height += (taps.line_side_run(settings, len(arrangement.feed.voltage_taps))
                        - settings.main_breaker.gap_breaker_to_input)
