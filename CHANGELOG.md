@@ -1,5 +1,11 @@
 # Switchboard Configurator: release history
 
+## 2.2.1 (2026-10-26)
+- New: interlocks between main breakers (mechanical, electrical or both), set in the main breaker's Interlock box and drawn between the two mains
+- Scrolling the editor no longer changes drop-downs
+- The Model tab shows the new drawing straight away (no REGEN needed)
+- Uses the updated HYPER_A template (DEVIDER, GROUND and INTERLOCK layers)
+
 ## 2.2.0 (2026-10-23)
 - New: CTs, power meters, voltage taps and device pages, with device names that include their section (PM-3-1, FA-3-12)
 - Incoming feeds as their own part, plus load-bank breakers
