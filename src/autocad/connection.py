@@ -32,7 +32,7 @@ def is_flip_setting(property_name: str) -> bool:
 
 
 # AutoCAD's numbers for MText attachment points.
-ATTACH = {"middle_left": 4, "middle_right": 6, "bottom_left": 7, "bottom_center": 8}
+ATTACH = {"middle_left": 4, "middle_center": 5, "middle_right": 6, "bottom_left": 7, "bottom_center": 8}
 
 
 class AutocadBusyError(RuntimeError):
@@ -261,6 +261,9 @@ class Drawing:
         _retry(lambda: setattr(text, "AttachmentPoint", ATTACH[shape.align]))
         # Changing the attachment point moves the text, so put it back where it belongs.
         _retry(lambda: setattr(text, "InsertionPoint", insertion))
+        if shape.background_mask:
+            # Filled with the drawing's background colour, as in Sabey-011486's interlock text.
+            _retry(lambda: setattr(text, "BackgroundFill", True))
         return text
 
     def set_drawing_properties(self, values: dict[str, str]):
@@ -275,9 +278,18 @@ class Drawing:
             else:
                 _retry(lambda: info.AddCustomInfo(key, value))
 
-    def update_fields(self):
-        """Regenerate so fields (title block text from the drawing properties) update."""
-        _retry(lambda: self.document.Regen(1))          # 1 = all viewports
+    def regenerate(self, open_on: str):
+        """Regenerate the Model tab and then the page the drawing opens on (`open_on`).
+
+        Fields (title block text from the drawing properties) update on a regen. And AutoCAD
+        only regenerates the space that is showing: the drawing is made while a page is
+        showing, so without a regen in Model the Model tab kept its old picture (the
+        template's empty frames) until the person typed REGEN (2026-10-26). Switching tabs
+        doesn't move the view, so Model still opens where the template left it."""
+        layouts = _retry(lambda: self.document.Layouts)
+        for name in ("Model", open_on):
+            _retry(lambda: setattr(self.document, "ActiveLayout", layouts.Item(name)))
+            _retry(lambda: self.document.Regen(1))      # 1 = all viewports
 
     def keep_only_layouts(self, keep: list[str], open_on: str) -> list[str]:
         """Keep the layouts in `keep`, with their tabs in that order, and delete every other

@@ -22,7 +22,7 @@ Useful facts:
 """
 from src.layout.block_catalog import BlockInfo
 from src.layout.settings import (
-    CurrentTransformerSettings, DevicePageSettings, DividerSettings, LineSideBreakerSettings,
+    CurrentTransformerSettings, DevicePageSettings, DividerSettings, InterlockSettings, LineSideBreakerSettings,
     VoltageTapSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
     BusBreakSettings, FeederSettings, InputOutputSettings, MainBreakerSettings, MainBusSettings, PlaceholderSizes,
     SectionLabelSettings, TextSettings,
@@ -106,6 +106,11 @@ TEST_SETTINGS = LayoutSettings(
     ),
     line_side_breakers=LineSideBreakerSettings(tie_gap=10.0, gap_to_breaker=15.0,
                                                gap_breaker_to_output=25.0),
+    interlocks=InterlockSettings(
+        layer="INTERLOCK", start_past_left_c=2.5, end_before_right_a=1.0, background_mask=True,
+        text_mechanical=("MECHANICAL INTERLOCK",), text_electrical=("ELECTRICAL INTERLOCK",),
+        text_both=("MECHANICAL AND", "ELECTRICAL INTERLOCK"),
+    ),
     voltage_taps=VoltageTapSettings(
         block="TEST_TAP", layer="0", vertical_state="FROM_LEFT", vertical_markers=["LA", "LB", "LC"],
         clearance=5.0, fuse_number_attribute="FUSE_DRW_NUM", sheet_attribute="TO_SHEET",

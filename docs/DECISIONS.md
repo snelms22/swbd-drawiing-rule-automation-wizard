@@ -266,6 +266,60 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-10-26 — GROUND layer only for the main ground bus
+**Decision:** For what the program draws itself, the `GROUND` layer is for the main ground
+bus only (the ground bus line and its symbol); ground wires the program draws anywhere else
+go on the wire layer (`WIRE_GROUND` in HYPER_A). Layers inside a block are the block's
+business (BLOCK_LIBRARY_STANDARD rule 9): e.g. Janitza_UMG801's ground terminal on GROUND is
+fine. Sammy added `DEVIDER` and `GROUND` to the team template (HYPER_A) after purging layers.
+**Reason:** Sammy, 2026-10-26, with the template layer audit. The program draws no ground
+wires yet; the rule is for later.
+**Status:** Approved
+
+### 2026-10-26 — Interlocks are chosen by the engineer; plan to the next major release
+**Decision:**
+- **Interlocks (corrects 2026-10-19 item 10):** not every pair of mains is interlocked. The
+  engineer chooses which main breakers are interlocked and whether the interlock is
+  **mechanical, electrical, or both**. What "always drawn" meant: when there is an interlock,
+  the line is always on the drawing. For now an interlock is only between **main breakers in
+  sections next to each other**; if the engineer picks mains that aren't next door, a warning
+  says so. How it is entered and drawn (Sammy approved 2026-10-26):
+  - **Entered on the main breaker:** an "Interlock" box in the main breaker's editor:
+    "Interlocked with" (the other mains, by label and section) and Mechanical / Electrical
+    checkboxes. Each main gets a hidden id (as feeds have); the interlock is saved once, on
+    one of the two mains, and both mains' editors show it.
+  - **Drawn as in Sabey-011486 / NTT-013631:** a dashed line at the breakers' mid-height,
+    on its own layer `INTERLOCK` (Sammy changed this 2026-10-26: he added the layer to
+    HYPER_A, red, HIDDEN2; the references used the divider layer), from just past the left main's C pole (running through its label
+    text, as the references do) to just short of the right main's A pole.
+  - **Mains at different heights:** the line steps (across, up or down, across) between the
+    two sections, clear of the divider. Mains on opposite sides of the main bus: warning,
+    no line.
+  - **Same page:** interlocked sections are kept on one page (as if "link with next" were
+    ticked).
+  - **Text:** "MECHANICAL INTERLOCK", "ELECTRICAL INTERLOCK" or "MECHANICAL AND ELECTRICAL
+    INTERLOCK" by the checkboxes; height 1.25, layer 0, centred on the line with a background
+    mask. Wording, layer and gaps in config.
+  - **As built (2026-10-26, for review):** line from 2.5 past the left main's C terminal to 1
+    short of the right main's A terminal (`interlocks` in config/layout_settings.json); the
+    step sits halfway between the divider and the right section's contents (the empty strip
+    beside the divider); the text is centred on the line between the left main's block and
+    the end of the first run. One interlock per main for now: the "Interlocked with" list
+    leaves out mains already interlocked with another. Changing a main into anything else
+    removes its interlock. Code: `src/model/interlocks.py`, `src/layout/interlocks.py`.
+- **Mouse wheel:** a closed drop-down in the editor ignores the mouse wheel, so scrolling the
+  editor never changes a setting. An open (clicked) list still scrolls with the wheel
+  (`src/ui/widgets.py`, `ScrollSafeComboBox`).
+- **Page-numbering bug** (known issue since 2.1.0) waits: it needs a talk with the leads about
+  the template.
+- **Device pages** will likely become one section per page as more devices are added. Keep
+  adding one thing at a time and keep checking how the drawing works.
+- **Order of work:** (1) clean-up release 2.2.1: interlock line + mouse wheel; (2) power
+  supply, then communications; (3) next major release: re-assess the user interface (it is
+  getting cluttered as drawing logic is added).
+**Reason:** Sammy, 2026-10-26.
+**Status:** Approved; built and checked by Sammy in AutoCAD; released in 2.2.1 (2026-10-26)
+
 ### 2026-10-23 — Voltage taps on either side of a main breaker
 **Decision:**
 - Each voltage tap on a main breaker is on its **line side** (between the termination and
@@ -626,6 +680,8 @@ layout and how the engineer works with it once more is built.
    job number; feasibility to be looked into. Which fields go in the title block is not known yet.
 10. **The main-to-main interlock is always drawn** on the 3-line (dashed "MECHANICAL AND
     ELECTRICAL INTERLOCK" line between the mains). Jobs that leave it out are mistakes.
+    *Corrected 2026-10-26: only mains the engineer marks as interlocked get the line; see
+    "Interlocks are chosen by the engineer".*
 11. Sabey-011485's printed set (one-line printed, blank pages) is a mistake; Sammy will fix it.
 **Reason:** Sammy, 2026-10-19, on the 2026-10-19 study report.
 **Status:** Approved (items 1, 2, 6 and 8: designs to come)

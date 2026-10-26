@@ -200,6 +200,8 @@ class PagePreview(QWidget):
                                         page_top_px, centred=True)
         for note in parts.notes:
             self._draw_note(painter, note, page_top_px)
+        for interlock in parts.interlocks:
+            self._draw_interlock(painter, interlock, page_top_px)
         for box in parts.placeholders:
             painter.setPen(QPen(MARGIN_LINE, 1, Qt.DashLine))
             painter.setBrush(Qt.NoBrush)
@@ -267,6 +269,18 @@ class PagePreview(QWidget):
                                         centred=False, right_aligned=True)
             else:
                 self._draw_drawing_text(painter, line, note.x, bottom_y, page_top_px, centred=False)
+
+    def _draw_interlock(self, painter, interlock, page_top_px):
+        """The dashed interlock line (dividers' colour) and its text, centred on it."""
+        painter.setPen(QPen(DIVIDER_COLOR, 1.0, Qt.DashLine))
+        for start, end in zip(interlock.points, interlock.points[1:]):
+            painter.drawLine(self._to_screen(*start, page_top_px), self._to_screen(*end, page_top_px))
+        line_spacing = self._settings.text.height * NOTE_LINE_SPACING
+        lines = interlock.text_lines
+        top_bottom_y = interlock.text_y + (len(lines) - 2) * line_spacing / 2
+        for index, line in enumerate(lines):
+            self._draw_drawing_text(painter, line, interlock.text_x, top_bottom_y - index * line_spacing,
+                                    page_top_px, centred=True)
 
     def _draw_drawing_text(self, painter, text, x, bottom_y, page_top_px, centred,
                            right_aligned=False):

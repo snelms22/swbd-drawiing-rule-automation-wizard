@@ -131,7 +131,8 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
                         f"AutoCAD's current style was used.")
 
     for layer in (layout_settings.main_bus.layer, layout_settings.divider.layer,
-                  layout_settings.ground_bus.layer, layout_settings.text.layer):
+                  layout_settings.ground_bus.layer, layout_settings.text.layer,
+                  layout_settings.interlocks.layer):
         if drawing.ensure_layer(layer):
             problems.append(f'The template had no layer "{layer}"; it was created with default settings.')
     drawing.ensure_layer(autocad_settings.placeholder_layer,
@@ -164,7 +165,7 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
     pages = [autocad_settings.layout_name(page.number) for page in layout.pages]
     # Template pages (legend, BOM) first, then the 3-line pages; it opens on the first page.
     drawing.keep_only_layouts(autocad_settings.keep_layouts + pages, open_on=pages[0])
-    drawing.update_fields()
+    drawing.regenerate(open_on=pages[0])
 
     drawing.save()
     project_copy = None

@@ -38,6 +38,7 @@ from src.layout.main_bus import BusPlan, plan_bus, step_zone_width
 from src.layout.section_builder import plan_columns, section_size
 from src.model.devices import voltage_taps_in
 from src.model.feeds import feed_links, feeds_pointed_at, line_side_links, standalone_feeds
+from src.model.interlocks import interlock_links
 from src.model.switchboard import Switchboard
 
 # Allowance for floating-point rounding when comparing positions, so that a section
@@ -76,6 +77,9 @@ class SectionBox:
     # A feed a main breaker points at that can't be drawn (the warnings say why): it stays a
     # placeholder box instead of being drawn as main lugs only.
     feed_parts_not_drawn: set = field(default_factory=set)
+    # Interlocks (InterlockLinks) from a main in this section to a main in the next one
+    # (decision 2026-10-26); the two sections are linked so they share a page.
+    interlocks: list = field(default_factory=list)
 
 
 @dataclass
@@ -249,6 +253,12 @@ def fit_pages(switchboard: Switchboard, settings: LayoutSettings, catalog=None,
     for tie in line_side:
         boxes[min(tie.section_index, tie.feed.section_index)].link_with_next = True
         boxes[tie.feed.section_index].line_side_ties[tie.feed.part] = (tie.section_index, tie.part)
+    # Interlocked mains are kept on the same page (decision 2026-10-26).
+    interlocks, interlock_problems = interlock_links(switchboard)
+    bus_warnings += interlock_problems
+    for link in interlocks:
+        boxes[link.left.section_index].link_with_next = True
+        boxes[link.left.section_index].interlocks.append(link)
     result = fit_boxes(boxes, settings, catalog)
     result.warnings[:0] = bus_warnings     # bus problems first: they explain later ones
     if devices is not None and catalog is not None:

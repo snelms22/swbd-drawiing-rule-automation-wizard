@@ -134,6 +134,7 @@ class MainBreakerGeometry:
     placeholders: list[Placeholder] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    breaker: BlockPlacement | None = None   # the breaker block itself (for an interlock line)
 
 
 def main_breaker_geometry(main_breaker, part, placed, settings, catalog, starts_the_bus,
@@ -260,12 +261,13 @@ def riser_breaker_geometry(breaker, block_name, io_state, io_attributes, feeds, 
     far = [(base_x + x, base_y + y) for x, y in far_terminals]
     cable_end = near if fed_on_bus_side else far
 
-    geometry.blocks.append(BlockPlacement(
+    geometry.breaker = BlockPlacement(
         block=block_name, layer=mb.block_layer, position=(base_x, base_y),
         attributes=_filled({**breaker.attributes, mb.label_attribute: breaker.label}),
         visibility=mb.visibility,
         label=breaker.label, extents=block.extents,
-    ))
+    )
+    geometry.blocks.append(geometry.breaker)
     # What the CTs go after, coming from the breaker: its edge, or the last load-side tap.
     breaker_edge_y = base_y + (block.extents[1] if direction > 0 else block.extents[3])
     if draws_load_taps:

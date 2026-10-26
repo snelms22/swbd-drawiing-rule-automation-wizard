@@ -20,10 +20,12 @@ Rules applied:
 - Each section gets a "SECTION n" label (n = position in the lineup), centred between its
   two edges, below the ground bus. If that would put it in the title block, it moves up to
   sit just above the title block.
+- Two interlocked main breakers get the interlock line between them (interlocks.py).
 """
 from dataclasses import dataclass, field
 
 from src.layout.feeders import feeder_block, group_geometry
+from src.layout.interlocks import interlock_line
 from src.layout.main_breakers import (
     BlockPlacement, Crossing, LineSideTie, Placeholder, content_left_x, main_breaker_geometry,
     main_lugs_geometry, single_breaker_geometry, terminal_spacing_problem, tie_breaker_placement,
@@ -85,6 +87,7 @@ class PageParts:
     notes: list = field(default_factory=list)          # plain text, e.g. provision notes
     # Wires the program draws itself, each on its own layer (device pages, 2026-10-23).
     wires: list = field(default_factory=list)
+    interlocks: list = field(default_factory=list)     # InterlockLines (decision 2026-10-26)
     bus_start_path: list | None = None
     bus_end_path: list | None = None
     ground_bus: GroundBusLine | None = None
@@ -106,7 +109,9 @@ def add_page_parts(pages, settings, catalog=None, warnings=None):
 
     _add_dividers(pages, settings)
     for index, page in enumerate(pages):
-        drawn_parts = _add_arrangements(page, settings, catalog, warnings)
+        breakers = {}       # main breaker id -> its breaker block on this page
+        drawn_parts = _add_arrangements(page, settings, catalog, warnings, breakers)
+        _add_interlocks(page, settings, catalog, breakers, warnings)
         continues = index < len(pages) - 1
         _add_bus_paths(page, settings, catalog, continues)
         _add_content_boxes(page, settings, drawn_parts)
@@ -162,10 +167,10 @@ def _divider_clear_of_title_block(x, settings) -> DividerLine:
     return DividerLine(x, divider.bottom_y, divider.top_y)
 
 
-def _add_arrangements(page, settings, catalog, warnings=None) -> set:
+def _add_arrangements(page, settings, catalog, warnings=None, breakers=None) -> set:
     """Draw main breakers, single-breaker feeders and group-mounted feeders for real.
     Returns {(section number, part)} that were drawn, so their placeholder boxes are
-    left out."""
+    left out. Each main breaker's block goes in `breakers` by the main's id."""
     drawn = set()
     if catalog is None:
         return drawn
@@ -232,8 +237,28 @@ def _add_arrangements(page, settings, catalog, warnings=None) -> set:
             page.parts.notes += geometry.notes
             if warnings is not None:
                 warnings += geometry.warnings
+            if breakers is not None and isinstance(parts[part][0], MainBreaker) and geometry.breaker:
+                breakers[parts[part][0].id] = geometry.breaker
             drawn.add((placed.number, part))
     return drawn
+
+
+def _add_interlocks(page, settings, catalog, breakers, warnings=None):
+    """The interlock line between interlocked mains in neighbouring sections (decision
+    2026-10-26). Their sections are linked, so both are on this page unless they can't fit
+    on one page together."""
+    if catalog is None:
+        return                      # mains are placeholder boxes: nothing to line up with
+    for placed in page.placed_sections:
+        for link in placed.section.interlocks:
+            left, right = breakers.get(link.left.main.id), breakers.get(link.right.main.id)
+            if left is None or right is None:
+                if warnings is not None:
+                    warnings.append(f"{link.left.name} and {link.right.name}: their interlock "
+                                    f"line is not drawn (both breakers must be drawn on one page).")
+                continue
+            page.parts.interlocks.append(
+                interlock_line(link.interlock, left, right, placed.right_divider_x, settings, catalog))
 
 
 def _crossing(box, part, page, warnings, number):

@@ -38,7 +38,7 @@ Coordinates are frame-relative drawing units (frame drawable area 419.04 x 269.4
 | S2 | Input / output block | **Built** for main breakers (PHASE_LUGS_3L_R0) | State INPUT; flipped for top-fed, as is for bottom-fed; CONN_A on the bus end. Output (feeders) and neutral come later | DECISIONS |
 | S5 | Feed directions + U-turn | **Built** | Breaker Feed Direction / Termination Feed Direction (top / bottom) on main and single breakers; when they differ the bus U-turns to the right (depth 28.43, width 35) into the termination; bus-side feeding: bus U-turns over the breaker on the right, cables straight or U-turn left (warning kept); each U adds 35 to section width | NTT-013630, DECISIONS 2026-10-13 |
 | S3 | Tie breaker | **Built** (placeholder size) | Vertical, at the section's right edge, any section; bus steps up/down 70 | DECISIONS |
-| S4 | Main–main interlock | Approved (not built) | Always drawn: dashed line between the mains, "MECHANICAL AND ELECTRICAL INTERLOCK" | NTT-013631, Sabey-011486, DECISIONS 2026-10-19 |
+| S4 | Main–main interlock | **Built** (2.2.1) | Only when the engineer marks two mains (next-door sections) as interlocked: mechanical, electrical or both. Dashed polyline on its own layer INTERLOCK at the breakers' mid-height, 2.5 past the left main's C to 1 short of the right main's A; steps beside the divider when the heights differ; text h 1.25 centred on it, masked; sections kept on one page | NTT-013631, Sabey-011486, DECISIONS 2026-10-26 |
 
 ## Feeder parts
 

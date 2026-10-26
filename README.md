@@ -84,6 +84,30 @@ Built: layout engine (page fitting, page parts, main bus), section contents and 
 preview, and a first AutoCAD drawing (bus, dividers, ground bus, labels, placeholders).
 Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.md`.
 
+## Next up (Sammy, 2026-10-26)
+Order agreed with Sammy (DECISIONS 2026-10-26). Add one thing at a time and keep checking how
+the drawing works.
+
+1. **Power supply (24V)** — next. What we know so far:
+   - PRIME-014034: a power supply PS-1 fed from its own fuse (FA-2) off the same voltage tap
+     as a power meter's fuse (FA-1): this needs taps off taps (3j below).
+   - Device inputs are separate blocks (DECISIONS 2026-10-22); the power supply input block
+     (24V+/24V-) was listed as "comes later". HYPER_A has the wire layers `WIRE - 24+_RED`
+     and `WIRE - 24-_BLK`.
+   - Needed from Sammy before building: the power supply block (and its input block) in the
+     library, with CONN markers and attribute prompts; what it feeds (meters, comms, ATC?)
+     and whether it is drawn on the device pages.
+   - Wire routing gets its own design talk here: this is where the number of wires grows
+     (lanes in channels vs. a path-finding router; recommendation: lanes).
+2. **Communications page** (3 below): rules approved 2026-10-19 (3WA: COM190 + CAT6 home run
+   to the Ethernet switch; 3VA: COM060 on a COM800 chain through T-connectors, EOL
+   terminator); the comms drop-down on each breaker already exists.
+3. **Next major release: re-assess the user interface** (3h below). It is getting cluttered
+   as drawing logic is added.
+
+Waiting: the page-numbering bug (needs a talk with the leads about the template); device
+pages will likely become one section per page as devices are added.
+
 ## Docket (agreed next work, in order; added 2026-10-15)
 1. ~~Save and open projects~~ (built 2026-10-15: File menu, `.swbd` files).
 1b. ~~Release to the team~~ (2.0.0 released 2026-10-15; installer zipped 2026-10-16).
@@ -95,7 +119,10 @@ Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.m
    yet); then the communications page generated from the breakers (rules: DECISIONS
    2026-10-19). Then other devices on the 3-line.
 3b. ~~SPACE option~~ (built 2026-10-19, in 2.0.1).
-3c. **Main-to-main interlock line, always drawn** (DRAWING_PARTS S4, now approved).
+3c. ~~Interlock line between mains~~ (released in 2.2.1, 2026-10-26): the engineer picks
+   which mains are interlocked (mechanical, electrical or both) in the main breaker's
+   Interlock box; mains in sections next to each other only, otherwise a warning
+   (DECISIONS 2026-10-26).
 3d. **Single section switchboards** (one vertical bus, mains fed from the side): design to come.
 3e. ~~Line-side output breakers~~ (load bank; built 2026-10-22 with the feed / breaker split,
    DECISIONS 2026-10-22). Later: on a feed by itself, CTs on it, more than one per feed.
@@ -111,8 +138,7 @@ Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.m
 3h. **Re-assess the editor** (Sammy, 2026-10-22): once more is built, review the UI as a whole:
    where things are placed and how the engineer works with it. Wanted (Sammy, 2026-10-23):
    - **Duplicate a section** (with everything in it).
-   - **The mouse wheel must not change drop-downs** while scrolling the editor (only when the
-     drop-down was clicked).
+   - ~~**The mouse wheel must not change drop-downs** while scrolling the editor~~ (in 2.2.1).
    - **Copy and paste breakers** with Ctrl+C / Ctrl+V (and more copy / paste generally).
 3i. **Remote display** (`Remote_Distplay` block, RD-s-n): a checkbox on each power meter; drawn
    beside its meter on the device page, meter USB to display USB on layer 0 (approved 2026-10-23).

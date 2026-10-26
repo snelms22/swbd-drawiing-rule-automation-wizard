@@ -102,6 +102,16 @@
     "u_turn_termination_rise": 5.0,
     "u_turn_text_clearance": 5.0
   },
+  "interlocks": {
+    "note": "Dashed line between two interlocked main breakers (decision 2026-10-26), as in Sabey-011486 and NTT-013631 but on its own layer (Sammy added INTERLOCK to HYPER_A, 2026-10-26), at the breakers' mid-height, from start_past_left_c right of the left main's C terminal (through its label, as the references do) to end_before_right_a short of the right main's A terminal. Mains at different heights: the line steps halfway between the divider and the right section's contents. The text is centred on the line after the left main's block, one list entry per line of text, with a background mask so the dashes don't run through it.",
+    "layer": "INTERLOCK",
+    "start_past_left_c": 2.5,
+    "end_before_right_a": 1.0,
+    "background_mask": true,
+    "text_mechanical": ["MECHANICAL INTERLOCK"],
+    "text_electrical": ["ELECTRICAL INTERLOCK"],
+    "text_both": ["MECHANICAL AND", "ELECTRICAL INTERLOCK"]
+  },
   "input_output": {
     "note": "Sammy's input/output block. Not flipped = from/to the bottom; flipped = from/to the top.",
     "block": "PHASE_LUGS_3L_R0",

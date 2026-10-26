@@ -231,6 +231,23 @@ class FeederSettings:
 
 
 @dataclass(frozen=True)
+class InterlockSettings:
+    """The dashed line and text between two interlocked main breakers (decision 2026-10-26)."""
+    layer: str                  # the line's layer (its own layer, INTERLOCK, in HYPER_A)
+    start_past_left_c: float    # line starts this far right of the left main's C terminal
+    end_before_right_a: float   # ...and ends this far left of the right main's A terminal
+    background_mask: bool       # mask behind the text, so the dashes don't run through it
+    text_mechanical: tuple[str, ...]   # the text, one entry per line
+    text_electrical: tuple[str, ...]
+    text_both: tuple[str, ...]
+
+    def text_lines(self, interlock) -> tuple[str, ...]:
+        if interlock.mechanical and interlock.electrical:
+            return self.text_both
+        return self.text_mechanical if interlock.mechanical else self.text_electrical
+
+
+@dataclass(frozen=True)
 class InputOutputSettings:
     block: str          # library block for the input/output bus connection
     neutral_block: str  # the same with a neutral (not placed yet; checked by Audit Blocks)
@@ -263,6 +280,7 @@ class LayoutSettings:
     voltage_taps: VoltageTapSettings
     line_side_breakers: LineSideBreakerSettings
     device_pages: DevicePageSettings
+    interlocks: InterlockSettings
 
     @property
     def keepout_left_x(self) -> float:
@@ -406,6 +424,15 @@ def load_settings(path) -> LayoutSettings:
             remote_display_gap=_read_number(data, "device_pages", "remote_display_gap"),
             remote_display_rise=_read_number(data, "device_pages", "remote_display_rise"),
         ),
+        interlocks=InterlockSettings(
+            layer=_read_text(data, "interlocks", "layer"),
+            start_past_left_c=_read_number(data, "interlocks", "start_past_left_c"),
+            end_before_right_a=_read_number(data, "interlocks", "end_before_right_a"),
+            background_mask=_read_true_false(data, "interlocks", "background_mask"),
+            text_mechanical=_read_text_lines(data, "interlocks", "text_mechanical"),
+            text_electrical=_read_text_lines(data, "interlocks", "text_electrical"),
+            text_both=_read_text_lines(data, "interlocks", "text_both"),
+        ),
         line_side_breakers=LineSideBreakerSettings(
             tie_gap=_read_number(data, "line_side_breakers", "tie_gap"),
             gap_to_breaker=_read_number(data, "line_side_breakers", "gap_to_breaker"),
@@ -511,4 +538,19 @@ def _read_text(data, group, key) -> str:
     value = _read_value(data, group, key)
     if not isinstance(value, str) or not value:
         raise SettingsError(f'Setting "{group}.{key}" must be some text, got {value!r}.')
+    return value
+
+
+def _read_text_lines(data, group, key) -> tuple[str, ...]:
+    """Text written as a list, one entry per line on the drawing."""
+    value = _read_value(data, group, key)
+    if not isinstance(value, list) or not value or not all(isinstance(line, str) and line for line in value):
+        raise SettingsError(f'Setting "{group}.{key}" must be a list of text lines, got {value!r}.')
+    return tuple(value)
+
+
+def _read_true_false(data, group, key) -> bool:
+    value = _read_value(data, group, key)
+    if not isinstance(value, bool):
+        raise SettingsError(f'Setting "{group}.{key}" must be true or false, got {value!r}.')
     return value

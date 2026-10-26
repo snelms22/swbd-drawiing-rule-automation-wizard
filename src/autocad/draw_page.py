@@ -43,7 +43,8 @@ class Text:
     position: tuple[float, float]   # the point named by `align`
     height: float
     style: str
-    align: str                      # "bottom_left", "bottom_center", "middle_left", "middle_right"
+    align: str                      # "bottom_left", "bottom_center", "middle_left", "middle_right", "middle_center"
+    background_mask: bool = False   # hide what is behind the text (e.g. a dashed line through it)
 
 
 def page_shapes(page, settings, placeholder_layer: str) -> list:
@@ -63,6 +64,7 @@ def page_shapes(page, settings, placeholder_layer: str) -> list:
     shapes += [Line(wire.layer, wire.start, wire.end) for wire in parts.wires]
     shapes += _waiting_block_shapes(parts.placeholders, placeholder_layer, settings)
     shapes += _note_shapes(parts.notes, settings)
+    shapes += _interlock_shapes(parts.interlocks, settings)
     return shapes
 
 
@@ -148,6 +150,17 @@ def _note_shapes(notes, settings):
     t = settings.text
     return [Text(t.layer, MTEXT_NEW_LINE.join(note.lines), (note.x, note.middle_y), t.height, t.style,
                  note.align) for note in notes]
+
+
+def _interlock_shapes(interlocks, settings):
+    """Each interlock: its dashed line (the layer's linetype) and its text centred on it."""
+    s, t = settings.interlocks, settings.text
+    shapes = []
+    for line in interlocks:
+        shapes.append(Polyline(s.layer, line.points))
+        shapes.append(Text(t.layer, MTEXT_NEW_LINE.join(line.text_lines), (line.text_x, line.text_y),
+                           t.height, t.style, "middle_center", background_mask=s.background_mask))
+    return shapes
 
 
 def _waiting_block_shapes(placeholders, layer, settings):

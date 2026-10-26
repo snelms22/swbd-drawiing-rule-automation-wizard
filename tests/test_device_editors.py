@@ -126,3 +126,19 @@ def test_a_single_breaker_has_a_mounting_choice():
     assert section.contents.below.mounting == "draw-out"
     editor.close()
     del editor
+
+
+def test_mouse_wheel_does_not_change_a_closed_drop_down():
+    """Scrolling the editor over a drop-down must not change it (Sammy, 2026-10-23)."""
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from src.ui.widgets import ScrollSafeComboBox
+
+    combo = ScrollSafeComboBox()
+    combo.addItems(["top", "bottom"])
+    wheel_down = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, -120),
+                             Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+    APP.sendEvent(combo, wheel_down)
+    assert combo.currentIndex() == 0
+    assert not wheel_down.isAccepted()      # passed on, so the editor scrolls instead
+    combo.close()

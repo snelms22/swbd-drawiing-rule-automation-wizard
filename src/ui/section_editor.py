@@ -15,6 +15,10 @@ CTs and power meters (decision 2026-10-21): mains, single breakers, ties and gro
 parts each have a "Current transformers" box; each section has "Devices in this section"
 where its power meters are added.
 
+Interlocks (decision 2026-10-26): a main breaker's "Interlock" box picks the main it is
+interlocked with and whether the interlock is mechanical, electrical or both. Both mains
+show the same interlock.
+
 Incoming feeds (decision 2026-10-22): a main breaker's feed is "In this riser" (its
 Incoming feed box) or an "Incoming feed" part in the section next to it. An Incoming feed
 part that no main breaker picks is main lugs only. A "Line-side breaker" (load bank) picks
@@ -32,11 +36,13 @@ from src.layout.current_transformers import program_filled_tags
 from src.layout.section_builder import single_level_sides
 from src.model.devices import LINE_SIDE, LOAD_SIDE, meters_in, voltage_taps_in
 from src.model.feeds import all_feeds, main_fed_by, standalone_feeds
+from src.model.interlocks import interlock_of, mains_in, set_interlock
 from src.model.section_contents import (
     FEED_DIRECTIONS, MOUNTINGS, Breaker, CurrentTransformers, GroupMounted, IncomingFeed,
     LineSideBreaker, MainBreaker, PowerMeter, Provision, SingleBreaker, SingleLevel, Space, TieBreaker, TwinLevel,
     VoltageTap, feed_directions, side_away_from_bus,
 )
+from src.ui.widgets import ScrollSafeComboBox
 
 EMPTY = "Empty"
 MAIN = "Main breaker"
@@ -60,7 +66,7 @@ NO_COMMS = "None"                  # comms drop-down: no communication module
 
 def comms_combo(modules) -> QComboBox:
     """Drop-down of communication modules (config/devices.json), "None" first."""
-    combo = QComboBox()
+    combo = ScrollSafeComboBox()
     combo.addItems([NO_COMMS] + list(modules))
     return combo
 
@@ -142,7 +148,7 @@ class CtEditor(QGroupBox):
         self._switchboard = switchboard_provider or (lambda: None)
         self._owner = None
         self.setCheckable(True)
-        self.meter_combo = QComboBox()
+        self.meter_combo = ScrollSafeComboBox()
         self.ratio_edit = QLineEdit()
         self.ratio_edit.setPlaceholderText("e.g. 4000:5A")
         # Mains only (decision 2026-10-21, kept as a choice): measure on the main bus after
@@ -215,6 +221,81 @@ class CtEditor(QGroupBox):
         self.changed.emit()
 
 
+NO_INTERLOCK = "None"
+
+
+class InterlockEditor(QGroupBox):
+    """A main breaker's interlock with another main breaker (decision 2026-10-26): which main,
+    and mechanical, electrical or both. The interlock is kept on one of the two mains
+    (src/model/interlocks.py); this box shows it on both and edits that one record."""
+    changed = Signal()
+
+    def __init__(self, switchboard_provider=None):
+        super().__init__("Interlock")
+        self._switchboard = switchboard_provider or (lambda: None)
+        self._main = None
+        self.with_combo = ScrollSafeComboBox()
+        self.mechanical_check = QCheckBox("Mechanical")
+        self.electrical_check = QCheckBox("Electrical")
+        kinds = QHBoxLayout()
+        kinds.addWidget(self.mechanical_check)
+        kinds.addWidget(self.electrical_check)
+        kinds.addStretch()
+        form = QFormLayout(self)
+        form.addRow("Interlocked with", self.with_combo)
+        form.addRow("Interlock", kinds)
+        self.with_combo.currentIndexChanged.connect(self._with_changed)
+        self.mechanical_check.toggled.connect(self._kind_edited)
+        self.electrical_check.toggled.connect(self._kind_edited)
+
+    def load(self, main):
+        """Show the interlock of `main` (a MainBreaker), or nothing when None."""
+        self._main = main
+        switchboard = self._switchboard()
+        if main is None or switchboard is None:
+            return
+        found = interlock_of(switchboard, main)
+        lock, other_id = found if found else (None, "")
+        self.with_combo.blockSignals(True)
+        self.with_combo.clear()
+        self.with_combo.addItem(NO_INTERLOCK, "")
+        for place in mains_in(switchboard):
+            if place.main is main:
+                continue
+            taken = interlock_of(switchboard, place.main)
+            if taken is not None and taken[1] != main.id and place.main.id != other_id:
+                continue              # already interlocked with another main (one each for now)
+            self.with_combo.addItem(place.name, place.main.id)
+        index = self.with_combo.findData(other_id)
+        if index < 0:
+            self.with_combo.addItem("(that main breaker was removed)", other_id)
+            index = self.with_combo.count() - 1
+        self.with_combo.setCurrentIndex(index)
+        self.with_combo.blockSignals(False)
+        _set_quietly(self.mechanical_check, self.mechanical_check.setChecked, bool(lock and lock.mechanical))
+        _set_quietly(self.electrical_check, self.electrical_check.setChecked, bool(lock and lock.electrical))
+        for check in (self.mechanical_check, self.electrical_check):
+            check.setEnabled(lock is not None)
+
+    def _with_changed(self, *_):
+        switchboard = self._switchboard()
+        if self._main is None or switchboard is None:
+            return
+        set_interlock(switchboard, self._main, self.with_combo.currentData() or "",
+                      self.mechanical_check.isChecked(), self.electrical_check.isChecked())
+        self.load(self._main)
+        self.changed.emit()
+
+    def _kind_edited(self, *_):
+        found = interlock_of(self._switchboard(), self._main) if self._main is not None else None
+        if found is None:
+            return
+        lock, _ = found
+        lock.mechanical = self.mechanical_check.isChecked()
+        lock.electrical = self.electrical_check.isChecked()
+        self.changed.emit()
+
+
 class VoltageTapsEditor(QGroupBox):
     """Voltage taps on an incoming feed (decision 2026-10-22) and, for a main breaker, on its
     load side (decision 2026-10-23): each tap says which side of the main it is on. Each tap
@@ -238,11 +319,11 @@ class VoltageTapsEditor(QGroupBox):
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(self._remove_tap)
         # Which side of the main breaker: its line side (on its feed) or its load side.
-        self.side_combo = QComboBox()
+        self.side_combo = ScrollSafeComboBox()
         self.side_combo.addItem("Line side", LINE_SIDE)
         self.side_combo.addItem("Load side", LOAD_SIDE)
         self.side_combo.currentIndexChanged.connect(self._side_changed)
-        self.meter_combo = QComboBox()
+        self.meter_combo = ScrollSafeComboBox()
         self.meter_combo.currentIndexChanged.connect(self._meter_changed)
         buttons = QHBoxLayout()
         buttons.addWidget(add_button)
@@ -409,7 +490,7 @@ class DevicesEditor(QGroupBox):
         add_button.clicked.connect(self._add_meter)
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(self._remove_meter)
-        self.model_combo = QComboBox()
+        self.model_combo = ScrollSafeComboBox()
         self.model_combo.currentTextChanged.connect(self._model_changed)
         buttons = QHBoxLayout()
         buttons.addWidget(add_button)
@@ -503,7 +584,7 @@ class SlotEditor(QWidget):
         self._catalog = catalog
         self._slot = None
         self.label_edit = QLineEdit()
-        self.kind_combo = QComboBox()
+        self.kind_combo = ScrollSafeComboBox()
         self.kind_combo.addItems(SLOT_KINDS)
         self.attributes_box = QGroupBox("Breaker block attributes")
         self.attributes_form = QFormLayout(self.attributes_box)
@@ -585,7 +666,7 @@ class ArrangementEditor(QGroupBox):
         self._catalog = catalog      # library blocks (attributes, prompts); None = no fields
         self._section = None
 
-        self.kind_combo = QComboBox()
+        self.kind_combo = ScrollSafeComboBox()
         self.kind_combo.addItems(ARRANGEMENT_CHOICES)
         self.kind_combo.currentTextChanged.connect(self._kind_changed)
 
@@ -594,17 +675,17 @@ class ArrangementEditor(QGroupBox):
         self.breaker_label.setPlaceholderText("e.g. 52-MCB-01")
         self.breaker_label.textEdited.connect(self._breaker_label_edited)
         # Main breakers only: fixed or draw-out (each is a library block, set in config).
-        self.mounting_combo = QComboBox()
+        self.mounting_combo = ScrollSafeComboBox()
         self.mounting_combo.addItems(MOUNTINGS)
         self.mounting_combo.currentTextChanged.connect(self._mounting_changed)
         self.mounting_label = QLabel("Mounting")
         # Main and single breakers: which end of the breaker the cables connect to, and
         # which side of the cabinet they come in from (decision 2026-10-13). When the two
         # differ, the bus U-turns between the breaker and the termination.
-        self.breaker_feed_combo = QComboBox()
+        self.breaker_feed_combo = ScrollSafeComboBox()
         self.breaker_feed_combo.addItems(FEED_DIRECTIONS)
         self.breaker_feed_combo.currentTextChanged.connect(self._feeds_changed)
-        self.termination_feed_combo = QComboBox()
+        self.termination_feed_combo = ScrollSafeComboBox()
         self.termination_feed_combo.addItems(FEED_DIRECTIONS)
         self.termination_feed_combo.currentTextChanged.connect(self._feeds_changed)
         breaker_page = QWidget()
@@ -623,15 +704,19 @@ class ArrangementEditor(QGroupBox):
         self.ct_editor = CtEditor("Current transformers", "cts", settings, catalog, switchboard_provider)
         self.ct_editor.changed.connect(self.changed)
         breaker_form.addRow(self.ct_editor)
+        # Main breakers: interlocked with another main (decision 2026-10-26).
+        self.interlock_editor = InterlockEditor(switchboard_provider)
+        self.interlock_editor.changed.connect(self.changed)
+        breaker_form.addRow(self.interlock_editor)
         # Main breakers: where the feed is (decision 2026-10-22).
-        self.feed_source_combo = QComboBox()
+        self.feed_source_combo = ScrollSafeComboBox()
         self.feed_source_combo.currentIndexChanged.connect(self._feed_source_changed)
         breaker_form.addRow("Feed", self.feed_source_combo)
         # An Incoming feed part: what it goes to (worked out from the lineup).
         self.feed_info = QLabel()
         breaker_form.addRow(self.feed_info)
         # A line-side breaker: the feed it is fed from.
-        self.fed_from_combo = QComboBox()
+        self.fed_from_combo = ScrollSafeComboBox()
         self.fed_from_combo.currentIndexChanged.connect(self._fed_from_changed)
         breaker_form.addRow("Fed from", self.fed_from_combo)
         # The termination: a main breaker's incoming feed, an Incoming feed part, or a
@@ -747,6 +832,7 @@ class ArrangementEditor(QGroupBox):
             self.breaker_form.setRowVisible(widget, not is_feed and not is_line_side)
         self.breaker_form.setRowVisible(self.mounting_combo, kind in (MAIN, SINGLE, LINE_SIDE))
         self.breaker_form.setRowVisible(self.feed_source_combo, is_main)
+        self.breaker_form.setRowVisible(self.interlock_editor, is_main)
         self.breaker_form.setRowVisible(self.feed_info, is_feed)
         self.breaker_form.setRowVisible(self.fed_from_combo, is_line_side)
         self.termination_form.setRowVisible(self.termination_feed_combo, not is_line_side)
@@ -760,6 +846,7 @@ class ArrangementEditor(QGroupBox):
             self.feed_info.setText(self._feed_goes_to(arrangement))
         self._rebuild_attribute_fields()
         self.ct_editor.load(arrangement if kind in (MAIN, SINGLE) else None)
+        self.interlock_editor.load(arrangement if is_main else None)
         self.base_ct_editor.load(arrangement if kind == GROUP else None)
         feed = arrangement if is_feed else arrangement.feed if is_main else None
         self.termination_box.setTitle("Output" if kind in (SINGLE, LINE_SIDE) else "Incoming feed")
@@ -863,6 +950,9 @@ class ArrangementEditor(QGroupBox):
 
     def _kind_changed(self, kind):
         current = self._arrangement()
+        switchboard = self._switchboard_provider() if self._switchboard_provider else None
+        if isinstance(current, MainBreaker) and switchboard is not None:
+            set_interlock(switchboard, current, "")   # it is no longer a main: no interlock
         # Keep the breaker (and its feed directions) when switching between Main and
         # Single, so what was entered survives.
         was_breaker = isinstance(current, (MainBreaker, SingleBreaker))
@@ -1079,9 +1169,9 @@ class TieEditor(QGroupBox):
         self.include_check = QCheckBox("Include a tie breaker")
         self.label_edit = QLineEdit()
         self.label_edit.setPlaceholderText("e.g. 52-TB02")
-        self.steps_combo = QComboBox()
+        self.steps_combo = ScrollSafeComboBox()
         self.steps_combo.addItems(["down", "up"])
-        self.mounting_combo = QComboBox()
+        self.mounting_combo = ScrollSafeComboBox()
         self.mounting_combo.addItems(MOUNTINGS)
         form = QFormLayout(self)
         form.addRow(self.include_check)

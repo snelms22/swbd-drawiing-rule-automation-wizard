@@ -126,6 +126,15 @@ FEED_DIRECTIONS = [TOP, BOTTOM]
 
 
 @dataclass
+class Interlock:
+    """Two main breakers interlocked so they can't both be closed (decision 2026-10-26). Kept
+    on one of the two mains; `with_main` is the other main's id (src/model/interlocks.py)."""
+    with_main: str = ""
+    mechanical: bool = False
+    electrical: bool = False
+
+
+@dataclass
 class MainBreaker:
     breaker: Breaker
     mounting: str = FIXED           # "fixed" or "draw-out"
@@ -138,6 +147,10 @@ class MainBreaker:
     # Voltage taps on its load side, between the breaker and the main bus (decision
     # 2026-10-23). Line-side taps belong to its feed.
     load_side_taps: list[VoltageTap] = field(default_factory=list)
+    # Its interlock with another main breaker, when it was set on this one (decision
+    # 2026-10-26). An interlock set on the other main points here by this id.
+    interlock: Interlock | None = None
+    id: str = field(default_factory=new_device_id)
 
 
 @dataclass

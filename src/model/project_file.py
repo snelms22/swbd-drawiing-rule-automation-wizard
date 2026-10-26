@@ -29,7 +29,10 @@ An arrangement ("above" / "below") has a "kind":
                                                  "fuse_attributes": {...}}]}
                       or "feed": null and "feed_from": <id of an incoming feed elsewhere>;
                       "load_side_taps": voltage taps between it and the main bus, like
-                      the feed's "voltage_taps" (missing in older files = none)
+                      the feed's "voltage_taps" (missing in older files = none);
+                      "id" and "interlock": {"with_main": <the other main's id>,
+                      "mechanical", "electrical"} or null (2026-10-26; missing in older
+                      files = a new id and no interlock)
     "incoming feed":  a feed by itself: the same fields as a main breaker's "feed"
     "line-side breaker": label, comms_module, mounting, breaker_attributes,
                       output_attributes, fed_from (the id of the feed it is fed from)
@@ -51,7 +54,7 @@ import json
 from pathlib import Path
 
 from src.model.section_contents import (
-    FIXED, Breaker, CurrentTransformers, GroupMounted, IncomingFeed, LineSideBreaker, MainBreaker,
+    FIXED, Breaker, CurrentTransformers, GroupMounted, IncomingFeed, Interlock, LineSideBreaker, MainBreaker,
     PowerMeter,
     Provision, SectionContents, SingleBreaker, Space, VoltageTap,
     SingleLevel, TieBreaker, TwinLevel,
@@ -145,6 +148,8 @@ def _arrangement_to_dict(arrangement):
             "feed": _feed_to_dict(arrangement.feed) if arrangement.feed is not None else None,
             "feed_from": arrangement.feed_from,
             "load_side_taps": _taps_to_list(arrangement.load_side_taps),
+            "id": arrangement.id,
+            "interlock": asdict(arrangement.interlock) if arrangement.interlock is not None else None,
         }
     if isinstance(arrangement, IncomingFeed):
         return {"kind": FEED, **_feed_to_dict(arrangement)}
@@ -280,6 +285,8 @@ def _arrangement_from_dict(data):
                   None if "feed" in data else _feed_from_dict(data)),
             feed_from=str(data.get("feed_from", "")),
             load_side_taps=_taps_from_list(data.get("load_side_taps")),
+            interlock=_interlock_from_dict(data.get("interlock")),
+            **({"id": str(data["id"])} if data.get("id") else {}),     # older files: a new id
         )
     if kind == FEED:
         return _feed_from_dict(data)
@@ -337,6 +344,14 @@ def _feed_from_dict(data):
     if data.get("id"):
         feed.id = str(data["id"])
     return feed
+
+
+def _interlock_from_dict(data):
+    if not data:
+        return None
+    return Interlock(with_main=str(data.get("with_main", "")),
+                     mechanical=bool(data.get("mechanical", False)),
+                     electrical=bool(data.get("electrical", False)))
 
 
 def _taps_from_list(items):
