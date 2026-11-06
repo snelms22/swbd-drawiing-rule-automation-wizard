@@ -181,6 +181,9 @@ class DevicePageSettings:
     wire_break_state: str        # its state on a vertical wire
     wire_break_marker: str       # its connection point (on the wire end)
     wire_break_text_attribute: str   # its text, left empty
+    wire_break_state_horizontal: str # its state on a horizontal wire (beside a power supply)
+    wire_break_flip_horizontal: str  # the flip that mirrors it left-right there
+    from_fuse_label: str         # a power supply's inputs when its fuse is in another section
     remote_display_gap: float    # meter USB to the remote display, sideways
     remote_display_rise: float   # ... then up into the display's USB
 
@@ -421,6 +424,9 @@ def load_settings(path) -> LayoutSettings:
             wire_break_state=_read_text(data, "device_pages", "wire_break_state"),
             wire_break_marker=_read_text(data, "device_pages", "wire_break_marker"),
             wire_break_text_attribute=_read_text(data, "device_pages", "wire_break_text_attribute"),
+            wire_break_state_horizontal=_read_text(data, "device_pages", "wire_break_state_horizontal"),
+            wire_break_flip_horizontal=_read_text(data, "device_pages", "wire_break_flip_horizontal"),
+            from_fuse_label=_read_text(data, "device_pages", "from_fuse_label"),
             remote_display_gap=_read_number(data, "device_pages", "remote_display_gap"),
             remote_display_rise=_read_number(data, "device_pages", "remote_display_rise"),
         ),

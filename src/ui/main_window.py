@@ -108,7 +108,8 @@ class MainWindow(QMainWindow):
         meter_models = device_settings.power_meter_models if device_settings else []
         self.editor = SectionEditor(settings, catalog, comms_modules, meter_models,
                                     switchboard_provider=lambda: self._switchboard,
-                                    fuse=device_settings.fuse if device_settings else None)
+                                    fuse=device_settings.fuse if device_settings else None,
+                                    power_supply=device_settings.power_supply if device_settings else None)
         self.editor.changed.connect(self._edited)
         self.drawing_info_editor = DrawingInfoEditor(drawing_info_settings)
         self.drawing_info_editor.changed.connect(self._edited)

@@ -49,8 +49,9 @@ def test_a_model_without_a_block_is_not_checked():
 def test_the_real_devices_file_loads_and_names_its_blocks():
     devices = load_device_settings("config/devices.json")
     assert devices.power_meter_models == ["Janitza UMG 801", "Schneider PM8000"]
-    assert devices.device_blocks() == ["3P_2P_FUSE_DISCONECT", "CT_Current_Input", "Janitza_UMG801",
-                                      "Remote_Distplay", "Voltage_UMG801_Input"]
+    assert devices.device_blocks() == ["3P_2P_FUSE_DISCONECT", "3P_PWR_SUP", "CT_Current_Input",
+                                      "Janitza_UMG801", "Remote_Distplay", "Voltage_UMG801_Input"]
+    assert devices.power_supply.inputs == {"A": "L1", "B": "L2", "C": "L3"}
     janitza = devices.power_meters["Janitza UMG 801"]
     assert janitza.voltage_input.lands_on == {"V_A": "V1", "V_B": "VN", "V_C": "V3"}
     assert [i.lands_on["CT_A+"] for i in janitza.current_inputs] == ["I1+", "I5+"]

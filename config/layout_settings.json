@@ -218,6 +218,11 @@
     "wire_break_state": "VERTICAL",
     "wire_break_marker": "CONN",
     "wire_break_text_attribute": "TEXT_H",
+    "wire_break_state_horizontal": "HORIZONTAL",
+    "wire_break_flip_horizontal_note": "Lying tildes (wires arriving from the left, beside a power supply) are mirrored with only this flip setting (Sammy, 2026-11-05; Flip state1 mirrors TILDE_R0 left-right, read from the block).",
+    "wire_break_flip_horizontal": "Flip state1",
+    "from_fuse_label_note": "A power supply's inputs when its fuse is in another section (decision 2026-11-05). to_meter_label is used for a fuse going TO a power supply too.",
+    "from_fuse_label": "FROM {fuse} SHEET {sheet}",
     "remote_display_note": "A meter's remote display stands to the left of the meter: the USB line runs remote_display_gap left from the meter's USB marker, then up remote_display_rise into the display's USB marker (at its bottom).",
     "remote_display_gap": 12.0,
     "remote_display_rise": 6.0

@@ -78,13 +78,23 @@ class PowerMeter:
 
 
 @dataclass
+class PowerSupply:
+    """A control power supply mounted in a section (decision 2026-11-05), named PS-s-n (s = its
+    section, n through the lineup). Fed by a voltage tap. 3-pole (480 V to 24 V) for now; the
+    2-pole (120 V to 24 V) comes with a 120 V source."""
+    attributes: dict[str, str] = field(default_factory=dict)   # its block's attributes (rating, ...)
+    id: str = field(default_factory=new_device_id)
+
+
+@dataclass
 class VoltageTap:
     """A fused voltage tap for a power meter's voltage input (decision 2026-10-22): on a
     feed (a main breaker's line side) or on a main breaker's load side, between the
     breaker and the main bus (decision 2026-10-23). Its fuse is numbered FA-s-n (s = the tap's section, n through
     the lineup) and is drawn on the device pages; the 3-line shows the tap and
-    "TO FA-s-n SHEET #"."""
-    meter_id: str = ""              # the PowerMeter it feeds; "" = not chosen yet
+    "TO FA-s-n SHEET #". It feeds a power meter's voltage input or a power supply
+    (decision 2026-11-05)."""
+    feeds: str = ""                 # id of the PowerMeter or PowerSupply it feeds; "" = not chosen yet
     # Values for its fuse block's attributes, e.g. the rating (decision 2026-10-23).
     fuse_attributes: dict[str, str] = field(default_factory=dict)
 
@@ -210,8 +220,9 @@ class SectionContents:
     above: Arrangement | None = None
     below: Arrangement | None = None
     tie: TieBreaker | None = None
-    # Devices mounted in this section (decision 2026-10-21).
+    # Devices mounted in this section (decisions 2026-10-21, 2026-11-05).
     power_meters: list[PowerMeter] = field(default_factory=list)
+    power_supplies: list[PowerSupply] = field(default_factory=list)
 
 
 def side_away_from_bus(part: str) -> str:

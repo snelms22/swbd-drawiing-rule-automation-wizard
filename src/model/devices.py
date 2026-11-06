@@ -16,6 +16,8 @@ section 3 is FA-3-12. Numbers count through the whole lineup; the block holds th
                    s-(3k-1), s-3k and shorting kit STB-s-k.
     Voltage taps:  fuses FA-s-n, n in lineup order (per section: above, below; each feed's
                    taps in the order entered); s = the tap's section, where the fuse lives.
+                   A tap feeds a power meter or a power supply (decision 2026-11-05).
+    Power supplies: PS-s-n, n in lineup order; s = the section it is mounted in.
 """
 import json
 from dataclasses import dataclass
@@ -67,6 +69,11 @@ class FuseSettings:
     number_attribute: str           # gets the fuse's number after "FA-"
     layer: str
     wire_layers: dict               # {phase: layer} for the wires the program draws
+    # Lying down beside a device whose inputs face sideways, e.g. a power supply (decision
+    # 2026-11-05): its state and markers then. "" / None = can't be drawn that way.
+    horizontal_state: str = ""
+    horizontal_line_markers: dict = None    # {phase: marker} line side (left)
+    horizontal_load_markers: dict = None    # {phase: marker} load side (right)
 
 
 @dataclass(frozen=True)
@@ -80,11 +87,21 @@ class RemoteDisplaySettings:
 
 
 @dataclass(frozen=True)
+class PowerSupplySettings:
+    """The control power supply (decision 2026-11-05): 3-pole, 480 V to 24 V, for now."""
+    block: str
+    inputs: dict                    # {phase: marker} where its fuse's wires land (A: L1, ...)
+    number_attribute: str           # gets its number after "PS-"
+    layer: str
+
+
+@dataclass(frozen=True)
 class DeviceSettings:
     comms_modules: list          # e.g. ["Siemens COM190", "Siemens COM800"]
     power_meters: dict           # {model name: MeterModel}
     fuse: FuseSettings | None = None
     remote_display: RemoteDisplaySettings | None = None
+    power_supply: PowerSupplySettings | None = None
 
     @property
     def power_meter_models(self) -> list[str]:
@@ -101,6 +118,8 @@ class DeviceSettings:
             names.append(self.fuse.block)
         if self.remote_display is not None:
             names.append(self.remote_display.block)
+        if self.power_supply is not None:
+            names.append(self.power_supply.block)
         return sorted(set(names))
 
 
@@ -113,6 +132,7 @@ def load_device_settings(path) -> DeviceSettings:
             power_meters={name: _meter_model(name, entry) for name, entry in data["power_meters"].items()},
             fuse=_fuse(data["voltage_tap_fuse"]) if "voltage_tap_fuse" in data else None,
             remote_display=RemoteDisplaySettings(**data["remote_display"]) if "remote_display" in data else None,
+            power_supply=_power_supply(data["power_supply"]) if "power_supply" in data else None,
         )
     except FileNotFoundError:
         raise SettingsError(f"Settings file not found: {path}")
@@ -137,7 +157,16 @@ def _fuse(data) -> FuseSettings:
     return FuseSettings(block=str(data["block"]), state=str(data["state"]),
                         line_markers=dict(data["line_markers"]), load_markers=dict(data["load_markers"]),
                         number_attribute=str(data["number_attribute"]), layer=str(data.get("layer", "0")),
-                        wire_layers=dict(data["wire_layers"]))
+                        wire_layers=dict(data["wire_layers"]),
+                        horizontal_state=str(data.get("horizontal_state", "")),
+                        horizontal_line_markers=dict(data.get("horizontal_line_markers") or {}) or None,
+                        horizontal_load_markers=dict(data.get("horizontal_load_markers") or {}) or None)
+
+
+def _power_supply(data) -> PowerSupplySettings:
+    return PowerSupplySettings(block=str(data["block"]), inputs=dict(data["inputs"]),
+                               number_attribute=str(data["number_attribute"]),
+                               layer=str(data.get("layer", "0")))
 
 
 TOLERANCE = 0.05     # markers closer than this count as the same point
@@ -235,6 +264,30 @@ def meters_in(switchboard) -> list[MeterInfo]:
     return found
 
 
+@dataclass
+class PowerSupplyInfo:
+    number: int             # n of PS-s-n, through the lineup
+    section_number: int     # s: where it is mounted
+    supply: object          # the PowerSupply
+
+    @property
+    def code(self) -> str:
+        """What the program fills in after the block's "PS-": "s-n"."""
+        return f"{self.section_number}-{self.number}"
+
+    @property
+    def name(self) -> str:
+        return f"PS-{self.code}"
+
+
+def power_supplies_in(switchboard) -> list[PowerSupplyInfo]:
+    found = []
+    for number, section in enumerate(switchboard.sections, start=1):
+        for supply in section.contents.power_supplies:
+            found.append(PowerSupplyInfo(len(found) + 1, number, supply))
+    return found
+
+
 def ct_sets_in(switchboard) -> list[CtSetInfo]:
     found = []
     for number, section in enumerate(switchboard.sections, start=1):
@@ -310,6 +363,14 @@ def meter_name(switchboard, meter_id: str) -> str:
     return ""
 
 
+def tap_target_names(switchboard) -> dict[str, str]:
+    """{device id: name} for everything a voltage tap can feed: power meters, then power
+    supplies (decision 2026-11-05)."""
+    names = {info.meter.id: info.name for info in meters_in(switchboard)}
+    names.update({info.supply.id: info.name for info in power_supplies_in(switchboard)})
+    return names
+
+
 def device_problems(switchboard) -> list[str]:
     """Warnings about CTs and meters, in plain words."""
     problems = []
@@ -321,11 +382,21 @@ def device_problems(switchboard) -> list[str]:
         if ct_set.cts.on_main_bus:
             problems.append(f"{ct_set.where}: CTs on the main bus after the mains join are not drawn "
                             f"yet; they are drawn on the main's riser.")
-    for tap in voltage_taps_in(switchboard):
-        if not tap.tap.meter_id:
-            problems.append(f"{tap.where}: choose the power meter voltage tap {tap.fuse} feeds.")
-        elif not meter_name(switchboard, tap.tap.meter_id):
-            problems.append(f"{tap.where}: voltage tap {tap.fuse} feeds a power meter that no longer exists.")
+    targets = tap_target_names(switchboard)
+    taps = voltage_taps_in(switchboard)
+    for tap in taps:
+        if not tap.tap.feeds:
+            problems.append(f"{tap.where}: choose the power meter or power supply voltage tap {tap.fuse} feeds.")
+        elif tap.tap.feeds not in targets:
+            problems.append(f"{tap.where}: voltage tap {tap.fuse} feeds a device that no longer exists.")
+    for info in power_supplies_in(switchboard):
+        feeding = [tap.fuse for tap in taps if tap.tap.feeds == info.supply.id]
+        if not feeding:
+            problems.append(f"{info.name} (section {info.section_number}): no voltage tap feeds it yet; "
+                            f"pick it in a voltage tap's \"Feeds\" list.")
+        elif len(feeding) > 1:
+            problems.append(f"{info.name} is fed by more than one voltage tap ({', '.join(feeding)}); "
+                            f"only {feeding[0]} is wired to it.")
     for info in meters_in(switchboard):
         if not info.meter.model:
             problems.append(f"{info.name} (section {info.section_number}): choose its model.")

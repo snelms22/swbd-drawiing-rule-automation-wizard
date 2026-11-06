@@ -76,6 +76,49 @@ with no breaker (PRIME-014032); separate UPS/critical/main buses (NTT-013630).
 
 ---
 
+## Power supplies and 24 VDC control power (across jobs, 2026-11-05)
+
+**Seen:** PS-1 "480VAC/24VDC" (5A, or 240W/10A) fed from its own fused 480 V tap (FA, e.g.
+3A) in NTC-013632, NTT-013627 (block `PWR_SUP_1`), PRIME-014034 and CORRECTED_FIXED_011511;
+PS-1 "120VAC-24VDC 480W-20A" in Sabey-011486. The 24 V side goes through single-pole DC
+fuses FD-1..FD-n (2A-6A/1P LP-CC), one per load: comms gateways (GW-1, GW-2), the Ethernet
+switch (ES-1), "CONTROL POWER & MMS FOR CB1, CB2, ..." (breaker control power), a UPS
+terminal block (TB-UPS). Each load's end is labelled "FROM FD-n SHEET n" / "<load> CONTROL
+POWER SHEET n". Wires on `WIRE - 24+_RED` and `WIRE - 24-_BLK`; legend text "24 VDC PHASE
+"+" - RED", "24 VDC PHASE "G/-" - BLACK".
+**Proposed rules (pending approval):** a 24 V power supply always comes with its DC fuses
+(FD-s-n), one per 24 V load; the loads come from the devices that need control power
+(comms, breakers with MMS/electrical operation, Ethernet switch, ATC).
+
+---
+
+## Device page layout (across jobs, 2026-11-05)
+
+**Seen (label positions, frame-relative x, y):**
+- NTT-013627 ES_01: FA-1 (44) -> PS-1 (78) -> FD1/FD2/FD3 stacked in one column (117; y 189,
+  170, 150) -> COM190 (164). Power flows left to right.
+- PRIME-014034 ES_03 (control power page): "FROM FA-4" (55) -> PS-1 top left (74, 259) ->
+  FD-1..FD-6 stacked in one column (174; y 251 down to 113) -> one load level with each
+  fuse (198+: GW-1, GW-2, ES-1 "CONTROL POWER SHEET n", TB-UPS, SKRU) -> PM-1 far right
+  (333, 194).
+- PRIME-014034 ES_05 (comms page): Ethernet switch ES-1 on the left (120), COM190s and PM-1
+  to its right, the COM800 / COM60 chain below.
+- Pages are by function (control power, metering, comms), not by section.
+
+**Proposed rules (pending approval):**
+1. Devices are placed in tiers, left to right, along the flow: the source (FROM brackets or
+   a fuse) -> the device it feeds (power supply) -> its distribution (FD fuses, stacked) ->
+   the loads, each level with the fuse or wire that feeds it, so most wires run straight.
+2. When a tier gets too tall for the page, the chain carries on on the next page with TO /
+   FROM brackets.
+3. ~~Pages by function~~: withdrawn 2026-11-05. Hyper is moving to a hybrid schematic +
+   wiring diagram (Sammy's recreated NTT-013628, to come), which puts devices on pages by
+   section, with every connection to the shipping splits, terminal blocks that split wires,
+   and how fuses connect. Judge these rules against that drawing, not the older references
+   (all schematic-only).
+
+---
+
 ## ES-011511_A_REFERENCE
 **Files:** .dxf, .pdf (original .dwg is in the V4.12.2 `templates/` folder)
 **Studied:** 2026-10-07

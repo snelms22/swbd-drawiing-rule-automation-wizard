@@ -88,17 +88,22 @@ Next: real blocks for section contents. Progress per part: `docs/DRAWING_PARTS.m
 Order agreed with Sammy (DECISIONS 2026-10-26). Add one thing at a time and keep checking how
 the drawing works.
 
-1. **Power supply (24V)** — next. What we know so far:
-   - PRIME-014034: a power supply PS-1 fed from its own fuse (FA-2) off the same voltage tap
-     as a power meter's fuse (FA-1): this needs taps off taps (3j below).
-   - Device inputs are separate blocks (DECISIONS 2026-10-22); the power supply input block
-     (24V+/24V-) was listed as "comes later". HYPER_A has the wire layers `WIRE - 24+_RED`
-     and `WIRE - 24-_BLK`.
-   - Needed from Sammy before building: the power supply block (and its input block) in the
-     library, with CONN markers and attribute prompts; what it feeds (meters, comms, ATC?)
-     and whether it is drawn on the device pages.
-   - Wire routing gets its own design talk here: this is where the number of wires grows
-     (lanes in channels vs. a path-finding router; recommendation: lanes).
+1. **Power supply (24V)**, in progress (plan: DECISIONS 2026-11-05). Blocks `3P_PWR_SUP`
+   (480 V to 24 V) and `2P_PWR_SUP` (120 V to 24 V) are in the library.
+   - Step 1 (3-pole, fed by its own voltage tap):
+     - built 2026-11-05: "+ Power supply" in the section's Devices box (PS-s-n, block
+       attribute fields), a voltage tap "Feeds" a meter or a power supply, saved in the
+       project, warnings;
+     - built 2026-11-05: drawn on the device pages, the fuse lying beside it (option A),
+       for Sammy's review in AutoCAD.
+   - Taps off taps (3j below): a meter and a power supply off the same feed already work as
+     two voltage taps on that feed (checked 2026-11-05). How a split is drawn (one tap
+     point branching to two fuses, as PRIME-014034's 3-line does; a fuse off another
+     fuse's load side) waits for the hybrid NTT-013628, which shows terminal blocks
+     splitting wires and how fuses connect.
+   - Later: the 2-pole with a 120 V source (CPTs); the 24 V side (FD fuses and their loads)
+     with the communications page, with the wire-routing design talk (recommendation: lanes).
+   - Fuses get their own rules later (fuse disconnects vs fuse blocks).
 2. **Communications page** (3 below): rules approved 2026-10-19 (3WA: COM190 + CAT6 home run
    to the Ethernet switch; 3VA: COM060 on a COM800 chain through T-connectors, EOL
    terminator); the comms drop-down on each breaker already exists.

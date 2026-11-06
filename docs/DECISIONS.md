@@ -266,6 +266,64 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-11-05 — Device pages: drop the column-per-section layout
+**Decision:** The device pages will no longer be laid out as one column per section (the
+2026-10-23 layout). The devices will mostly be wired together, so they are to be placed in
+whatever way suits the wiring. The rule for that is not settled yet; a proposal from the
+references is in INDEX.md ("Device page layout", pending approval). Until the new rule is
+built, the current layout stays (power supplies first in each section).
+**Reason:** Sammy, 2026-11-05: the column scheme will be restricting as more devices are
+connected (power supply, meters, COM190). Behind it: Hyper is combining the schematic and
+the wiring diagram into one hybrid drawing (the wiring diagram takes too long on its own).
+The schematic therefore shows much more detail: terminal blocks that split wires, how fuses
+connect (or don't), and every connection to the shipping splits. Devices stay on pages by
+section. The first hybrid drawing is Sammy's recreated NTT-013628 (to be added to the
+references); the older references are all schematic-only.
+**Status:** Approved (direction); rule to agree, from the hybrid NTT-013628
+
+### 2026-11-05 — Power supplies: 2-pole and 3-pole (direction)
+**Decision:** Two library blocks: `3P_PWR_SUP` (fed from the 480 V voltage taps, 480 V to
+24 V) and `2P_PWR_SUP` (used when there is already 120 V in the circuit, 120 V to 24 V).
+Every connection on both is marked and every attribute has a prompt. Where this is going:
+the engineer says what control power is needed (120 V and/or 24 V) and the program adds the
+matching power supply and taps. Step by step (Sammy approved the recommendations,
+2026-11-05):
+1. **Added by hand for now:** "+ Power supply" in a section's Devices box, beside the power
+   meters; named PS-s-n like the other devices.
+2. **Fed by its own voltage tap:** a tap feeds a power meter or a power supply; its fuse
+   (FA) is drawn above it on the device pages, as for a meter. Taps off taps (a meter and a
+   power supply sharing one tap, PRIME-014034) right after.
+3. **3-pole only for now:** the 2-pole waits for a 120 V source (CPTs).
+4. **Step 1 draws the power supply and its 480 V feed only.** The 24 V side (FD fuses and
+   their loads) comes with the communications page.
+5. **Wire routing** design talk when the 24 V side is built.
+- **Fuses get their own set of rules later** (Sammy): fuse disconnects and fuse blocks are
+  different devices and look different, and the schematic style is changing. Until then
+  taps use the fuse they use today (`3P_2P_FUSE_DISCONECT`).
+- **On the device pages (Sammy chose option A, 2026-11-05):** the fuse lies down (its
+  "3-POLE HORIZONTAL" state) to the left of the power supply, its load side level with
+  `L1`-`L3`, so the three wires run straight across; its box ends `wire_spacing` before the
+  supply's. Its line side: stubs left, a `TILDE_R0` in its HORIZONTAL state on each end, and
+  the bracket (horizontal-bus state, mirrored) "FROM ES_0n". A power supply whose tap is in
+  another section gets the same on its inputs, "FROM FA-s-n SHEET n"; its fuse is drawn on
+  its own, "TO PS-s-n SHEET n". Fuse states and markers in config/devices.json
+  (`horizontal_*`); labels in layout_settings.json (`from_fuse_label`). Built 2026-11-05, for
+  Sammy's review in AutoCAD.
+- **After Sammy's first look (2026-11-05):** the lying tildes are mirrored to face the
+  wires (`Flip state1` only, `wire_break_flip_horizontal`); every text attribute on a tilde
+  is set blank (not only `TEXT_H`); in each section the power supplies come first (top left),
+  then the meters, then fuses on their own: the power supply powers what comes after it
+  (meters, the COM190 next). `TILDE_R0`'s HORIZONTAL state also shows a plain MText "X"
+  (not an attribute), which the program can't change: Sammy to make it an attribute or
+  remove it in the block.
+- Block audit (2026-11-05): both blocks have named markers (`L1`-`L3` / `L1`+`N` in,
+  `24P1`/`24N1`/`24P2`/`24N2` out, `G`, and `NO13`/`NO14` on the 3-pole) and prompts. The
+  number tag differs: `PS_DRW_NUM` (3-pole) vs `PS_DWG_NUM` (2-pole).
+**Reason:** Sammy, 2026-11-05. Matches the references: NTC-013632, NTT-013627 and
+PRIME-014034 have "PS-1 480VAC/24VDC" off a fused 480 V tap; Sabey-011486 has
+"PS-1 120VAC-24VDC".
+**Status:** Approved (direction); blocks to audit once the library is saved
+
 ### 2026-10-26 — GROUND layer only for the main ground bus
 **Decision:** For what the program draws itself, the `GROUND` layer is for the main ground
 bus only (the ground bus line and its symbol); ground wires the program draws anywhere else

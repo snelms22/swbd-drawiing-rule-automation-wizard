@@ -23,7 +23,7 @@ METER = PowerMeter(model="Janitza UMG 801", id="m1")
 
 def main_with_taps(count, label="52-M1", **feed):
     return MainBreaker(Breaker(label), feed=IncomingFeed(
-        voltage_taps=[VoltageTap(meter_id="m1") for _ in range(count)], **feed))
+        voltage_taps=[VoltageTap(feeds="m1") for _ in range(count)], **feed))
 
 
 def board(*contents):
@@ -76,10 +76,10 @@ def test_taps_on_a_u_turned_feed_are_not_drawn_yet():
     assert any("voltage taps on a feed whose bus U-turns are not drawn yet" in w for w in result.warnings)
 
 
-def test_a_tap_needs_a_meter():
+def test_a_tap_needs_something_to_feed():
     main = MainBreaker(Breaker("52-M1"), feed=IncomingFeed(voltage_taps=[VoltageTap()]))
     assert device_problems(board(SectionContents(above=main))) == [
-        "Section 1 above (feed of 52-M1): choose the power meter voltage tap FA-1-1 feeds."]
+        "Section 1 above (feed of 52-M1): choose the power meter or power supply voltage tap FA-1-1 feeds."]
 
 
 def test_the_feed_and_its_taps_are_saved(tmp_path):
@@ -106,7 +106,7 @@ def test_a_format_1_file_is_read_into_a_feed(tmp_path):
 
 def main_with_load_taps(count, cts=None, **main):
     return MainBreaker(Breaker("52-M1"), cts=cts,
-                       load_side_taps=[VoltageTap(meter_id="m1") for _ in range(count)], **main)
+                       load_side_taps=[VoltageTap(feeds="m1") for _ in range(count)], **main)
 
 
 def test_the_riser_grows_for_load_side_taps():
@@ -142,7 +142,7 @@ def test_load_side_taps_come_before_the_cts():
 
 def test_line_side_taps_are_numbered_before_load_side_taps():
     main = main_with_load_taps(2)
-    main.feed.voltage_taps = [VoltageTap(meter_id="m1")]
+    main.feed.voltage_taps = [VoltageTap(feeds="m1")]
     switchboard = board(SectionContents(above=main))
     assert [(t.fuse, t.side) for t in voltage_taps_in(switchboard)] == [
         ("FA-1-1", LINE_SIDE), ("FA-1-2", LOAD_SIDE), ("FA-1-3", LOAD_SIDE)]

@@ -51,8 +51,8 @@ def test_adding_a_meter_and_ticking_cts_fills_the_model():
     taps_editor = editor.above_editor.taps_editor
     assert editor.above_editor.termination_box.title() == "Incoming feed"
     taps_editor._add_tap()
-    taps_editor.meter_combo.setCurrentIndex(taps_editor.meter_combo.findData(meter.id))
-    assert section.contents.above.feed.voltage_taps[0].meter_id == meter.id
+    taps_editor.feeds_combo.setCurrentIndex(taps_editor.feeds_combo.findData(meter.id))
+    assert section.contents.above.feed.voltage_taps[0].feeds == meter.id
     assert taps_editor.taps_list.item(0).text() == "FA-1-1   to PM-1-1   (line side)"
     # The fuse's rating is filled by the engineer; its number by the program (no field).
     fields = {taps_editor.fuse_form.itemAt(row, QFormLayout.FieldRole).widget().toolTip(): row

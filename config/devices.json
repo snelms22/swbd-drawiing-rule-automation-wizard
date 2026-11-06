@@ -78,7 +78,30 @@
       "A": "WIRE - 480A-BRN",
       "B": "WIRE - 480B-ORG",
       "C": "WIRE - 480C-YEL"
+    },
+    "horizontal_note": "Lying down beside a power supply, whose inputs face sideways (decision 2026-11-05, option A): line side on the left, load side on the right, lined up with the power supply's L1-L3.",
+    "horizontal_state": "3-POLE HORIZONTAL",
+    "horizontal_line_markers": {
+      "A": "CONN_A_LINE_H",
+      "B": "CONN_B_LINE_H",
+      "C": "CONN_C_LINE_H"
+    },
+    "horizontal_load_markers": {
+      "A": "CONN_A_LOAD_H",
+      "B": "CONN_B_LOAD_H",
+      "C": "CONN_C_LOAD_H"
     }
+  },
+  "power_supply_note": "A control power supply (decision 2026-11-05): 3-pole, 480 V to 24 V, fed by a voltage tap's fuse; drawn on the device pages in its section. 'inputs' says which marker each phase's wire lands on. The program fills the number after 'PS-' (s-n). The 2-pole block (2P_PWR_SUP, 120 V to 24 V) comes with a 120 V source.",
+  "power_supply": {
+    "block": "3P_PWR_SUP",
+    "inputs": {
+      "A": "L1",
+      "B": "L2",
+      "C": "L3"
+    },
+    "number_attribute": "PS_DRW_NUM",
+    "layer": "0"
   },
   "remote_display_note": "A remote display for a power meter (decision 2026-10-23): a checkbox on the meter; drawn beside it on the device page, the meter's USB marker joined to the display's USB marker by a line on usb_layer. The program fills the number after 'RD-' (s-n).",
   "remote_display": {

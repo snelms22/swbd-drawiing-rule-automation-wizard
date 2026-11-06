@@ -20,7 +20,10 @@ An arrangement ("above" / "below") has a "kind":
                       missing in older files, which then get the defaults.
     Mains, single breakers, ties and group-mounted parts may have CTs: "cts" / "base_cts" =
     {"meter": <power meter id>, "ratio", "attributes", "on_main_bus"} or null. Each section
-    has "power_meters": [{"id", "model", "remote_display"}]. (Missing in older files = none.)
+    has "power_meters": [{"id", "model", "remote_display"}] and "power_supplies": [{"id",
+    "attributes"}] (2026-11-05). (Missing in older files = none.) A voltage tap is
+    {"feeds": <id of the power meter or power supply>, "fuse_attributes"}; files before
+    2026-11-05 call "feeds" "meter".
     Every breaker also has "comms_module": e.g. "Siemens COM190", "" = none. (2.1.0 saved a
     true/false "comms" instead; it can't say which module, so it is read as none.)
     "main breaker":   label, mounting, breaker_feed, breaker_attributes, and its
@@ -55,7 +58,7 @@ from pathlib import Path
 
 from src.model.section_contents import (
     FIXED, Breaker, CurrentTransformers, GroupMounted, IncomingFeed, Interlock, LineSideBreaker, MainBreaker,
-    PowerMeter,
+    PowerMeter, PowerSupply,
     Provision, SectionContents, SingleBreaker, Space, VoltageTap,
     SingleLevel, TieBreaker, TwinLevel,
 )
@@ -113,6 +116,8 @@ def _section_to_dict(section: Section) -> dict:
         "tie": _tie_to_dict(contents.tie),
         "power_meters": [{"id": meter.id, "model": meter.model, "remote_display": meter.remote_display}
                          for meter in contents.power_meters],
+        "power_supplies": [{"id": supply.id, "attributes": dict(supply.attributes)}
+                           for supply in contents.power_supplies],
     }
 
 
@@ -123,7 +128,7 @@ def _feed_to_dict(feed):
 
 
 def _taps_to_list(taps):
-    return [{"meter": tap.meter_id, "fuse_attributes": dict(tap.fuse_attributes)} for tap in taps]
+    return [{"feeds": tap.feeds, "fuse_attributes": dict(tap.fuse_attributes)} for tap in taps]
 
 
 def _cts_to_dict(cts):
@@ -264,6 +269,8 @@ def _section_from_dict(data: dict) -> Section:
             power_meters=[PowerMeter(model=str(m.get("model", "")), id=str(m["id"]),
                                      remote_display=bool(m.get("remote_display", False)))
                           for m in data.get("power_meters") or []],
+            power_supplies=[PowerSupply(attributes=_texts(s.get("attributes")), id=str(s["id"]))
+                            for s in data.get("power_supplies") or []],
         ),
         push_to_next_page=bool(data.get("push_to_next_page", False)),
         link_with_next=bool(data.get("link_with_next", False)),
@@ -355,7 +362,8 @@ def _interlock_from_dict(data):
 
 
 def _taps_from_list(items):
-    return [VoltageTap(meter_id=str(tap.get("meter", "")),
+    # "feeds" was called "meter" before 2026-11-05 (a tap could only feed a meter).
+    return [VoltageTap(feeds=str(tap.get("feeds", tap.get("meter", ""))),
                        fuse_attributes=_texts(tap.get("fuse_attributes")))
             for tap in items or []]
 

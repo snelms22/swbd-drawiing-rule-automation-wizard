@@ -103,6 +103,8 @@ TEST_SETTINGS = LayoutSettings(
         placeholder_width=100.0, placeholder_height=40.0,
         wire_break_block="TEST_WIRE_TILDE", wire_break_state="VERTICAL", wire_break_marker="CONN",
         wire_break_text_attribute="TEXT_H", remote_display_gap=12.0, remote_display_rise=6.0,
+        wire_break_state_horizontal="HORIZONTAL", from_fuse_label="FROM {fuse} SHEET {sheet}",
+        wire_break_flip_horizontal="Flip state1",
     ),
     line_side_breakers=LineSideBreakerSettings(tie_gap=10.0, gap_to_breaker=15.0,
                                                gap_breaker_to_output=25.0),
@@ -209,7 +211,8 @@ TEST_CATALOG = {
     "TEST_WIRE_TILDE": BlockInfo(
         name="TEST_WIRE_TILDE", top_terminals=(), bottom_terminals=(), extents=(-1.25, -1.25, 1.25, 1.25),
         visibility_states=("HORIZONTAL", "VERTICAL"),
-        states={"VERTICAL": {"markers": {"CONN": (0.0, 0.0)}, "extents": (-1.25, -0.83, 1.25, 0.83)}},
+        states={"VERTICAL": {"markers": {"CONN": (0.0, 0.0)}, "extents": (-1.25, -0.83, 1.25, 0.83)},
+                "HORIZONTAL": {"markers": {"CONN": (0.0, 0.0)}, "extents": (-0.83, -1.25, 0.83, 1.25)}},
     ),
     "TEST_BRACKET": BlockInfo(
         name="TEST_BRACKET", top_terminals=(), bottom_terminals=(),
