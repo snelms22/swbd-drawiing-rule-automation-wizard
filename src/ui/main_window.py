@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
 
 
         # Middle: the Drawing Information page or the editor for the selected section.
-        comms_modules = device_settings.comms_modules if device_settings else []
+        comms_modules = device_settings.comms_modules if device_settings else {}
         meter_models = device_settings.power_meter_models if device_settings else []
         self.editor = SectionEditor(settings, catalog, comms_modules, meter_models,
                                     switchboard_provider=lambda: self._switchboard,

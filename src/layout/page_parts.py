@@ -87,11 +87,14 @@ class PageParts:
     notes: list = field(default_factory=list)          # plain text, e.g. provision notes
     # Wires the program draws itself, each on its own layer (device pages, 2026-10-23).
     wires: list = field(default_factory=list)
+    wire_labels: list = field(default_factory=list)    # WireLabels on those wires (2026-11-09)
     interlocks: list = field(default_factory=list)     # InterlockLines (decision 2026-10-26)
     bus_start_path: list | None = None
     bus_end_path: list | None = None
     ground_bus: GroundBusLine | None = None
     section_labels: list[SectionLabel] = field(default_factory=list)
+    # The page's title at the bottom right, e.g. "THREE-LINE DIAGRAM 01" (2026-11-09).
+    title: str = ""
 
 
 def add_page_parts(pages, settings, catalog=None, warnings=None):
@@ -119,6 +122,7 @@ def add_page_parts(pages, settings, catalog=None, warnings=None):
         is_last_page = index == len(pages) - 1
         _add_ground_bus(page, is_last_page, settings)
         _add_section_labels(page, settings)
+        page.parts.title = settings.page_title.three_line_format.format(page=page.number)
 
 
 def _add_dividers(pages, settings):
@@ -382,7 +386,7 @@ def _break_blocks(end_x, bus_y, direction, other_page, settings, catalog) -> lis
         return []
     a_y = bus_y + settings.main_bus.phase_spacing          # A is the top phase
     conn_a = tilde.connection("A", False)
-    label = br.label(direction, other_page)
+    label = br.label(direction, settings.device_pages.sheet_number(other_page))
     leaving = direction == "to"
     bracket_x = end_x + br.bracket_gap if leaving else end_x - br.bracket_gap
     return [

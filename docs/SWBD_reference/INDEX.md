@@ -92,6 +92,84 @@ POWER SHEET n". Wires on `WIRE - 24+_RED` and `WIRE - 24-_BLK`; legend text "24 
 
 ---
 
+## NTT-013628-HYBRID-REFERENCE  (Sammy's hybrid schematic + wiring diagram)
+**Files:** .dxf, .pdf  **Studied:** 2026-11-06 (PDF pages rendered and viewed)
+**Contents:** the first drawing in the new hybrid style (schematic and wiring diagram in
+one). 6 sheets: 01 revision history, 02 abbreviations / symbol, wire label and designation
+legends, 03 the 3-line (frame ES_01, "THREE-LINE DIAGRAM 01"), 04-06 one page per section
+(frames ES_02-ES_04, "ELECTRICAL SCHEMATIC SECTION n"). 3000A 480V, 3 sections: 52-MAIN
+(S1), 52-F1 up + 52-F2 down (S2, cable connected), 52-F3 / 52-F4 (S3).
+**Section pages, what is on them:**
+- S1: "FROM SHEET 3 LINE SIDE 52-MAIN" bracket -> FA-1 3A/3P lying down -> PS-1
+  480VAC/24VDC 5A (L1-L3 straight across: matches option A, 2026-11-05); PS ground G002 ->
+  TB1-G -> G001 "TO GROUND BUS". PS + (2+001) -> FD1..FD5 (2A/1P) stacked in a column,
+  their line sides joined by a "5 POLE BRIDGE"; each FD output runs right to one load:
+  FD1 -> TB1-24P (3-point terminal block) -> 52-MAIN's X8.3, MMS-1 and X8.5; FD2-FD4 ->
+  the shipping split to section 2 (SSM-1-2 pins 1-3); FD5 -> ES-1 (Ethernet switch).
+  PS - (2-001) -> TB1-24N (terminal block with a "2 POLE BRIDGE", bottom left) -> returns
+  run along the bottom to ES-1, SSM-1-2 pin 4, and 52-MAIN X8.4 / X8.6 / X8.7.
+  52-MAIN drawn as a box with its control terminals X8.1-X8.10 and COM190 (top right);
+  MMS-1 (maintenance mode switch, OFF/ON with light) between TB1-24P and the breaker.
+  ES-1 ports: E-001 5FT TO 52-MAIN, E-002 15FT TO 52-F1, E-003 20FT TO 52-F3, E-004 20FT
+  TO 52-F4 (cable lengths shown).
+- Shipping splits drawn in full: in section 1, the 10-pin male SSM-1-2 and the cable's
+  female plugs SSF-1-2 ("SECTION 1") and SSF-2-1 ("SECTION 2"), wires 2+009, 2+010, 2+011,
+  2-006 between them; section 2's page starts from its own SSM-2-1 on the left, and passes
+  on to section 3 the same way (SSM-2-3 / SSF-2-3 / SSF-3-2); section 3 starts from SSM-3-2.
+- S2 / S3: per breaker with COM190 + MMS: a TBs-24P 3-point block feeding X8.3, MMS-n and
+  X8.5; returns from X8.4 / X8.6 / X8.7 to TBs-24N (2 pole bridge) bottom left. COM190 "TO
+  ES-1 E-00n".
+- Layout: power flows left to right (what comes in on the left: FROM bracket or incoming
+  SSM; then the power supply, the FD column, terminal blocks and the outgoing shipping
+  split; the breakers and their control boxes on the right, top); the 24 V - returns run
+  along the bottom to the TBs-24N block bottom left. BOM balloons on every device.
+- Wire labels on every wire (MText): <voltage/polarity><3-digit number>, numbered through
+  the whole job: 4A001.. (480 V A), 2+001.. (24 V +), 2-001.. (24 V -), G001 (ground),
+  E-001 (Ethernet); legend also lists 4B/4C/4N, 5A.., 2A.., 1H/1N (120 V), 3+/3- (CT).
+- Legend (sheet 02) designations: device (wire label, termination point, BOM balloon,
+  device label); wire "120N-J3" (-J = multi-connection jumper); terminal block
+  "2TB24+(1-4)" (section, TB, voltage/polarity, terminal # within a strip, termination
+  point); shipping split "SS1-2M-2(4)". Notes: #18 AWG unless noted; CT wires min #12;
+  ring terminals on bus connections.
+**Blocks:** none of the section-page devices are blocks (all lines and text on layer 0);
+only ITEM#_BOM_R0 balloons. 3-line uses BREAKER_FIXED_SCH_R0, BUS_NODE. Wires on the
+WIRE - 24+_RED / 24-_BLK / 480A/B/C and WIRE_GROUND layers.
+**3-line:** the tap off 52-MAIN's line side is three wires 4A001/4B001/4C001 with dots, to a
+bracket "TO SHEET 4 FA-1" (no fuse on the 3-line).
+**Proposed rules (pending approval):**
+1. One device page per section ("ELECTRICAL SCHEMATIC SECTION n"), in the ES frames after
+   the 3-line.
+2. Flow left to right: incoming (FROM bracket / incoming shipping split) -> power supply ->
+   FD fuses stacked with a bridge -> terminal blocks and the outgoing shipping split ->
+   the loads (breakers with their control terminals, MMS, COM190; Ethernet switch).
+   24 V - terminal block bottom left, returns along the bottom.
+3. The 24 V loads come from the breakers: each breaker with COM190 / MMS gets a 3-point
+   24+ terminal block (X8.3, MMS, X8.5) and three returns (X8.4, X8.6, X8.7), an Ethernet
+   port on ES-1, and one FD fuse per section's group (or per shipping split).
+4. Wire labels on every wire the program draws, numbered through the job by
+   voltage/polarity.
+5. Shipping splits drawn with both connector halves and the cable, wire by wire.
+**Questions for Sammy:** see the 2026-11-06 study report (designation formats differ
+between the legend and the pages: "2TB24+(1-4)" vs "TB1-24P", "SS1-2M-2(4)" vs
+"SSM-1-2").
+**TO / FROM labels (read 2026-11-10, for the later "intelligence" work):** every label
+the engineer types by hand in this drawing, and what it is made of:
+- 3-line tap to its fuse: "TO SHEET 4 FA-1" (sheet, then the device it goes to).
+- The fuse's line side on the section page: "FROM SHEET 3 LINE SIDE 52-MAIN" (sheet, the
+  side of the breaker, the breaker's label).
+- A device in another place: "TO PS-1 SHEET 2" (device, then sheet), as the legend says:
+  "DEVICE ABBREVIATION TO SHEET #".
+- 24 V and comms loads: "TO 52-MAIN", "TO 52-PDU-401D-1-FB TRIP UNIT", "TO 52-F1 COM190"
+  (breaker label + what on it), "FROM FD1".."FROM FD4", "TO ES-1" (Ethernet switch).
+- Ground: "TO GROUND BUS".
+**Proposed rules (pending approval):** the program knows both ends of every connection it
+draws, so it can write every one of these itself: the sheet from the page the other end is
+on, the device's name, the breaker's label, which side of it (line / load), and the part
+of a breaker (TRIP UNIT, COM190). The label wording becomes a set of patterns in config,
+one per kind of connection. Question: the 3-line puts the sheet first ("TO SHEET 4 FA-1"),
+the legend and device pages put the device first ("TO PS-1 SHEET 2"); one order or both?
+Built so far (2026-11-10): page references by overall sheet number ("FROM SHEET 4").
+
 ## Device page layout (across jobs, 2026-11-05)
 
 **Seen (label positions, frame-relative x, y):**

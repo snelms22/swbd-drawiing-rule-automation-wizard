@@ -45,6 +45,7 @@ class Text:
     style: str
     align: str                      # "bottom_left", "bottom_center", "middle_left", "middle_right", "middle_center"
     background_mask: bool = False   # hide what is behind the text (e.g. a dashed line through it)
+    rotation: float = 0.0           # degrees, counter-clockwise (an upright wire's label: 90)
 
 
 def page_shapes(page, settings, placeholder_layer: str) -> list:
@@ -62,9 +63,16 @@ def page_shapes(page, settings, placeholder_layer: str) -> list:
                            b.flipped, b.flip_parameter)
                for b in parts.blocks]
     shapes += [Line(wire.layer, wire.start, wire.end) for wire in parts.wires]
+    w = settings.wire_labels
+    shapes += [Text(w.layer, label.text, (label.x, label.y), w.height, settings.text.style, "middle_center",
+                    rotation=label.rotation) for label in parts.wire_labels]
     shapes += _waiting_block_shapes(parts.placeholders, placeholder_layer, settings)
     shapes += _note_shapes(parts.notes, settings)
     shapes += _interlock_shapes(parts.interlocks, settings)
+    if parts.title:
+        t = settings.page_title
+        shapes.append(Text(t.layer, t.mtext_format.format(title=parts.title), (t.x, t.y), t.height,
+                           settings.text.style, "middle_right"))
     return shapes
 
 

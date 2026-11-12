@@ -35,11 +35,11 @@ def test_a_long_item_name_is_split_at_the_comma_nearest_the_middle():
 
 
 def test_drawing_properties_for_the_template():
-    assert drawing_properties(board(), SETTINGS, schematic_pages=2) == {
+    assert drawing_properties(board(), SETTINGS, total_pages=5) == {
         "FG NUMBER": "011484",
         "FG DESCRIPTION": "SWBD, 5000A, 480V, 100KAIC, TYPE 3R,",
         "NUMBER OF BREAKERS": "MA-HDP-E, 3X5000A, 1X2500A, 2X800A",
-        "TOTAL PAGES ES": "02",
+        "TOTAL PAGES ES": "05",
     }
 
 

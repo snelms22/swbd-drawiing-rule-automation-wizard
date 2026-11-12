@@ -16,11 +16,14 @@ class AutocadSettings:
     template_file: Path            # the configurator's copy of the template (drawn from)
     template_source: Path          # the team's template in SharePoint (copied by releases)
     keep_layouts: list             # layouts kept besides the drawn pages (e.g. the legend)
+    keep_layout_frames: dict       # {kept layout: the frame it shows}, e.g. "TOC_ES": "TOC_01"
     output_folder: Path
     frame_block_name: str      # "TITLE_BLOCK_MODEL"
     frame_name_attribute: str  # "NAME" (holds e.g. "ES_01")
     page_frame_format: str     # "ES_{page:02d}" -> page 1 is frame "ES_01"
     page_layout_format: str
+    page_number_attribute: str  # "PAGE": the frame's page number (decision 2026-11-10)
+    page_number_format: str     # "{number:02d}" -> "04"
     placeholder_layer: str
     placeholder_layer_color: int
     block_library_file: Path       # Hyper's block library drawing (read only)
@@ -33,6 +36,16 @@ class AutocadSettings:
 
     def layout_name(self, page_number: int) -> str:
         return self.page_layout_format.format(page=page_number)
+
+    def page_numbers(self, page_count: int) -> dict[str, str]:
+        """{frame name: page number text} for every page of a drawing with `page_count`
+        3-line and device pages. The rule of the engineers' NumberByLayout.lsp (decision
+        2026-11-10): pages are numbered 01, 02, 03... in tab order, which is the kept
+        template pages (TOC, legend, BOM) followed by ES_01, ES_02..."""
+        frames = [self.keep_layout_frames[name] for name in self.keep_layouts]
+        frames += [self.frame_name(page) for page in range(1, page_count + 1)]
+        return {frame: self.page_number_format.format(number=number)
+                for number, frame in enumerate(frames, start=1)}
 
 
 def load_autocad_settings(path, project_root) -> AutocadSettings:
@@ -63,17 +76,30 @@ def load_autocad_settings(path, project_root) -> AutocadSettings:
         if "{page" not in text(key):
             raise SettingsError(f'"{key}" in {path.name} must contain "{{page:02d}}".')
 
+    frames = data.get("keep_layout_frames", {})
+    if not isinstance(frames, dict):
+        raise SettingsError(f'"keep_layout_frames" in {path.name} must map each kept layout to its frame.')
+    for name in data.get("keep_layouts", []):
+        if not isinstance(frames.get(name), str) or not frames.get(name):
+            raise SettingsError(f'"keep_layout_frames" in {path.name} has no frame for the kept '
+                                f'layout "{name}" (needed to number its page).')
+    if "{number" not in text("page_number_format"):
+        raise SettingsError(f'"page_number_format" in {path.name} must contain "{{number:02d}}".')
+
     root = Path(project_root)
     return AutocadSettings(
         program_id=program_id,
         template_file=root / text("template_file"),
         template_source=_resolve(root, text("template_source")),
         keep_layouts=[str(name) for name in data.get("keep_layouts", [])],
+        keep_layout_frames={str(k): str(v) for k, v in frames.items()},
         output_folder=root / text("output_folder"),
         frame_block_name=text("frame_block_name"),
         frame_name_attribute=text("frame_name_attribute"),
         page_frame_format=text("page_frame_format"),
         page_layout_format=text("page_layout_format"),
+        page_number_attribute=text("page_number_attribute"),
+        page_number_format=text("page_number_format"),
         placeholder_layer=text("placeholder_layer"),
         placeholder_layer_color=color,
         block_library_file=_resolve(root, text("block_library_file")),

@@ -14,6 +14,7 @@ Start here: `CLAUDE.md` (working rules) and `docs/DECISIONS.md` (approved design
 | `switchboard_library/` | Ready-made switchboard projects (`.swbd`), e.g. the sample. File > Open from Library. |
 | `tools/` | Development-only scripts (e.g. the block audit). Not part of the app. |
 | `docs/SWBD_reference/` | Finished switchboard jobs used as "what correct looks like." Not used by the program. |
+| `docs/AI_resources/` | Sammy's files for building the program (LISP routines, sizing spreadsheets). Claude reads them, never edits them; notes in `docs/AI_RESOURCES_INDEX.md`. |
 | `src/model/` | Project data: switchboard, sections, devices. |
 | `src/layout/` | Page-fitting rules. Pure Python, no AutoCAD. |
 | `src/ui/` | PySide6 app and preview canvas. |
@@ -104,14 +105,57 @@ the drawing works.
    - Later: the 2-pole with a 120 V source (CPTs); the 24 V side (FD fuses and their loads)
      with the communications page, with the wire-routing design talk (recommendation: lanes).
    - Fuses get their own rules later (fuse disconnects vs fuse blocks).
+   - Control power is to become automatic: every 3WA breaker needs 24 V for its ETU, with a
+     DAS/MMS; an ATC brings 120 V (CPT per source, then 120 V to 24 V); Ethernet switch
+     when there are comms or meters (rules: DECISIONS 2026-11-09). Group A built
+     2026-11-09 (one page per section, page titles, wire labels, breaker family + MMS,
+     Ethernet switch section). Next (B): the 24 V chain, once Sammy's new breaker ETU pins
+     block (and a better power meter block) are in the library; then (C) ATC and 120 V.
 2. **Communications page** (3 below): rules approved 2026-10-19 (3WA: COM190 + CAT6 home run
    to the Ethernet switch; 3VA: COM060 on a COM800 chain through T-connectors, EOL
    terminator); the comms drop-down on each breaker already exists.
 3. **Next major release: re-assess the user interface** (3h below). It is getting cluttered
    as drawing logic is added.
 
-Waiting: the page-numbering bug (needs a talk with the leads about the template); device
-pages will likely become one section per page as devices are added.
+From the team meeting (DECISIONS 2026-11-10; Sammy's questions listed there first):
+- **Page numbers:** table of contents is page 1 and SHEET references are the overall sheet
+  number (ES_01 = sheet 4). Generate also writes each frame's page number, using the rule of
+  the engineers' NumberByLayout.lsp. All three are built.
+- **`docs/AI_resources/` holds the team's tools; their logic is built into the configurator**
+  (one tool for all). Read so far: the page number LISP (built), and the 24 V power supply
+  and control transformer sizing spreadsheets (waiting for the device list and the 120 V
+  block).
+- **Device names without the section** (FA-12, PM-1, STB-1; built); terminal blocks and
+  shipping splits, when they come, keep it.
+- **Wire labels: to discuss** (the group A labels are a placeholder).
+- **Wire labels on the power meter's inputs** (voltage and current) are missing. Wait for the
+  new meter block, which brings those wires out horizontally (Sammy, 2026-11-11).
+- **Terminal blocks on the hybrid pages:** what they look like is still to be decided.
+- **24 V to the power meters** (24V+ / 24V- on the UMG 801): left out until the new meter
+  block. The plan is option A: meters join their section's 24 V group and are fed along the
+  bottom from the rails. Meters then count as 24 V loads for the shipping splits. Power
+  depends on the meter model (the Schneider PM8000 takes 120 V). Sammy, 2026-11-12.
+- **Blocks Sammy is making** (each replaces a placeholder): the COM190 and the Ethernet
+  switch (both drawn as boxes now), and the new UMG 801. Possibly an update to 2.3.0
+  after it ships.
+- **120 V control power:** the engineer's choice (no ATC needed: e.g. the Schneider meter
+  takes 120 V); 1-4 sources from line-side taps, Critical Bus taps and Customer Source
+  (priority Customer, Critical, Generator, Utility), availability lights (relay + LED) per
+  source; Sammy's block; sizing from two spreadsheets (to `docs/AI_resources/`). With 120 V
+  the 24 V supply is the 2-pole.
+- **24 V fusing:** each device its own fuse, current draw x 1.25 rounded up to 1-6 A; trip
+  units and availability lights share one, split onto more fuses past 6 A; COM190 is
+  powered from the ETU (no fuse).
+- **Workshop: keeping track of devices and their current draw** (config, or Arena?); Sammy
+  is getting the list of devices.
+- **TO / FROM labels by the program** ("FROM SHEET 3 LINE SIDE 52-MAIN", "TO 52-F1 TRIP
+  UNIT"): with the "intelligence" work after the UI release (proposal in
+  `docs/SWBD_reference/INDEX.md`, NTT-013628). Built now: labels by sheet number.
+
+Order (Sammy, 2026-11-10): wrap up this release (2.3.0), then the UI release, then more
+"intelligence" in the configurator.
+
+Waiting: device pages will likely become one section per page as devices are added.
 
 ## Docket (agreed next work, in order; added 2026-10-15)
 1. ~~Save and open projects~~ (built 2026-10-15: File menu, `.swbd` files).
@@ -145,6 +189,12 @@ pages will likely become one section per page as devices are added.
    - **Duplicate a section** (with everything in it).
    - ~~**The mouse wheel must not change drop-downs** while scrolling the editor~~ (in 2.2.1).
    - **Copy and paste breakers** with Ctrl+C / Ctrl+V (and more copy / paste generally).
+   - **Double-click a problem to go where it's fixed** (Sammy, 2026-11-12): double-clicking
+     an error or warning opens the section and the field it is about.
+   - **Bring up in the UI release conversation (Sammy, 2026-11-12):**
+     - maybe not every 3WA breaker should get an MMS automatically;
+     - the COM060 and COM800 stay boxes until then, and will probably change with the UI
+       release.
 3i. **Remote display** (`Remote_Distplay` block, RD-s-n): a checkbox on each power meter; drawn
    beside its meter on the device page, meter USB to display USB on layer 0 (approved 2026-10-23).
 3i2. **Voltage taps on either side of a main** (built 2026-10-23, for review): line side or
@@ -158,6 +208,9 @@ pages will likely become one section per page as devices are added.
 4. Later polish (Sammy, in the block library): `BRACKET_TEXT_R0` label doesn't mirror its
    justification when flipped ("FROM ES_nn" runs back over the bus); `SIE_BKR_3P_3L_ASSY_R0`
    FRAME attributes (shared tag, no prompt, don't move on flip). No code workaround for now.
+
+## Weekly meeting updates
+Kept in [docs/WEEKLY_UPDATES.md](docs/WEEKLY_UPDATES.md) (Sammy, 2026-11-12).
 
 ## Watch list (for Sammy's team meetings)
 - Side-jog ("centre-fed") vertical buses: does Hyper build them? (Sabey-011475/011484,

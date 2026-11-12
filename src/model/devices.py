@@ -5,26 +5,32 @@ and numbered through the lineup. Pure Python.
     Meter models:  each model's block and the blocks wired into it (voltage input, one
                    current input per CT set), with the meter marker each input marker
                    lands on (decision 2026-10-22). pairing_problems() checks them.
-Device names hold the section the device lives in (decision 2026-10-23): fuse 12 in
-section 3 is FA-3-12. Numbers count through the whole lineup; the block holds the prefix
-("FA-") and the program fills the rest ("3-12", the device's `code`).
+Device names don't hold the section (decision 2026-11-10): the devices are already shown by
+section, so fuse 12 is FA-12 wherever it is. Numbers count through the whole lineup; the
+block holds the prefix ("FA-") and the program fills the number ("12", the device's
+`code`). Each device still knows its section (`section_number`): that is where it is drawn.
+(Terminal blocks and shipping splits, when they come, keep the section in their name.)
 
-    Power meters:  PM-s-n, n in lineup order; s = the section it is mounted in. Its remote
-                   display, if it has one: RD-s-n, n counting displays through the lineup.
+    Power meters:  PM-n, n in lineup order. Its remote display, if it has one: RD-n, n
+                   counting displays through the lineup.
     CT sets:       numbered in lineup order: in each section the part above the bus, the
-                   part below it, then the tie. Set k in section s has CTs s-(3k-2),
-                   s-(3k-1), s-3k and shorting kit STB-s-k.
-    Voltage taps:  fuses FA-s-n, n in lineup order (per section: above, below; each feed's
-                   taps in the order entered); s = the tap's section, where the fuse lives.
+                   part below it, then the tie. Set k has CTs 3k-2, 3k-1, 3k and shorting
+                   kit STB-k.
+    Voltage taps:  fuses FA-n, n in lineup order (per section: above, below; each feed's
+                   taps in the order entered); the fuse lives in the tap's section.
                    A tap feeds a power meter or a power supply (decision 2026-11-05).
-    Power supplies: PS-s-n, n in lineup order; s = the section it is mounted in.
+    Power supplies: PS-n, n in lineup order.
+    DAS/MMS:       MMS-n, one for every 3WA breaker (decision 2026-11-09), added by the
+                   program; n in lineup order (per section: above, below, tie).
 """
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from src.layout.settings import SettingsError
-from src.model.section_contents import GroupMounted, IncomingFeed, MainBreaker, SingleBreaker
+from src.model.section_contents import (
+    AIR_BREAKER, GroupMounted, IncomingFeed, LineSideBreaker, MainBreaker, SingleBreaker,
+)
 
 
 @dataclass(frozen=True)
@@ -93,15 +99,36 @@ class PowerSupplySettings:
     inputs: dict                    # {phase: marker} where its fuse's wires land (A: L1, ...)
     number_attribute: str           # gets its number after "PS-"
     layer: str
+    # Its 24 V outputs (Sammy, 2026-11-11): {"+": marker, "-": marker} and the wire layers.
+    outputs: dict = field(default_factory=dict)
+    output_wire_layers: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ShippingSplitSettings:
+    """Shipping split connectors (Sammy, 2026-11-11): every section boundary that wires
+    cross gets enough of them for its wires (`pins` each). The males go on the ends of the
+    sections' device pages; the two females of each one (the cable) on a page at the end."""
+    male_block: str
+    female_block: str
+    name_attribute: str      # gets the full name, e.g. "5SSM-3"
+    male_name: str           # "{section}SSM-{number}"
+    female_name: str         # "{section}SSF-{number}"
+    pin_marker: str          # "CONN_{pin}"
+    pins: int                # connections per split (10)
+    layer: str
 
 
 @dataclass(frozen=True)
 class DeviceSettings:
-    comms_modules: list          # e.g. ["Siemens COM190", "Siemens COM800"]
+    # Communication modules offered on a breaker, by its family (decision 2026-11-09):
+    # {"3WA": ["Siemens COM190"], "3VA": ["Siemens COM060"]}.
+    comms_modules: dict
     power_meters: dict           # {model name: MeterModel}
     fuse: FuseSettings | None = None
     remote_display: RemoteDisplaySettings | None = None
     power_supply: PowerSupplySettings | None = None
+    shipping_split: ShippingSplitSettings | None = None
 
     @property
     def power_meter_models(self) -> list[str]:
@@ -120,6 +147,8 @@ class DeviceSettings:
             names.append(self.remote_display.block)
         if self.power_supply is not None:
             names.append(self.power_supply.block)
+        if self.shipping_split is not None:
+            names += [self.shipping_split.male_block, self.shipping_split.female_block]
         return sorted(set(names))
 
 
@@ -128,11 +157,12 @@ def load_device_settings(path) -> DeviceSettings:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return DeviceSettings(
-            comms_modules=list(data["comms_modules"]),
+            comms_modules={family: list(modules) for family, modules in data["comms_modules"].items()},
             power_meters={name: _meter_model(name, entry) for name, entry in data["power_meters"].items()},
             fuse=_fuse(data["voltage_tap_fuse"]) if "voltage_tap_fuse" in data else None,
             remote_display=RemoteDisplaySettings(**data["remote_display"]) if "remote_display" in data else None,
             power_supply=_power_supply(data["power_supply"]) if "power_supply" in data else None,
+            shipping_split=_shipping_split(data["shipping_split"]) if "shipping_split" in data else None,
         )
     except FileNotFoundError:
         raise SettingsError(f"Settings file not found: {path}")
@@ -166,7 +196,17 @@ def _fuse(data) -> FuseSettings:
 def _power_supply(data) -> PowerSupplySettings:
     return PowerSupplySettings(block=str(data["block"]), inputs=dict(data["inputs"]),
                                number_attribute=str(data["number_attribute"]),
-                               layer=str(data.get("layer", "0")))
+                               layer=str(data.get("layer", "0")),
+                               outputs=dict(data.get("outputs", {})),
+                               output_wire_layers=dict(data.get("output_wire_layers", {})))
+
+
+def _shipping_split(data) -> ShippingSplitSettings:
+    return ShippingSplitSettings(
+        male_block=str(data["male_block"]), female_block=str(data["female_block"]),
+        name_attribute=str(data["name_attribute"]), male_name=str(data["male_name"]),
+        female_name=str(data["female_name"]), pin_marker=str(data["pin_marker"]),
+        pins=int(data["pins"]), layer=str(data.get("layer", "0")))
 
 
 TOLERANCE = 0.05     # markers closer than this count as the same point
@@ -212,20 +252,20 @@ def pairing_problems(model: MeterModel, markers: dict) -> list[str]:
 
 @dataclass
 class MeterInfo:
-    number: int             # n of PM-s-n, through the lineup
-    section_number: int     # s: where it is mounted
+    number: int             # n of PM-n, through the lineup
+    section_number: int     # where it is mounted
     meter: object           # the PowerMeter
-    display_number: int = 0  # n of its remote display RD-s-n (through the lineup); 0 = none
+    display_number: int = 0  # n of its remote display RD-n (through the lineup); 0 = none
 
     @property
     def display_code(self) -> str:
-        """What the program fills in after the remote display block's "RD-": "s-n"."""
-        return f"{self.section_number}-{self.display_number}"
+        """What the program fills in after the remote display block's "RD-": "n"."""
+        return str(self.display_number)
 
     @property
     def code(self) -> str:
-        """What the program fills in after the block's "PM-": "s-n"."""
-        return f"{self.section_number}-{self.number}"
+        """What the program fills in after the block's "PM-": "n"."""
+        return str(self.number)
 
     @property
     def name(self) -> str:
@@ -242,13 +282,13 @@ class CtSetInfo:
 
     @property
     def ct_numbers(self) -> list[str]:
-        """The three CTs' numbers, "s-n"."""
-        return [f"{self.section_number}-{3 * self.number - 2 + i}" for i in range(3)]
+        """The three CTs' numbers: 3k-2, 3k-1, 3k."""
+        return [str(3 * self.number - 2 + i) for i in range(3)]
 
     @property
     def code(self) -> str:
-        """The shorting kit's number after "STB-": "s-k"."""
-        return f"{self.section_number}-{self.number}"
+        """The shorting kit's number after "STB-": "k"."""
+        return str(self.number)
 
     @property
     def shorting_kit(self) -> str:
@@ -266,14 +306,14 @@ def meters_in(switchboard) -> list[MeterInfo]:
 
 @dataclass
 class PowerSupplyInfo:
-    number: int             # n of PS-s-n, through the lineup
-    section_number: int     # s: where it is mounted
+    number: int             # n of PS-n, through the lineup
+    section_number: int     # where it is mounted
     supply: object          # the PowerSupply
 
     @property
     def code(self) -> str:
-        """What the program fills in after the block's "PS-": "s-n"."""
-        return f"{self.section_number}-{self.number}"
+        """What the program fills in after the block's "PS-": "n"."""
+        return str(self.number)
 
     @property
     def name(self) -> str:
@@ -286,6 +326,44 @@ def power_supplies_in(switchboard) -> list[PowerSupplyInfo]:
         for supply in section.contents.power_supplies:
             found.append(PowerSupplyInfo(len(found) + 1, number, supply))
     return found
+
+
+@dataclass
+class MmsInfo:
+    number: int             # n of MMS-n, through the lineup
+    section_number: int     # the breaker's section
+    breaker: object         # the 3WA's Breaker
+
+    @property
+    def name(self) -> str:
+        return f"MMS-{self.number}"
+
+
+def mms_in(switchboard) -> list[MmsInfo]:
+    """The DAS/MMS of every 3WA breaker (decision 2026-11-09), numbered through the lineup."""
+    found = []
+    for number, section in enumerate(switchboard.sections, start=1):
+        contents = section.contents
+        breakers = [arrangement.breaker for arrangement in (contents.above, contents.below)
+                    if isinstance(arrangement, (MainBreaker, SingleBreaker, LineSideBreaker))]
+        if contents.tie is not None:
+            breakers.append(contents.tie.breaker)
+        for breaker in breakers:
+            found.append(MmsInfo(len(found) + 1, number, breaker))
+    return found
+
+
+def mms_name(switchboard, breaker) -> str:
+    """The DAS/MMS name of a 3WA breaker (e.g. "MMS-2"); "" if it isn't a 3WA."""
+    return next((info.name for info in mms_in(switchboard) if info.breaker is breaker), "")
+
+
+def comms_choices(comms_modules, family=AIR_BREAKER) -> list:
+    """The communication modules offered on a breaker of `family`. (A plain list, as in
+    older settings and tests, is offered to every family.)"""
+    if isinstance(comms_modules, dict):
+        return list(comms_modules.get(family, []))
+    return list(comms_modules or [])
 
 
 def ct_sets_in(switchboard) -> list[CtSetInfo]:
@@ -315,7 +393,7 @@ LOAD_SIDE = "load"
 
 @dataclass
 class TapInfo:
-    number: int             # n of FA-s-n, through the lineup
+    number: int             # n of FA-n, through the lineup
     where: str              # e.g. "Section 1 above (feed of 52-M1)"
     tap: object             # the VoltageTap
     section_number: int
@@ -325,8 +403,8 @@ class TapInfo:
 
     @property
     def code(self) -> str:
-        """What the program fills in after the block's "FA-": "s-n"."""
-        return f"{self.section_number}-{self.number}"
+        """What the program fills in after the block's "FA-": "n"."""
+        return str(self.number)
 
     @property
     def fuse(self) -> str:
@@ -356,7 +434,7 @@ def voltage_taps_in(switchboard) -> list[TapInfo]:
 
 
 def meter_name(switchboard, meter_id: str) -> str:
-    """The meter's name (e.g. "PM-3-1"), or "" if there is no such meter."""
+    """The meter's name (e.g. "PM-3"), or "" if there is no such meter."""
     for info in meters_in(switchboard):
         if info.meter.id == meter_id:
             return info.name
@@ -369,6 +447,50 @@ def tap_target_names(switchboard) -> dict[str, str]:
     names = {info.meter.id: info.name for info in meters_in(switchboard)}
     names.update({info.supply.id: info.name for info in power_supplies_in(switchboard)})
     return names
+
+
+@dataclass
+class CommsInfo:
+    """A breaker's communication module (decision 2026-11-09)."""
+    number: int             # 1, 2, 3... through the lineup (no device name yet)
+    section_number: int     # the breaker's section
+    breaker: object         # the Breaker it is on
+    module: str             # e.g. "Siemens COM190"
+
+
+def comms_modules_in(switchboard) -> list[CommsInfo]:
+    """Every breaker's communication module, in lineup order: in each section the part
+    above the main bus, the part below, then the tie breaker."""
+    found = []
+    for number, section in enumerate(switchboard.sections, start=1):
+        contents = section.contents
+        breakers = []
+        for arrangement in (contents.above, contents.below, contents.tie):
+            if isinstance(arrangement, GroupMounted):
+                for level in arrangement.levels:
+                    breakers += [getattr(level, "left", None), getattr(level, "right", None),
+                                 getattr(level, "slot", None)]
+            else:
+                breakers.append(getattr(arrangement, "breaker", None))
+        for breaker in breakers:
+            module = getattr(breaker, "comms_module", "")
+            if module:
+                found.append(CommsInfo(len(found) + 1, number, breaker, module))
+    return found
+
+
+def needs_ethernet_switch(switchboard) -> bool:
+    """Any breaker with a communication module, or any power meter, means an Ethernet switch
+    (decision 2026-11-09)."""
+    if any(section.contents.power_meters for section in switchboard.sections):
+        return True
+    return bool(comms_modules_in(switchboard))
+
+
+def ethernet_switch_sections(switchboard) -> list[int]:
+    """The section numbers marked as holding the Ethernet switch."""
+    return [number for number, section in enumerate(switchboard.sections, start=1)
+            if section.contents.ethernet_switch]
 
 
 def device_problems(switchboard) -> list[str]:
@@ -400,4 +522,11 @@ def device_problems(switchboard) -> list[str]:
     for info in meters_in(switchboard):
         if not info.meter.model:
             problems.append(f"{info.name} (section {info.section_number}): choose its model.")
+    switch_sections = ethernet_switch_sections(switchboard)
+    if needs_ethernet_switch(switchboard) and not switch_sections:
+        problems.append('There are comms modules or power meters, so there is an Ethernet switch: tick '
+                        '"Ethernet switch in this section" in the section it goes in.')
+    elif len(switch_sections) > 1:
+        problems.append(f"The Ethernet switch is ticked in more than one section "
+                        f"({', '.join(str(n) for n in switch_sections)}); there is only one.")
     return problems

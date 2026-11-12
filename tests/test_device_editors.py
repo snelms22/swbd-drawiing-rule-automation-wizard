@@ -31,7 +31,7 @@ def test_adding_a_meter_and_ticking_cts_fills_the_model():
     editor.devices_editor.model_combo.setCurrentText("Janitza UMG 801")
     meter = section.contents.power_meters[0]
     assert meter.model == "Janitza UMG 801"
-    assert editor.devices_editor.meters_list.item(0).text().startswith("PM-1-1")
+    assert editor.devices_editor.meters_list.item(0).text().startswith("PM-1")
     editor.devices_editor.remote_display_check.setChecked(True)
     assert meter.remote_display
 
@@ -53,7 +53,7 @@ def test_adding_a_meter_and_ticking_cts_fills_the_model():
     taps_editor._add_tap()
     taps_editor.feeds_combo.setCurrentIndex(taps_editor.feeds_combo.findData(meter.id))
     assert section.contents.above.feed.voltage_taps[0].feeds == meter.id
-    assert taps_editor.taps_list.item(0).text() == "FA-1-1   to PM-1-1   (line side)"
+    assert taps_editor.taps_list.item(0).text() == "FA-1   to PM-1   (line side)"
     # The fuse's rating is filled by the engineer; its number by the program (no field).
     fields = {taps_editor.fuse_form.itemAt(row, QFormLayout.FieldRole).widget().toolTip(): row
               for row in range(taps_editor.fuse_form.rowCount())}
@@ -68,7 +68,7 @@ def test_adding_a_meter_and_ticking_cts_fills_the_model():
     taps_editor.side_combo.setCurrentText("Load side")
     assert section.contents.above.feed.voltage_taps == []
     assert section.contents.above.load_side_taps == [tap]
-    assert taps_editor.taps_list.item(0).text() == "FA-1-1   to PM-1-1   (load side)"
+    assert taps_editor.taps_list.item(0).text() == "FA-1   to PM-1   (load side)"
     editor.close()
     del editor
 

@@ -70,17 +70,17 @@ def new_device_id() -> str:
 
 @dataclass
 class PowerMeter:
-    """A power meter mounted in a section (decision 2026-10-21). Named PM-s-n (s = its section,
-    n through the lineup, decision 2026-10-23); the model is labelled with its brand, e.g. "Janitza UMG 801"."""
+    """A power meter mounted in a section (decision 2026-10-21). Named PM-n (no section in
+    the name, n through the lineup, decision 2026-11-10); the model is labelled with its brand, e.g. "Janitza UMG 801"."""
     model: str = ""
     id: str = field(default_factory=new_device_id)
-    remote_display: bool = False    # a remote display (RD-s-n) on its USB (decision 2026-10-23)
+    remote_display: bool = False    # a remote display (RD-n) on its USB (decision 2026-10-23)
 
 
 @dataclass
 class PowerSupply:
-    """A control power supply mounted in a section (decision 2026-11-05), named PS-s-n (s = its
-    section, n through the lineup). Fed by a voltage tap. 3-pole (480 V to 24 V) for now; the
+    """A control power supply mounted in a section (decision 2026-11-05), named PS-n (n through
+    the lineup). Fed by a voltage tap. 3-pole (480 V to 24 V) for now; the
     2-pole (120 V to 24 V) comes with a 120 V source."""
     attributes: dict[str, str] = field(default_factory=dict)   # its block's attributes (rating, ...)
     id: str = field(default_factory=new_device_id)
@@ -90,9 +90,9 @@ class PowerSupply:
 class VoltageTap:
     """A fused voltage tap for a power meter's voltage input (decision 2026-10-22): on a
     feed (a main breaker's line side) or on a main breaker's load side, between the
-    breaker and the main bus (decision 2026-10-23). Its fuse is numbered FA-s-n (s = the tap's section, n through
+    breaker and the main bus (decision 2026-10-23). Its fuse is numbered FA-n (n through
     the lineup) and is drawn on the device pages; the 3-line shows the tap and
-    "TO FA-s-n SHEET #". It feeds a power meter's voltage input or a power supply
+    "TO FA-n SHEET #". It feeds a power meter's voltage input or a power supply
     (decision 2026-11-05)."""
     feeds: str = ""                 # id of the PowerMeter or PowerSupply it feeds; "" = not chosen yet
     # Values for its fuse block's attributes, e.g. the rating (decision 2026-10-23).
@@ -123,6 +123,12 @@ class Space:
 
 Slot = Breaker | Provision | Space
 
+
+# Breaker families, by position (decision 2026-11-09): main, single, line-side and tie
+# breakers are 3WA (Siemens air breakers, with a built-in ETU that always needs 24 V and
+# always comes with a DAS/MMS); breakers in a group-mounted distribution are 3VA.
+AIR_BREAKER = "3WA"
+MOLDED_CASE = "3VA"
 
 # Main breaker mounting options; each maps to a library block in config.
 FIXED = "fixed"
@@ -223,6 +229,9 @@ class SectionContents:
     # Devices mounted in this section (decisions 2026-10-21, 2026-11-05).
     power_meters: list[PowerMeter] = field(default_factory=list)
     power_supplies: list[PowerSupply] = field(default_factory=list)
+    # The switchboard's Ethernet switch is in this section (decision 2026-11-09): the
+    # engineer picks the section; there is one when there are comms or power meters.
+    ethernet_switch: bool = False
 
 
 def side_away_from_bus(part: str) -> str:

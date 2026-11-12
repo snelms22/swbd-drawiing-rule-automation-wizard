@@ -79,15 +79,17 @@ def drawing_number(switchboard, settings: DrawingInfoSettings, drawing_type: str
     return fmt.format(job_number=switchboard.drawing_info.job_number.strip())
 
 
-def drawing_properties(switchboard, settings: DrawingInfoSettings, schematic_pages: int) -> dict[str, str]:
-    """{drawing property name: value} to write into the drawing."""
+def drawing_properties(switchboard, settings: DrawingInfoSettings, total_pages: int) -> dict[str, str]:
+    """{drawing property name: value} to write into the drawing. `total_pages` is every page
+    of the drawing (TOC, legend, BOM and the ES pages): the title block's "OF nn"
+    (decision 2026-11-11)."""
     line_1, line_2 = item_name_lines(switchboard.drawing_info.item_name, settings.item_name_line_length)
     names = settings.drawing_properties
     return {
         names["job_number"]: switchboard.drawing_info.job_number.strip(),
         names["item_name_line_1"]: line_1,
         names["item_name_line_2"]: line_2,
-        names["schematic_pages"]: f"{schematic_pages:02d}",
+        names["total_pages"]: f"{total_pages:02d}",
     }
 
 

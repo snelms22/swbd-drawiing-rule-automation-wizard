@@ -24,6 +24,27 @@
   into DECISIONS.md, config, or code only after Sammy approves them.
 - Read DXF files with `ezdxf` (dev-only dependency) rather than raw text; they can be huge.
 
+## Build resources (Sammy's files for Claude; read only)
+- `docs/AI_resources/` holds the team's existing tools (LISP routines, spreadsheets, notes...).
+  Its purpose: take each tool's logic and build it into this program, so the configurator
+  becomes one tool that integrates all of them (Sammy, 2026-11-10). The default is to take
+  the logic as is. Point out any slips found in a tool, rather than redesigning it.
+- The files are for reading only: their logic or information.
+- NEVER edit, rename, move, or delete anything in that folder. Claude's notes about them go in
+  `docs/AI_RESOURCES_INDEX.md` (outside the folder).
+- At the start of each session, compare the folder against `AI_RESOURCES_INDEX.md`; for any
+  new file, read it, add an entry, and tell Sammy what it does and where its logic would go
+  in the program. Where it lives in the program (config, UI, which step) is a design choice,
+  so it goes into code once Sammy approves that.
+
+## Weekly meeting updates (keep current without being asked)
+- `docs/WEEKLY_UPDATES.md` is what Sammy brings to the weekly meeting (Friday mornings). Update it whenever a
+  library block is added or changed (Block Updates), a release goes out or its scope changes
+  (SWBD Configurator Updates, listed by release: released since the last meeting, then
+  upcoming), and when the outlook changes (Coming Up).
+- Bullets are a few words each, in the format at the top of that file. When Sammy says a
+  meeting happened, start a new section for the next one.
+
 ## Non-negotiable rules
 - Controlled blocks (WBLOCK .dwg files) are ALWAYS inserted at scale 1.0. Never scale them.
   Flipping (X scale -1) is allowed, but text and attributes must still read normally.

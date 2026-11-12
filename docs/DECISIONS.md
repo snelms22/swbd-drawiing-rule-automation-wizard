@@ -266,6 +266,288 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-11-12 — 24 V to the power meters waits for the new meter block
+**Decision:** The power meters need 24 V on their + and - supply inputs (24V+ / 24V- on the
+UMG 801), but this is left out for now.
+- **Plan (option A):** each meter, with its fuse, CT inputs and remote display, joins its
+  section's 24 V group and is fed along the bottom from the rails. Meters then count as
+  24 V loads when working out the shipping splits.
+- **Power by model:** which terminals and which voltage go in config per model. The
+  Schneider PM8000 takes 120 V and comes with the 120 V work.
+- **Blocks still to come** (each replaces a placeholder): COM190, Ethernet switch, the new
+  UMG 801.
+**Reason:** Sammy, 2026-11-12: the UMG 801 block isn't final; its wires will come out
+horizontally.
+**Status:** Deferred until the new meter block. Possibly an update to 2.3.0 after it ships.
+
+### 2026-11-11 — One 24 V power supply; 24 V moves between sections through shipping splits
+**Decision (Sammy's rules):**
+- A lineup has only one 24 V power supply. Its 24 V reaches the other sections through
+  shipping splits.
+- **Blocks:** Female_Shipping_Split and Male_Shipping_Split, 10 connections each.
+  - Sammy fixed the male's name and its CONN_7 the same day.
+  - Read 2026-11-11: CONN_1-CONN_10, 5 apart. The female's are on its left; the male's
+    are on its right. Both can flip. Attribute SS_DWG_NUM (default "#SSF-##" / "#SSM-##").
+- **Names** start with the section number, then SSF or SSM, then the split's number within
+  the section. The 3rd shipping split in section 5 is 5SSM-3. They keep the section number,
+  as terminal blocks do (2026-11-10 naming).
+**Reason:** Sammy, 2026-11-11.
+**Status:** Approved. Built 2026-11-11.
+- **Where splits go (Sammy's answers, same day):** every boundary between two sections that
+  wires cross. How many depends on how many wires cross (10 per split); wires take the next
+  free pin, so + is pin 1 and - is pin 2 for now.
+- **Males:** on the ends of each section's device page, showing what connects to them.
+- **Females:** the two of each split (the cable between the sections) go on a new page at the
+  very end, "SHIPPING SPLITS", showing the wires and their labels.
+- **Numbering:** within the section, males and females counted separately, left boundary
+  first, then the right.
+- **As built:**
+  - 24 V crosses a boundary when the supply is on one side and a box it feeds is on the
+    other. A section in between only passes it on.
+  - In each section, the 24 V group comes first on its page. On the left: the supply (in its
+    own section), then the left boundary's male, facing right. On the right: the boxes, then
+    the right boundary's male, flipped to face left. A + rail and a - rail join them all.
+  - *(Sammy, same day: the males sit at the page's ends.)* The left boundary's male is flush
+    with the page's left margin. The right boundary's male is flush with its right margin,
+    below the boxes, with the 24 V wires running across to it. If that would reach the title
+    block, it stays beside the boxes.
+  - On the last page, each split's two females are side by side, the left section's flipped,
+    `shipping_split_cable` apart, with a labelled wire per pin used.
+  - Blocks and names are in `shipping_split` in config/devices.json.
+  - With more than one supply, only the first is wired, and Generate says so.
+  - *(Sammy, same day: rare, but kept.)* A fuse feeding a meter or power supply in another
+    section sends its three phases through the splits at every boundary in between. They
+    take the next pins after the 24 V. On the SHIPPING SPLITS page the phases are in the
+    cable, labelled.
+  - **Routing (Sammy, same day): avoid jumps unless they make a page less busy.**
+    - The fuse lies down in its section's split group and its load side runs straight into
+      the outgoing male. No TO bracket.
+    - Wires passing through a section run straight across the page from male to male. The
+      outgoing male lines up with the first passing wire or fuse wire it carries (the 24 V
+      if nothing else), and the boxes drop below those wires.
+    - The rails start clear of whatever is in the left column.
+    - The receiving meter or power supply keeps its FROM bracket for now (the meter block is
+      changing), with a short labelled stub on the male's pin (`split_stub_length`).
+  - **Wire labels (confirmed by Sammy):** a wire keeps one label on both sides of a jump, since
+    it's the same wire.
+  - More connections will come later, some from other pages of the same section. Each
+    boundary already takes as many splits as its wires need, 10 pins each.
+  - Seen in Sammy's Hybrid_ES-013631 (not in docs/SWBD_reference/ yet), 2026-11-11:
+    - three splits' worth of wires between two sections;
+    - the section pages end each wire in a tag "1SSM-2 (4)" (split, then pin);
+    - the splits page lists each male pin with where its wire comes from ("ATC-1 (22)"),
+      its label, and what it is ("FA-4 / PHASE-A", "52-MSB-H01-M (X6.9)"), beside the
+      mated females 1SSF-n / 2SSF-n;
+    - pins 1-3 there carry a fuse's phases.
+    A possible later step, not built.
+  - Terminal blocks will be needed on the hybrid pages; what they look like is not decided.
+
+### 2026-11-11 — First 24 V wiring: power supply to the comms modules and Ethernet switch
+**Decision:** In a section with a power supply, the supply feeds that section's Ethernet switch
+and comms module boxes. If the section has more than one supply, the first one feeds them.
+- **Wires:** a + wire and a - wire from its 24 V outputs (24P1 / 24N1 on 3P_PWR_SUP, set in
+  config/devices.json), ending just inside each box. They go on layers WIRE - 24+_RED and
+  WIRE - 24-_BLK, labelled 2+00n / 2-00n (n = the supply's number; a placeholder like the
+  other wire labels).
+- **Layout:** the boxes stack down to the supply's right with their left edges lined up.
+  - The first box is level with the outputs, so its wires run straight across.
+  - The others branch off a + rail and a - rail, with a junction dot (BUS_NODE) at each tee.
+  - Spacing is set in `device_pages` (`feed_*`).
+- **Sections without a supply:** their boxes stay unwired, after the section's other devices.
+**Reason:** Sammy, 2026-11-11: "send a positive and a negative wire to right inside the box for
+now", to show some wire routing in this release.
+**Status:** Approved. Built 2026-11-11. The full 24 V chain (fusing per device, the ETUs) is
+still group B. *(Same day: a lineup has only one 24 V supply, so sections without it will get
+their 24 V through shipping splits: see the entry above.)*
+
+### 2026-11-11 — Boxes for the Ethernet switch and comms modules until their blocks exist
+**Decision:**
+- Until their blocks exist, the device pages draw a box in place of:
+  - the Ethernet switch, in the section ticked for it, labelled "ETHERNET SWITCH";
+  - each breaker's comms module, in its breaker's section, labelled with the breaker and the
+    module ("52-M1 Siemens COM190").
+- The boxes come after the section's other devices, so the devices already drawn don't move.
+- They go on the non-printing placeholder layer, like the meter boxes, and have no wires yet.
+- A section with only comms modules now gets its own device page.
+- Generate notes once that these are boxes.
+- Box sizes and the switch's text are in `device_pages` in config/layout_settings.json.
+**Reason:** Sammy, 2026-11-11: "place temporary boxes in their place for now."
+**Status:** Approved. Built 2026-11-11. Sizes are placeholders.
+
+### 2026-11-11 — The title block's page total counts every page
+**Decision:** The title block's "OF nn" (field on the drawing property TOTAL PAGES ES) is the
+drawing's whole page count: the kept template pages (TOC, legend, BOM) plus the ES pages.
+Six pages read 01 OF 06 … 06 OF 06. It was the ES pages only (03).
+**Reason:** Sammy, 2026-11-11: the page numbers changed but the total didn't. It must agree
+with the page numbers written into the frames.
+**Status:** Approved. Built 2026-11-11.
+
+### 2026-11-10 — Page numbers written by Generate; the resources folder's purpose
+**Decision:**
+- Generate writes each page's number into its frame's `PAGE` attribute. It uses the rule of
+  the engineers' NumberByLayout.lsp: 01, 02, 03... in tab order. That is the kept template
+  pages first (TOC 01, legend 02, BOM 03), then ES_01 = 04 and so on.
+- These are the same numbers the SHEET references use. The LISP gives the same result if an
+  engineer runs it afterwards.
+- The frame each kept layout shows is in config (`keep_layout_frames`). A frame without a
+  `PAGE` attribute is reported, and that page keeps the template's number.
+- `docs/AI_resources/` holds the team's existing tools. Their logic is taken and built into
+  the configurator, so it becomes one tool that integrates all of them. CLAUDE.md and
+  AI_RESOURCES_INDEX.md say so.
+**Reason:** Sammy, 2026-11-10 ("Do the page numbers with your option 1"). Option 2 (run the
+LISP from the program) would depend on where the file lives and leave its "renumber on
+save" reactor on. Option 3 (leave it to the engineers) would ship drawings with wrong
+numbers.
+**Status:** Approved. Built 2026-11-10.
+
+### 2026-11-10 — Wire labels on layer 0; smaller tildes
+**Decision:** Wire labels go on layer 0 (was TEXT): `wire_labels.layer` in
+config/layout_settings.json. Sammy made TILDE_R0 and 3P_TIDE_R0 smaller in the block library
+to match the other tildes in the drawing. The catalog was refreshed the same day: only their
+outlines changed, and their connection points stayed the same.
+**Reason:** Sammy, 2026-11-10.
+**Status:** Approved. Built 2026-11-10.
+
+### 2026-11-10 — Team meeting: page numbers, naming, 120 V and 24 V control power
+**Decision:** From Sammy's team meeting (2026-11-10):
+- **Build resources folder:** `docs/AI_resources/` holds files Sammy puts there to help
+  build the program (LISP routines, spreadsheets). Claude only reads them, never edits them;
+  Claude's notes go in `docs/AI_RESOURCES_INDEX.md`. Rule in CLAUDE.md.
+- **Page numbers:** an engineer's LISP fills in the template's page number fields. Sammy
+  puts it in the resources folder; Claude takes its logic or suggests something different.
+  (The template's frames carry a fixed `PAGE` attribute: TOC_01 = 01, LEG_01 = 02,
+  ES_01 = 08 ...)
+- **The table of contents is page 1,** then the pages as before: TOC_ES, LEG_ES, BOM_ES,
+  ES_01 ... (`keep_layouts` in config/autocad_settings.json). Built 2026-11-10.
+- **Device names:** names and abbreviations stay the same (PM, FA, PS, MMS, RD, ...), but
+  **the section number is no longer in the name**, because the devices are already shown
+  by section: FA-3-12 becomes FA-12. **Exceptions: terminal blocks and shipping splits keep
+  the section number** in their name. Replaces the naming in "Device names hold their
+  section" (2026-10-23) and PS-s-n / MMS-s-n (2026-11-05, 2026-11-09).
+- **Wire labels: to discuss** (on the docket). The labels built in group A (2026-11-09,
+  legend prefixes, tap n = 2n-1 / 2n) are a placeholder until then. The team's wire label
+  LISP will probably change and may not help the program.
+- **120 V control power:** the engineer picks how many sources (1, 2, 3 or 4) and which:
+  **Utility, Generator, Critical Bus (sometimes shown as UPS), Customer Source.** From that
+  the program draws the whole circuit. Sources are ranked by priority, highest first:
+  **Customer, Critical, Generator, Utility**, and go into the 120 V control power circuit
+  in that order. Sammy makes the block (1, 2, 3 and 4 source versions); the program adds
+  fuses or tildes to it as needed. **Each source has a checkbox for availability indicator
+  lights.** Two spreadsheets (to the resources folder) size the overcurrent protection,
+  the power supply and the transformer; the program will use their rules.
+- **24 V control power distribution:** in general **each device gets its own fuse.** Each
+  device in config/devices.json gets its current draw (A); the fuse is that x 1.25, rounded
+  up to the next available fuse. **Available fuses: 1 to 6 A.** Exception: **trip units and
+  lights can all share one fuse.** More exceptions may be added (so exceptions live in
+  config). Replaces "How much goes on one fuse: the engineer's choice" (2026-11-09).
+- **Conflicts found while recording this; Sammy's answers (2026-11-10):**
+  1. **SHEET references are the drawing's overall sheet number,** not the ES page number:
+     TOC 1, legend 2, BOM 3 (counted, though empty for now), so ES_01 is sheet 4, ES_02
+     sheet 5, and so on (as in the hybrid, "FROM SHEET 3" for its 3-line). Built:
+     `sheets_before_pages` (3) in layout_settings.json `device_pages`, matching
+     `keep_layouts`; Generate warns if the two disagree. **Labels name sheets too**
+     (Sammy, 2026-11-10): "FROM ES_01" / "TO ES_02" became "FROM SHEET 4" / "TO SHEET 5"
+     (`page_reference` "SHEET {sheet}" in `bus_break`). Later: the program writes the
+     hybrid's fuller labels itself ("FROM SHEET 3 LINE SIDE 52-MAIN", "TO 52-F1 TRIP
+     UNIT"...), so the engineer doesn't have to (proposal in INDEX.md, NTT-013628).
+  2. **TOC vs revision history:** use what is in the template (TOC_ES). Changes to it are
+     made in the template.
+  3. **No section in any device name built so far:** shorting kits are STB-k (not the kind of
+     terminal block meant above) and CTs go back to plain numbers (set k: 3k-2, 3k-1, 3k).
+     Built: PM-n, RD-n, FA-n, PS-n, MMS-n, STB-k, CTs 1-2-3 ...
+  4. **120 V is the engineer's choice** in the configurator. With an ATC there is generally
+     switching and so 120 V control power (that matters for how the drawing is laid out),
+     but 120 V doesn't need an ATC: e.g. the Schneider power meter takes 120 V.
+     *Replaces "an ATC brings 120 V" (2026-11-09) as the trigger.*
+  5. **120 V sources, as the engineer picks them:** the program can't tell which section is
+     the generator or the utility, so the choices are: **line-side taps** (the engineer
+     picks which), **Critical Bus** (with taps the engineer must pick), and **Customer
+     Source**. (Priority order from above: Customer, Critical, Generator, Utility.)
+  6. **Trip units and lights share a fuse, and when that total x 1.25 is over the largest
+     fuse (6 A), they are split onto more fuses.** Sammy is getting a list of every device.
+     **Docket: workshop how devices and their current draw are kept** (config, or maybe
+     Arena).
+  7. **"Lights" are the availability indicator lights,** not the MMS (the MMS is a switch and a
+     light in one): per source, a contact relay and an LED that lights when that source is
+     available.
+  8. **The COM190 is powered through a Siemens-supplied cable from the ETU:** no fuse, no
+     24 V wire of its own.
+  9. **With 120 V present, the 24 V supply is the 2-pole** off the 120 V circuit (as far as
+     Sammy knows).
+**Reason:** Sammy's team meeting, 2026-11-10, and his answers the same day.
+**Status:** Approved. Built 2026-11-10: TOC first, device names without the section, SHEET =
+overall sheet number, page numbers by Generate (entry above); wire labels to discuss; 120 V waits
+for Sammy's block and the spreadsheets; 24 V fusing waits for the device list
+
+### 2026-11-09 — Breakers, their ETUs, and control power (general rules)
+**Decision:** Background and rules from Sammy that apply throughout:
+- **Designations follow the legend** of the hybrid NTT-013628 (sheet 02) for now: terminal
+  block "2TB24+(1-4)", shipping split "SS1-2M-2(4)", wire "120N-J3". Can be tweaked later.
+- **3WA (Siemens "air breaker"):** very large; generally the input breakers (mains), the
+  kind found alone in a section or as a top-fed and a bottom-fed single breaker in one
+  section. Its **ETU** (electronic trip unit) is built in. Its control pins come on
+  block-like connectors that slot into the top of the breaker, labelled X<connector>.<pin>,
+  e.g. X8.4. These pins are the ETU's; the drawings name the ETU the same as its breaker.
+  **Every ETU pin is doubled**, so daisy-chaining through a pin is fine.
+  - **Every 3WA needs 24 V control power** for its ETU, so the program adds the control
+    power for every 3WA by itself; the engineer only decides where its taps go.
+  - **A DAS/MMS always comes with a 3WA:** added automatically for now. The DAS takes its
+    24 V from the ETU.
+  - **COM190:** the 3WA's communication module, connected to the ETU over the CubicleBUS
+    (Modbus), and from it to the Ethernet switch. The drawings don't show this well yet.
+- *(2026-11-10: 120 V control power is now its own choice by the engineer, picked from
+  line-side taps, Critical Bus taps and Customer Source; an ATC generally means 120 V, but
+  120 V doesn't need an ATC. The COM190 is powered by a Siemens cable from the ETU.)*
+- **ATC:** whether there is one is the engineer's choice. With an ATC, the two breakers it
+  controls need **120 V** control power to their ETUs. Needing 120 V means: a 3-phase tap to
+  a transformer (CPT) for each source, logic choosing which source is used, and then 120 V
+  stepped down to 24 V (the 2-pole power supply) instead of 24 V straight from the taps.
+- **3VA:** smaller, with less going on; usually the group-mounted distribution breakers.
+  With comms: one COM060 per breaker, and a COM800 connecting to each of them (as in the
+  references, DECISIONS 2026-10-19 item 8).
+- **Ethernet switch:** there is one if there is any COM190, COM800 or power meter. The
+  engineer chooses the section it lives in. Cable lengths: left out for now.
+- **How much goes on one fuse:** the engineer's choice; no rule yet. *Replaced 2026-11-10:
+  each device its own fuse, sized from its current draw; trip units and lights share one.*
+- **Wires per terminal:** the hybrid style shows every wire, so the number of wires on each
+  terminal (terminal blocks, device pins) must be tracked and shown. Daisy-chaining through
+  doubled pins (3WA ETU) helps keep it down; this is to be known for each device.
+- **Coming from Sammy:** a better power meter block, and a new breaker ETU pins block more in
+  line with the wiring diagram.
+- **How the program does it (Sammy, 2026-11-09):**
+  - **Breaker family by position:** main, single and tie breakers are 3WA; group-mounted
+    breakers are 3VA. No new field; change later if it becomes a problem.
+  - **COM190 stays the engineer's choice** on each 3WA.
+  - **One 24 V power supply per switchboard,** in the section the engineer picks, fed from
+    the tap the engineer picks.
+  - **The ATC does not always control interlocked mains,** and mains are not always
+    interlocked: what the ATC controls is a question for Sammy's team (the standard).
+  - Build order: (A) one device page per section, wire labels by the legend, breaker
+    family + automatic MMS/DAS, the Ethernet switch's section; (B) the automatic 24 V chain
+    when the ETU pins block arrives; (C) ATC and 120 V.
+- **Group A as built (2026-11-09, for Sammy's review):**
+  - **One device page per section,** titled "ELECTRICAL SCHEMATIC SECTION n"; its devices
+    left to right in rows from the top left (power supplies first), carrying on on another
+    page if full. A section with no devices gets no page. The "SECTION n" headings are gone.
+  - **Page titles** on every page the program draws, as in the hybrid: "THREE-LINE DIAGRAM
+    01" on the 3-line pages too; MText height 3 at the bottom right (right end 327.84 from
+    the frame's left, middle 5.03 up), bold Century Gothic, spaced, underlined
+    (`page_title` in layout_settings.json).
+  - **Wire labels** on every wire the program draws on the device pages, by the legend's
+    prefixes (`wire_labels` in layout_settings.json): tap n's wires from the 3-line are
+    2n-1, from its fuse onward 2n (one tap: 4A001 / 4A002, as in the hybrid); MText 1.25 on
+    layer TEXT, centred 1.05 above the wire's longest across piece, or turned 90 degrees
+    1.05 to the left of an upright wire. The 3-line tap's own wires are inside its block:
+    labelled there once `3P_Voltage_Tap` has wire label attributes.
+  - **Breaker family by position;** comms by family (config/devices.json): 3WA offers
+    COM190, 3VA COM060 (projects that had COM800 on a group-mounted breaker open with
+    COM060). **Every 3WA has a DAS/MMS,** MMS-s-n (named by section like every device),
+    shown in its editor as "added automatically"; not drawn until its block exists.
+  - **Ethernet switch:** "Ethernet switch in this section" in the Devices box, shown when
+    there are comms modules or power meters; one section only; warning until ticked.
+**Reason:** Sammy, 2026-11-09, answering the hybrid NTT-013628 study questions.
+**Status:** Approved; group A built 2026-11-09, for Sammy's review
+
 ### 2026-11-05 — Device pages: drop the column-per-section layout
 **Decision:** The device pages will no longer be laid out as one column per section (the
 2026-10-23 layout). The devices will mostly be wired together, so they are to be placed in
@@ -432,6 +714,8 @@ main breakers (`main_breaker.blocks`). Saved with the project; older files open 
 **Status:** Approved; built
 
 ### 2026-10-23 — Device names hold their section; device pages: wires inside a section
+*Naming replaced 2026-11-10: the section number is dropped from device names (FA-3-12 becomes
+FA-12), except for terminal blocks and shipping splits.*
 **Decision:**
 - **Naming (every device):** the name holds the section the device lives in: fuse 12 in
   section 3 is **FA-3-12**. The number counts through the whole lineup. The block holds the
@@ -660,13 +944,16 @@ layout and how the engineer works with it once more is built.
   configurator only sets drawing properties: FG NUMBER = job number (the template's own fields
   make FGD 900-<job> and each row's drawing number: one-line EO-, schematic ES-, wiring EW-),
   FG DESCRIPTION / NUMBER OF BREAKERS = the item name on two lines (split at the comma nearest
-  the middle when it's long), TOTAL PAGES ES = the number of 3-line pages. It fills every sheet.
+  the middle when it's long), TOTAL PAGES ES = the number of 3-line pages. It fills every sheet. *(2026-11-11: TOTAL PAGES ES is now
+  every page of the drawing, TOC to the last ES page: see 2026-11-11.)*
 - **Layouts:** a generated drawing keeps only these layouts, with tabs in this order: the
   legend (LEG_ES), the BOM page (BOM_ES; not used yet), then the 3-line pages drawn (ES_01 ...).
   Template pages kept are listed in config (`keep_layouts`). All other (empty) layouts are
   deleted; the drawing opens on ES_01.
 - **Sheet numbers** ("08 OF 02" on ES_01: the template's frames carry fixed page numbers) are
   a template update for Sammy, not a program change. **Arena** fetching is on hold for now.
+  *Updated 2026-11-10: the table of contents (TOC_ES) is kept as page 1, before the legend;
+  page numbers are to be filled in by the program, using an engineer's LISP as the model.*
 **Reason:** Sammy, 2026-10-20.
 **Status:** Approved
 

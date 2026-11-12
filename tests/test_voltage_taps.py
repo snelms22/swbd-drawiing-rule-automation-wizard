@@ -29,6 +29,7 @@ def main_with_taps(count, label="52-M1", **feed):
 def board(*contents):
     sections = [Section(c) for c in contents]
     sections[0].contents.power_meters = [METER]
+    sections[0].contents.ethernet_switch = True     # meters mean an Ethernet switch (2026-11-09)
     return Switchboard("Test", sections)
 
 
@@ -59,14 +60,14 @@ def test_taps_sit_on_the_feed_between_breaker_and_termination():
     assert first.position == (16, 65 + 3.5 + 5 + 12)
     assert second.position == (16, first.position[1] + 14 + 5)
     assert first.visibility == "FROM_LEFT"
-    assert (first.attributes, second.attributes) == ({"FUSE_DRW_NUM": "1-1"}, {"FUSE_DRW_NUM": "1-2"})
+    assert (first.attributes, second.attributes) == ({"FUSE_DRW_NUM": "1"}, {"FUSE_DRW_NUM": "2"})
 
 
 def test_fuses_are_numbered_through_the_lineup():
     switchboard = board(SectionContents(above=main_with_taps(1)),
                         SectionContents(below=main_with_taps(2, label="52-M2")))
     assert [(t.fuse, t.section_number, t.part) for t in voltage_taps_in(switchboard)] == [
-        ("FA-1-1", 1, "above"), ("FA-2-2", 2, "below"), ("FA-2-3", 2, "below")]
+        ("FA-1", 1, "above"), ("FA-2", 2, "below"), ("FA-3", 2, "below")]
 
 
 def test_taps_on_a_u_turned_feed_are_not_drawn_yet():
@@ -79,7 +80,7 @@ def test_taps_on_a_u_turned_feed_are_not_drawn_yet():
 def test_a_tap_needs_something_to_feed():
     main = MainBreaker(Breaker("52-M1"), feed=IncomingFeed(voltage_taps=[VoltageTap()]))
     assert device_problems(board(SectionContents(above=main))) == [
-        "Section 1 above (feed of 52-M1): choose the power meter or power supply voltage tap FA-1-1 feeds."]
+        "Section 1 above (feed of 52-M1): choose the power meter or power supply voltage tap FA-1 feeds."]
 
 
 def test_the_feed_and_its_taps_are_saved(tmp_path):
@@ -145,10 +146,10 @@ def test_line_side_taps_are_numbered_before_load_side_taps():
     main.feed.voltage_taps = [VoltageTap(feeds="m1")]
     switchboard = board(SectionContents(above=main))
     assert [(t.fuse, t.side) for t in voltage_taps_in(switchboard)] == [
-        ("FA-1-1", LINE_SIDE), ("FA-1-2", LOAD_SIDE), ("FA-1-3", LOAD_SIDE)]
+        ("FA-1", LINE_SIDE), ("FA-2", LOAD_SIDE), ("FA-3", LOAD_SIDE)]
     page = layout(switchboard).pages[0]
     line_tap = max(taps_on(page), key=lambda tap: tap.position[1])    # above the breaker
-    assert line_tap.attributes == {"FUSE_DRW_NUM": "1-1"}
+    assert line_tap.attributes == {"FUSE_DRW_NUM": "1"}
 
 
 def test_a_main_fed_from_another_section_keeps_its_load_side_taps():

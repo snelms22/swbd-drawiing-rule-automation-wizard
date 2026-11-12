@@ -281,7 +281,8 @@ def _add_device_pages(result, switchboard, settings, devices, catalog):
     for page in devices_result.pages:
         result.pages.append(Page(number=page["number"], side_margin=settings.margin_standard,
                                  parts=PageParts(blocks=page["blocks"], wires=page["wires"],
-                                                 placeholders=page["placeholders"], notes=page["notes"])))
+                                                 placeholders=page["placeholders"], notes=page["notes"],
+                                                 title=page["title"], wire_labels=page["wire_labels"])))
     result.warnings += devices_result.warnings
 
 

@@ -254,12 +254,12 @@ def test_page_break_gets_tilde_and_labelled_brackets_on_both_pages():
     bracket1 = [b for b in page1.parts.blocks if b.block == "TEST_BRACKET"][0]
     assert tilde1.position == (end_x, end_y + 5)             # on the A-phase end
     assert bracket1.position == (end_x + 2.0, end_y)          # just past it, on B
-    assert bracket1.attributes == {"VERTICAL_LABLE": "TO ES_02"} and not bracket1.flipped
+    assert bracket1.attributes == {"VERTICAL_LABLE": "TO SHEET 2"} and not bracket1.flipped
     start_x, start_y = page2.parts.bus_paths[0][0]
     bracket2 = [b for b in page2.parts.blocks if b.block == "TEST_BRACKET"][0]
     assert start_x == page2.placed_sections[0].component_left_x
     assert bracket2.position == (start_x - 2.0, start_y)
-    assert bracket2.attributes == {"VERTICAL_LABLE": "FROM ES_01"} and bracket2.flipped
+    assert bracket2.attributes == {"VERTICAL_LABLE": "FROM SHEET 1"} and bracket2.flipped
     assert bracket2.flip_parameter == "Flip state1"          # only its left-right flip
     assert not [p for p in page1.parts.placeholders if p.text == "TO NEXT PAGE"]
     # The tilde faces the way the bus goes: as is where it leaves; mirrored where it

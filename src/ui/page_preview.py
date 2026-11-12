@@ -202,6 +202,12 @@ class PagePreview(QWidget):
             self._draw_note(painter, note, page_top_px)
         for interlock in parts.interlocks:
             self._draw_interlock(painter, interlock, page_top_px)
+        for label in parts.wire_labels:
+            self._draw_wire_label(painter, label, page_top_px)
+        if parts.title:
+            t = self._settings.page_title
+            self._draw_drawing_text(painter, parts.title, t.x, t.y - t.height / 2, page_top_px,
+                                    centred=False, right_aligned=True)
         for box in parts.placeholders:
             painter.setPen(QPen(MARGIN_LINE, 1, Qt.DashLine))
             painter.setBrush(Qt.NoBrush)
@@ -269,6 +275,19 @@ class PagePreview(QWidget):
                                         centred=False, right_aligned=True)
             else:
                 self._draw_drawing_text(painter, line, note.x, bottom_y, page_top_px, centred=False)
+
+    def _draw_wire_label(self, painter, label, page_top_px):
+        """A wire's label, centred on its point; turned with the wire when it is upright."""
+        painter.save()
+        font = painter.font()
+        font.setPixelSize(max(int(self._settings.wire_labels.height * self._pixels_per_unit()), MIN_TEXT_PX))
+        painter.setFont(font)
+        painter.setPen(TEXT_COLOR)
+        painter.translate(self._to_screen(label.x, label.y, page_top_px))
+        painter.rotate(-label.rotation)             # the screen's y points down
+        metrics = painter.fontMetrics()
+        painter.drawText(QPointF(-metrics.horizontalAdvance(label.text) / 2, metrics.ascent() / 2), label.text)
+        painter.restore()
 
     def _draw_interlock(self, painter, interlock, page_top_px):
         """The dashed interlock line (dividers' colour) and its text, centred on it."""

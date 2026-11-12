@@ -15,8 +15,8 @@ The run is made long enough for the block plus `clearance` at each end (and the 
 block's own overhang), and the block is centred in it. Where the block reaches further
 sideways than what is already there, the section widens to make room.
 
-Numbering (src/model/devices.py): CT set k in section s gets CT numbers s-(3k-2)..s-3k and
-shorting kit s-k; LOCATION is the power meter it feeds (PM-s-n).
+Numbering (src/model/devices.py): CT set k gets CT numbers 3k-2..3k and
+shorting kit STB-k (no section in names, decision 2026-11-10); LOCATION is the power meter it feeds (PM-n).
 
 Pure Python, no AutoCAD. Coordinates are frame-relative.
 """

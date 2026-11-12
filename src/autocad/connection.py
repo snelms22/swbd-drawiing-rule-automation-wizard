@@ -3,6 +3,7 @@
 It does what it is told: open a drawing, find frames, make layers, add the shapes from
 draw_page.py, save. It makes no layout decisions.
 """
+import math
 import os
 import shutil
 import tempfile
@@ -261,10 +262,35 @@ class Drawing:
         _retry(lambda: setattr(text, "AttachmentPoint", ATTACH[shape.align]))
         # Changing the attachment point moves the text, so put it back where it belongs.
         _retry(lambda: setattr(text, "InsertionPoint", insertion))
+        if shape.rotation:
+            _retry(lambda: setattr(text, "Rotation", math.radians(shape.rotation)))
         if shape.background_mask:
             # Filled with the drawing's background colour, as in Sabey-011486's interlock text.
             _retry(lambda: setattr(text, "BackgroundFill", True))
         return text
+
+    def set_frame_attribute(self, block_name: str, name_attribute: str, tag: str,
+                            values: dict[str, str]) -> list[str]:
+        """Write `tag` on each frame named in `values` ({frame name: text}), e.g. the page
+        numbers. Returns the frame names not found in the drawing."""
+        not_found = set(values)
+        count = _retry(lambda: self.model_space.Count)
+        for index in range(count):
+            entity = _retry(lambda: self.model_space.Item(index))
+            if _retry(lambda: entity.ObjectName) != "AcDbBlockReference":
+                continue
+            if _retry(lambda: entity.EffectiveName) != block_name:
+                continue
+            attributes = _retry(lambda: entity.GetAttributes())
+            name = next((_retry(lambda: a.TextString) for a in attributes
+                         if _retry(lambda: a.TagString) == name_attribute), "")
+            if name not in values:
+                continue
+            for attribute in attributes:
+                if _retry(lambda: attribute.TagString) == tag:
+                    _retry(lambda: setattr(attribute, "TextString", values[name]))
+                    not_found.discard(name)
+        return sorted(not_found)
 
     def set_drawing_properties(self, values: dict[str, str]):
         """Set the drawing's custom properties (DWGPROPS), adding any that are missing.

@@ -133,7 +133,9 @@ class BusBreakSettings:
     bracket_gap: float          # from the bus end to the bracket's base point
     label_attribute_horizontal_bus: str   # bracket label tag in its horizontal-bus state
     label_attribute_vertical_bus: str     # ...and in its vertical-bus state
-    page_reference: str         # how a page is named in labels, e.g. "ES_{number:02d}"
+    # How a page is named in labels: by its overall sheet number, e.g. "SHEET {sheet}"
+    # (decision 2026-11-10; was the frame name "ES_01").
+    page_reference: str
     to_label: str               # e.g. "TO {page}"
     from_label: str             # e.g. "FROM {page}"
     # Too-tall split: where a column is cut, and where the next column starts.
@@ -141,8 +143,9 @@ class BusBreakSettings:
     continued_from_below_label: str # e.g. "FROM BELOW" (a part below the main bus)
     continued_from_above_label: str # e.g. "FROM ABOVE" (a part above the main bus)
 
-    def label(self, direction: str, page_number: int) -> str:
-        page = self.page_reference.format(number=page_number)
+    def label(self, direction: str, sheet_number: int) -> str:
+        """"TO SHEET 5" / "FROM SHEET 4": `sheet_number` is the overall sheet number."""
+        page = self.page_reference.format(sheet=sheet_number)
         return (self.to_label if direction == "to" else self.from_label).format(page=page)
 
 
@@ -157,7 +160,7 @@ class CurrentTransformerSettings:
     clearance: float                   # from the CT set to the bus or breaker beside it
     ct_number_attributes: list         # the three CT numbers (A, B, C)
     shorting_kit_attribute: str        # shorting-kit number
-    meter_attribute: str               # the meter it feeds ("PM-3-1")
+    meter_attribute: str               # the meter it feeds ("PM-1")
     sheet_attribute: str               # the sheet that meter is on
     ratio_attribute: str               # current ratio
 
@@ -165,18 +168,29 @@ class CurrentTransformerSettings:
 @dataclass(frozen=True)
 class DevicePageSettings:
     """Device pages: meters and fuses, grouped by section (decision 2026-10-23)."""
-    heading_format: str          # e.g. "SECTION {number}"
-    heading_gap: float           # heading text to the devices under it
     unit_gap: float              # between devices side by side
     row_gap: float               # between rows
-    group_gap: float             # extra space before the next section's heading
     wire_spacing: float          # between the wires' corners (and wires to the fuse)
     stub_length: float           # wire stub to a TO / FROM bracket
     from_tap_label: str          # a fuse's line side, e.g. "FROM {page}" (the 3-line page)
     to_meter_label: str          # a fuse's load side when its meter is in another section
-    sheet_format: str            # how a sheet number is written, e.g. "{page}"
+    sheet_format: str            # how a sheet number is written, e.g. "{sheet}"
     placeholder_width: float     # a meter whose block isn't built yet
     placeholder_height: float
+    # Boxes until their blocks exist (Sammy, 2026-11-11): the Ethernet switch and each
+    # breaker's comms module, on their section's device page.
+    ethernet_switch_text: str
+    ethernet_switch_width: float
+    ethernet_switch_height: float
+    comms_width: float
+    comms_height: float
+    # 24 V from a power supply into those boxes (Sammy, 2026-11-11).
+    feed_rail_gap: float
+    feed_box_gap: float
+    feed_box_spacing: float
+    feed_into_box: float
+    shipping_split_cable: float  # pin to pin between a split's two females, on their page
+    split_stub_length: float     # a male's pin carrying a wire that isn't 24 V: a stub this long
     wire_break_block: str        # tilde on each wire end at a TO / FROM bracket
     wire_break_state: str        # its state on a vertical wire
     wire_break_marker: str       # its connection point (on the wire end)
@@ -186,6 +200,47 @@ class DevicePageSettings:
     from_fuse_label: str         # a power supply's inputs when its fuse is in another section
     remote_display_gap: float    # meter USB to the remote display, sideways
     remote_display_rise: float   # ... then up into the display's USB
+    # Sheets before the first 3-line page (decision 2026-11-10): TOC, legend, BOM = 3, so
+    # page 1 (ES_01) is sheet 4. Must match keep_layouts in autocad_settings.json.
+    sheets_before_pages: int = 0
+
+    def sheet_number(self, page: int) -> int:
+        """Page n (ES_0n) as the drawing's overall sheet number."""
+        return page + self.sheets_before_pages
+
+    def sheet(self, page: int) -> str:
+        """Page n's sheet number, written out for a SHEET attribute or label."""
+        return self.sheet_format.format(sheet=self.sheet_number(page))
+
+
+@dataclass(frozen=True)
+class WireLabelSettings:
+    """A label on every wire the program draws, e.g. "4A002" (decision 2026-11-09, the wire
+    label legend of the hybrid NTT-013628): the prefix for the wire's layer, then its number."""
+    layer: str
+    height: float
+    gap: float                   # from the wire to the middle of its label
+    digits: int                  # 3: "4A001"
+    prefixes: dict               # {wire layer: prefix}, e.g. {"WIRE - 480A-BRN": "4A"}
+
+    def label(self, layer: str, number: int) -> str:
+        """The label for wire `number` on `layer`; "" for a layer with no prefix (not labelled)."""
+        prefix = self.prefixes.get(layer)
+        return f"{prefix}{number:0{self.digits}d}" if prefix else ""
+
+
+@dataclass(frozen=True)
+class PageTitleSettings:
+    """The title at the bottom right of every page, just left of the title block, as in the
+    hybrid NTT-013628 ("THREE-LINE DIAGRAM 01", "ELECTRICAL SCHEMATIC SECTION 1")."""
+    layer: str
+    x: float                     # the title's right end, frame-relative
+    y: float                     # its middle
+    height: float
+    mtext_format: str            # AutoCAD MText formatting around the title, "{title}" = the words
+    three_line_format: str       # e.g. "THREE-LINE DIAGRAM {page:02d}"
+    device_page_format: str      # e.g. "ELECTRICAL SCHEMATIC SECTION {section}"
+    shipping_split_page: str     # the females' page at the end, e.g. "SHIPPING SPLITS"
 
 
 @dataclass(frozen=True)
@@ -204,7 +259,7 @@ class VoltageTapSettings:
     vertical_state: str                # visibility state on a vertical run (e.g. "FROM_LEFT")
     vertical_markers: list             # its A, B, C markers in that state (e.g. LA, LB, LC)
     clearance: float                   # from the breaker, the next tap, the termination
-    fuse_number_attribute: str         # after "FA-": "s-n" (section-number)
+    fuse_number_attribute: str         # after "FA-": "n" (decision 2026-11-10)
     sheet_attribute: str               # the sheet the fuse is on
 
 
@@ -284,6 +339,8 @@ class LayoutSettings:
     line_side_breakers: LineSideBreakerSettings
     device_pages: DevicePageSettings
     interlocks: InterlockSettings
+    page_title: PageTitleSettings
+    wire_labels: WireLabelSettings
 
     @property
     def keepout_left_x(self) -> float:
@@ -408,11 +465,8 @@ def load_settings(path) -> LayoutSettings:
             output_state=_read_text(data, "input_output", "output_state"),
         ),
         device_pages=DevicePageSettings(
-            heading_format=_read_text(data, "device_pages", "heading_format"),
-            heading_gap=_read_number(data, "device_pages", "heading_gap"),
             unit_gap=_read_number(data, "device_pages", "unit_gap"),
             row_gap=_read_number(data, "device_pages", "row_gap"),
-            group_gap=_read_number(data, "device_pages", "group_gap"),
             wire_spacing=_read_number(data, "device_pages", "wire_spacing"),
             stub_length=_read_number(data, "device_pages", "stub_length"),
             from_tap_label=_read_text(data, "device_pages", "from_tap_label"),
@@ -420,6 +474,17 @@ def load_settings(path) -> LayoutSettings:
             sheet_format=_read_text(data, "device_pages", "sheet_format"),
             placeholder_width=_read_number(data, "device_pages", "placeholder_width"),
             placeholder_height=_read_number(data, "device_pages", "placeholder_height"),
+            ethernet_switch_text=_read_text(data, "device_pages", "ethernet_switch_text"),
+            ethernet_switch_width=_read_number(data, "device_pages", "ethernet_switch_width"),
+            ethernet_switch_height=_read_number(data, "device_pages", "ethernet_switch_height"),
+            comms_width=_read_number(data, "device_pages", "comms_width"),
+            comms_height=_read_number(data, "device_pages", "comms_height"),
+            feed_rail_gap=_read_number(data, "device_pages", "feed_rail_gap"),
+            feed_box_gap=_read_number(data, "device_pages", "feed_box_gap"),
+            feed_box_spacing=_read_number(data, "device_pages", "feed_box_spacing"),
+            feed_into_box=_read_number(data, "device_pages", "feed_into_box"),
+            shipping_split_cable=_read_number(data, "device_pages", "shipping_split_cable"),
+            split_stub_length=_read_number(data, "device_pages", "split_stub_length"),
             wire_break_block=_read_text(data, "device_pages", "wire_break_block"),
             wire_break_state=_read_text(data, "device_pages", "wire_break_state"),
             wire_break_marker=_read_text(data, "device_pages", "wire_break_marker"),
@@ -429,6 +494,24 @@ def load_settings(path) -> LayoutSettings:
             from_fuse_label=_read_text(data, "device_pages", "from_fuse_label"),
             remote_display_gap=_read_number(data, "device_pages", "remote_display_gap"),
             remote_display_rise=_read_number(data, "device_pages", "remote_display_rise"),
+            sheets_before_pages=int(_read_number(data, "device_pages", "sheets_before_pages")),
+        ),
+        wire_labels=WireLabelSettings(
+            layer=_read_text(data, "wire_labels", "layer"),
+            height=_read_number(data, "wire_labels", "height"),
+            gap=_read_number(data, "wire_labels", "gap"),
+            digits=int(_read_number(data, "wire_labels", "digits")),
+            prefixes=dict(_read_value(data, "wire_labels", "prefixes")),
+        ),
+        page_title=PageTitleSettings(
+            layer=_read_text(data, "page_title", "layer"),
+            x=_read_number(data, "page_title", "x"),
+            y=_read_number(data, "page_title", "y"),
+            height=_read_number(data, "page_title", "height"),
+            mtext_format=_read_text(data, "page_title", "mtext_format"),
+            three_line_format=_read_text(data, "page_title", "three_line_format"),
+            device_page_format=_read_text(data, "page_title", "device_page_format"),
+            shipping_split_page=_read_text(data, "page_title", "shipping_split_page"),
         ),
         interlocks=InterlockSettings(
             layer=_read_text(data, "interlocks", "layer"),

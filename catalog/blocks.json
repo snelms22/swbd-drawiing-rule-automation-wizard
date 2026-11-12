@@ -3,7 +3,7 @@
   "blocks": {
     "3P_CB_FM_1": {
       "description": "3-pole fixed-mount breaker, poles vertical, A on the left",
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [
         [
           0.0,
@@ -88,7 +88,7 @@
     },
     "3P_CB_DO": {
       "description": "3-pole draw-out breaker, poles vertical, A on the left",
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [
         [
           0.0,
@@ -173,7 +173,7 @@
     },
     "BUS_NODE": {
       "description": "Filled junction dot, diameter 1.5, centred on the base point",
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -187,7 +187,7 @@
     },
     "PHASE_LUGS_3L_R0": {
       "description": "Input/output bus connection. States: INPUT, OUTPUT, INPUT W/ NEUTRAL, OUTPUT W/ NEUTRAL. Not flipped = from/to the BOTTOM; flipped = from/to the TOP. Base point at the base of the A-phase triangle (accepted for this block).",
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {
@@ -250,7 +250,7 @@
       ]
     },
     "3P_TIDE_R0": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {
@@ -269,15 +269,15 @@
       },
       "extents": [
         -6.2159,
-        -11.25,
+        -10.6564,
         16.2159,
         2.3129
       ],
       "extents_flipped": [
         -13.4317,
-        -11.25,
+        -10.6564,
         16.2159,
-        1.25
+        0.625
       ],
       "visibility_states": [
         "HORIZONTAL",
@@ -286,7 +286,7 @@
       "attributes": []
     },
     "BRACKET_TEXT_R0": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -339,7 +339,7 @@
       }
     },
     "PHASE_LUGS_3L_N_R0": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {
@@ -410,7 +410,7 @@
       ]
     },
     "SIE_BKR_3P_3L_ASSY_R0": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "connections": {
@@ -523,7 +523,7 @@
       ]
     },
     "3_CTS_3L_R1": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -867,7 +867,7 @@
       }
     },
     "CT_Current_Input": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -917,7 +917,7 @@
       }
     },
     "Janitza_UMG801": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -1135,7 +1135,7 @@
       }
     },
     "Voltage_UMG801_Input": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -1173,7 +1173,7 @@
       }
     },
     "3P_Voltage_Tap": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -1341,7 +1341,7 @@
       }
     },
     "3P_2P_FUSE_DISCONECT": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -1664,19 +1664,19 @@
       }
     },
     "TILDE_R0": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
-        -1.25,
-        -1.25,
-        8.5,
+        -2.7668,
+        -0.625,
+        1.5597,
         2.6332
       ],
       "extents_flipped": [
-        -8.5,
-        -1.25,
-        1.25,
+        -2.7668,
+        -0.625,
+        1.5597,
         2.6332
       ],
       "visibility_states": [
@@ -1687,6 +1687,11 @@
         {
           "tag": "TEXT_H",
           "prompt": "Horizontal Text",
+          "default": "X"
+        },
+        {
+          "tag": "TEXT_V",
+          "prompt": "Vertical Text",
           "default": "X"
         }
       ],
@@ -1699,10 +1704,10 @@
             ]
           },
           "extents": [
-            -0.8286,
-            -1.25,
-            8.5,
-            1.25
+            -0.3315,
+            -0.5,
+            0.3315,
+            0.5
           ]
         },
         "VERTICAL": {
@@ -1713,16 +1718,16 @@
             ]
           },
           "extents": [
-            -1.25,
-            -0.8286,
-            5.0038,
+            -2.7668,
+            -0.8425,
+            6.0668,
             2.6332
           ]
         }
       }
     },
     "Remote_Distplay": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -1752,7 +1757,7 @@
       }
     },
     "3P_PWR_SUP": {
-      "source": "Refreshed 2026-11-05 from the block library (CONN_ point parameters, attribute definitions).",
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
       "top_terminals": [],
       "bottom_terminals": [],
       "extents": [
@@ -1824,6 +1829,150 @@
         "NO14": [
           14.5,
           -27.5
+        ]
+      }
+    },
+    "Female_Shipping_Split": {
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "extents": [
+        0.0,
+        -50.0,
+        9.5472,
+        6.5
+      ],
+      "extents_flipped": [
+        -9.5472,
+        -50.0,
+        0.0,
+        6.5
+      ],
+      "visibility_states": [],
+      "attributes": [
+        {
+          "tag": "SS_DWG_NUM",
+          "prompt": "Shipping Split Drawing Number",
+          "default": "#SSF-##"
+        },
+        {
+          "tag": "1BOM1",
+          "prompt": "ITEM#",
+          "default": "##"
+        }
+      ],
+      "markers": {
+        "CONN_1": [
+          0.5,
+          -2.5
+        ],
+        "CONN_10": [
+          0.5,
+          -47.5
+        ],
+        "CONN_2": [
+          0.5,
+          -7.5
+        ],
+        "CONN_3": [
+          0.5,
+          -12.5
+        ],
+        "CONN_4": [
+          0.5,
+          -17.5
+        ],
+        "CONN_5": [
+          0.5,
+          -22.5
+        ],
+        "CONN_6": [
+          0.5,
+          -27.5
+        ],
+        "CONN_7": [
+          0.5,
+          -32.5
+        ],
+        "CONN_8": [
+          0.5,
+          -37.5
+        ],
+        "CONN_9": [
+          0.5,
+          -42.5
+        ]
+      }
+    },
+    "Male_Shipping_Split": {
+      "source": "Refreshed 2026-11-12 from the block library (CONN_ point parameters, attribute definitions).",
+      "top_terminals": [],
+      "bottom_terminals": [],
+      "extents": [
+        -2.0472,
+        -50.0,
+        8.1708,
+        6.5
+      ],
+      "extents_flipped": [
+        -7.7391,
+        -50.0,
+        2.0472,
+        6.5
+      ],
+      "visibility_states": [],
+      "attributes": [
+        {
+          "tag": "SS_DWG_NUM",
+          "prompt": "Sipping Split Drawing Number",
+          "default": "#SSM-##"
+        },
+        {
+          "tag": "1BOM1",
+          "prompt": "ITEM#",
+          "default": "##"
+        }
+      ],
+      "markers": {
+        "CONN_1": [
+          7.0,
+          -2.5
+        ],
+        "CONN_10": [
+          7.0,
+          -47.5
+        ],
+        "CONN_2": [
+          7.0,
+          -7.5
+        ],
+        "CONN_3": [
+          7.0,
+          -12.5
+        ],
+        "CONN_4": [
+          7.0,
+          -17.5
+        ],
+        "CONN_5": [
+          7.0,
+          -22.5
+        ],
+        "CONN_6": [
+          7.0,
+          -27.5
+        ],
+        "CONN_7": [
+          7.0,
+          -32.5
+        ],
+        "CONN_8": [
+          7.0,
+          -37.5
+        ],
+        "CONN_9": [
+          7.0,
+          -42.5
         ]
       }
     }

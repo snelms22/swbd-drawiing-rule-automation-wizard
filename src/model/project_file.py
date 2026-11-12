@@ -21,7 +21,8 @@ An arrangement ("above" / "below") has a "kind":
     Mains, single breakers, ties and group-mounted parts may have CTs: "cts" / "base_cts" =
     {"meter": <power meter id>, "ratio", "attributes", "on_main_bus"} or null. Each section
     has "power_meters": [{"id", "model", "remote_display"}] and "power_supplies": [{"id",
-    "attributes"}] (2026-11-05). (Missing in older files = none.) A voltage tap is
+    "attributes"}] (2026-11-05), and "ethernet_switch": true in the section holding the
+    Ethernet switch (2026-11-09). (Missing in older files = none.) A voltage tap is
     {"feeds": <id of the power meter or power supply>, "fuse_attributes"}; files before
     2026-11-05 call "feeds" "meter".
     Every breaker also has "comms_module": e.g. "Siemens COM190", "" = none. (2.1.0 saved a
@@ -118,6 +119,7 @@ def _section_to_dict(section: Section) -> dict:
                          for meter in contents.power_meters],
         "power_supplies": [{"id": supply.id, "attributes": dict(supply.attributes)}
                            for supply in contents.power_supplies],
+        "ethernet_switch": contents.ethernet_switch,
     }
 
 
@@ -271,6 +273,7 @@ def _section_from_dict(data: dict) -> Section:
                           for m in data.get("power_meters") or []],
             power_supplies=[PowerSupply(attributes=_texts(s.get("attributes")), id=str(s["id"]))
                             for s in data.get("power_supplies") or []],
+            ethernet_switch=bool(data.get("ethernet_switch", False)),
         ),
         push_to_next_page=bool(data.get("push_to_next_page", False)),
         link_with_next=bool(data.get("link_with_next", False)),
@@ -329,8 +332,11 @@ def _slot_from_dict(data: dict):
         return Provision(data["provision"])
     if "space" in data:
         return Space()
+    # Before 2026-11-09 a group-mounted (3VA) breaker's comms choice was the COM800 gateway;
+    # it is now the COM060 on the breaker itself (the COM800 comes with them).
+    comms = str(data.get("comms_module", ""))
     return Breaker(data["breaker"], attributes=_texts(data.get("attributes")),
-                   comms_module=str(data.get("comms_module", "")))
+                   comms_module="Siemens COM060" if comms == "Siemens COM800" else comms)
 
 
 def _tie_from_dict(data):

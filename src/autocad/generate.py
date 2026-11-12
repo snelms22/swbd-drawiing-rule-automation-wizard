@@ -10,6 +10,9 @@ block is filled through drawing properties (job number, item name, number of 3-l
 pages), which the template's fields show on every sheet (FGD 900- and the EO-/ES-/EW-
 drawing numbers come from the job number). Only the layouts with something in them are kept:
 the template pages listed in config (legend, BOM), then the 3-line pages drawn.
+
+Every kept page gets its page number in its frame (decision 2026-11-10): 01, 02, 03... in tab
+order, the same numbers the engineers' NumberByLayout.lsp gives.
 """
 import re
 import shutil
@@ -86,6 +89,20 @@ def drawing_path(switchboard, output_folder: Path, drawing_info_settings=None, n
     return output_folder / output_file_name(switchboard.name, now or datetime.now())
 
 
+def sheet_count_problems(layout_settings, autocad_settings) -> list[str]:
+    """SHEET numbers count the template pages kept before the 3-line (decision 2026-11-10).
+    The count is in layout_settings.json and the pages in autocad_settings.json: say so if
+    they disagree, as every SHEET reference would then be off."""
+    expected = len(autocad_settings.keep_layouts)
+    counted = layout_settings.device_pages.sheets_before_pages
+    if counted == expected:
+        return []
+    return [f"SHEET numbers count {counted} page(s) before the 3-line (sheets_before_pages in "
+            f"layout_settings.json), but {expected} are kept ({', '.join(autocad_settings.keep_layouts)}, "
+            f"keep_layouts in autocad_settings.json); the SHEET references are off by "
+            f"{abs(expected - counted)}."]
+
+
 def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=None,
                      now=None, output_folder=None, drawing_info_settings=None,
                      device_settings=None) -> GenerateResult:
@@ -118,6 +135,7 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
         len(layout.pages), autocad_settings,
     )
     problems = [f"Layout: {warning}" for warning in layout.warnings]
+    problems += sheet_count_problems(layout_settings, autocad_settings)
     layouts = drawing.layout_names()
     for page in layout.pages:
         if autocad_settings.layout_name(page.number) not in layouts:
@@ -161,7 +179,16 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
 
     if drawing_info_settings is not None:
         drawing.set_drawing_properties(
-            drawing_properties(switchboard, drawing_info_settings, len(layout.pages)))
+            drawing_properties(switchboard, drawing_info_settings,
+                               total_pages=len(autocad_settings.keep_layouts) + len(layout.pages)))
+    # Page numbers in the frames, in tab order, as the engineers' LISP numbers them
+    # (decision 2026-11-10): TOC 01, legend 02, BOM 03, ES_01 04...
+    not_numbered = drawing.set_frame_attribute(
+        autocad_settings.frame_block_name, autocad_settings.frame_name_attribute,
+        autocad_settings.page_number_attribute, autocad_settings.page_numbers(len(layout.pages)))
+    if not_numbered:
+        problems.append(f"No {autocad_settings.page_number_attribute} attribute was found to number "
+                        f"these frames: {', '.join(not_numbered)}; their page numbers are the template's.")
     pages = [autocad_settings.layout_name(page.number) for page in layout.pages]
     # Template pages (legend, BOM) first, then the 3-line pages; it opens on the first page.
     drawing.keep_only_layouts(autocad_settings.keep_layouts + pages, open_on=pages[0])

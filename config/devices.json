@@ -1,10 +1,14 @@
 {
   "note": "Device choices the engineer picks from (decision 2026-10-21). Edit the lists here; no code change needed.",
-  "comms_modules": [
-    "Siemens COM190",
-    "Siemens COM800"
-  ],
-  "comms_modules_note": "Communication module on a breaker. COM190: on the larger 3WA breakers, connected directly (CAT6 to the Ethernet switch). COM800: for the smaller 3VA breakers, which each get a COM060 module chained to a COM800 gateway. The engineer chooses for now.",
+  "comms_modules": {
+    "3WA": [
+      "Siemens COM190"
+    ],
+    "3VA": [
+      "Siemens COM060"
+    ]
+  },
+  "comms_modules_note": "Communication module the engineer can put on a breaker, by its family (decision 2026-11-09; family by position: main, single, line-side and tie breakers are 3WA, group-mounted breakers 3VA). COM190: on a 3WA, connected to its ETU over the CubicleBUS and by CAT6 to the Ethernet switch. COM060: on each 3VA with comms, all chained to a COM800 gateway (added with the communications page).",
   "power_meters_note": "Power meter models, by the name the engineer picks (always with the brand). For each: its library block, and the blocks wired into it. 'lands_on' pairs each marker of an input block with the meter marker it connects to; this is where a meter's own wiring quirks are written down once (decision 2026-10-22). Audit Blocks checks every pair exists and lines up. A model with an empty block is offered but not drawn yet.",
   "power_meters": {
     "Janitza UMG 801": {
@@ -101,6 +105,26 @@
       "C": "L3"
     },
     "number_attribute": "PS_DRW_NUM",
+    "layer": "0",
+    "outputs_note": "The 24 V outputs (Sammy, 2026-11-11): a + and a - wire from these markers feed the comms modules and the Ethernet switch in the supply's section, on these layers.",
+    "outputs": {
+      "+": "24P1",
+      "-": "24N1"
+    },
+    "output_wire_layers": {
+      "+": "WIRE - 24+_RED",
+      "-": "WIRE - 24-_BLK"
+    }
+  },
+  "shipping_split_note": "Shipping splits (Sammy, 2026-11-11). A lineup has one 24 V power supply; its 24 V reaches the other sections through shipping splits. Every section boundary that wires cross gets as many splits as its wires need ('pins' each, used in order: the next free pin). Each section draws a male at that end of its device page (left boundary first); the two females of each split (the cable between the sections) go on a page at the end. Names: section number, SSM or SSF, then the number within the section, males and females counted separately, left boundary first (the 3rd male in section 5 is 5SSM-3).",
+  "shipping_split": {
+    "male_block": "Male_Shipping_Split",
+    "female_block": "Female_Shipping_Split",
+    "name_attribute": "SS_DWG_NUM",
+    "male_name": "{section}SSM-{number}",
+    "female_name": "{section}SSF-{number}",
+    "pin_marker": "CONN_{pin}",
+    "pins": 10,
     "layer": "0"
   },
   "remote_display_note": "A remote display for a power meter (decision 2026-10-23): a checkbox on the meter; drawn beside it on the device page, the meter's USB marker joined to the display's USB marker by a line on usb_layer. The program fills the number after 'RD-' (s-n).",

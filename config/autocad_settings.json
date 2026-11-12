@@ -6,15 +6,25 @@
   "template_source": "~/Hyper Solutions/Hyper Document Library - Engineering/Electrical Team/CAD BLOCKS/TEMPLATE/HYPER_A.dwt",
   "template_note": "The team's template HYPER_A lives in SharePoint (template_source), like the symbol library. The configurator draws from its own copy (template_file), refreshed from the source by every release (tools/release.py) or by tools/update_template.py during development (decision 2026-10-20). Reading the shared template directly, without a release, comes much later.",
   "keep_layouts": [
+    "TOC_ES",
     "LEG_ES",
     "BOM_ES"
   ],
-  "keep_layouts_note": "Template pages kept in every generated drawing, in this order, BEFORE the 3-line pages (ES_01 ...): the legend, then the BOM page (not used yet). Every other layout (empty pages) is deleted (decisions 2026-10-20). The drawing opens on ES_01.",
+  "keep_layouts_note": "Template pages kept in every generated drawing, in this order, BEFORE the 3-line pages (ES_01 ...): the table of contents (page 1, decision 2026-11-10), the legend, then the BOM page (not used yet). Every other layout (empty pages) is deleted (decisions 2026-10-20). The drawing opens on ES_01.",
+  "keep_layout_frames": {
+    "TOC_ES": "TOC_01",
+    "LEG_ES": "LEG_01",
+    "BOM_ES": "BOM_01"
+  },
+  "keep_layout_frames_note": "The frame (TITLE_BLOCK_MODEL, by its NAME) each kept layout shows; its page number is written there.",
   "output_folder": "output",
   "frame_block_name": "TITLE_BLOCK_MODEL",
   "frame_name_attribute": "NAME",
   "page_frame_format": "ES_{page:02d}",
   "page_layout_format": "ES_{page:02d}",
+  "page_number_attribute": "PAGE",
+  "page_number_format": "{number:02d}",
+  "page_numbers_note": "Generate writes each page's number into its frame's PAGE attribute (decision 2026-11-10, the rule of the engineers' NumberByLayout.lsp): 01, 02, 03... in tab order, the kept layouts first (TOC = 01), then ES_01, ES_02... The LISP gives the same numbers if run afterwards.",
   "block_library_file": "~/Hyper Solutions/Hyper Document Library - Engineering/Electrical Team/CAD BLOCKS/Symbols-blocks.dwg",
   "block_library_note": "Blocks are copied from this library drawing (decision 2026-10-11). It is read in the background, never opened or changed.",
   "paths_note": "A path starting with ~ is in each person's own user folder (where SharePoint syncs), so the same file works on every PC. Relative paths are inside the configurator's folder.",

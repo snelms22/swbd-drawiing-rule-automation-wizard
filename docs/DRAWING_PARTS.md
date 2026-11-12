@@ -17,7 +17,7 @@ Coordinates are frame-relative drawing units (frame drawable area 419.04 x 269.4
 | P2 | Section dividers | **Built** | Layer DEVIDER, between sections only, y 8.44–256.33; end-of-page divider (next page if it would hit the title block) | Sammy's ES_01 |
 | P3 | Ground bus + symbol + label | **Built** | Layer GROUND, y 20.94, x 7.54 to 8.91 before title block (last page: to end of last section); symbol at left end; "GROUND BUS" text above | Sammy's ES_01 |
 | P4 | Section labels | **Built** | "SECTION n", layer 0, h 1.25, no underline, below ground bus, centred under section | Sammy's ES_01 |
-| P5 | Page title | Proposed | "THREE LINE DIAGRAM 0n" bottom-right, just left of title block | all refs |
+| P5 | Page title | **Built** (2026-11-09) | "THREE-LINE DIAGRAM 0n" / "ELECTRICAL SCHEMATIC SECTION n" bottom-right, just left of title block, as in the hybrid (`page_title`) | NTT-013628-HYBRID |
 | P6 | Page break | Open | Style to pick (squiggle+bracket+A/B/C, bracket block, or none) | PRIME-014032 / 014034 |
 
 ## Bus parts

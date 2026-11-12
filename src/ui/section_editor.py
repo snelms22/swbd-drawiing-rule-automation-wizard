@@ -35,13 +35,14 @@ from PySide6.QtWidgets import (
 from src.layout.current_transformers import program_filled_tags
 from src.layout.section_builder import single_level_sides
 from src.model.devices import (
-    LINE_SIDE, LOAD_SIDE, meters_in, power_supplies_in, tap_target_names, voltage_taps_in,
+    LINE_SIDE, LOAD_SIDE, comms_choices, meters_in, mms_name, needs_ethernet_switch, power_supplies_in,
+    tap_target_names, voltage_taps_in,
 )
 from src.model.feeds import all_feeds, main_fed_by, standalone_feeds
 from src.model.interlocks import interlock_of, mains_in, set_interlock
 from src.model.section_contents import (
     FEED_DIRECTIONS, MOUNTINGS, Breaker, CurrentTransformers, GroupMounted, IncomingFeed,
-    LineSideBreaker, MainBreaker, PowerMeter, PowerSupply, Provision, SingleBreaker, SingleLevel, Space, TieBreaker, TwinLevel,
+    MOLDED_CASE, LineSideBreaker, MainBreaker, PowerMeter, PowerSupply, Provision, SingleBreaker, SingleLevel, Space, TieBreaker, TwinLevel,
     VoltageTap, feed_directions, side_away_from_bus,
 )
 from src.ui.widgets import ScrollSafeComboBox
@@ -138,7 +139,7 @@ NO_TAP_TARGET = "Choose what it feeds"
 class CtEditor(QGroupBox):
     """CTs on a main, single or tie breaker, or at the base of a group-mounted part
     (decision 2026-10-21). Ticking the box adds a CT set. The engineer picks the power meter
-    it feeds and the ratio; the program numbers it (CTs s-1..s-3, STB-s-1, ...), places it wherever it
+    it feeds and the ratio; the program numbers it (CTs 1..3, STB-1, ...), places it wherever it
     fits and fills in the meter. `attribute` is where the set is kept on the part ("cts", or
     "base_cts" on a group-mounted part)."""
     changed = Signal()
@@ -303,7 +304,7 @@ class VoltageTapsEditor(QGroupBox):
     """Voltage taps on an incoming feed (decision 2026-10-22) and, for a main breaker, on its
     load side (decision 2026-10-23): each tap says which side of the main it is on. Each tap
     feeds a power meter's voltage input or a power supply (decision 2026-11-05); its fuse is
-    numbered FA-s-n (decision 2026-10-23)."""
+    numbered FA-n (decision 2026-10-23)."""
     changed = Signal()
 
     def __init__(self, switchboard_provider=None, catalog=None, fuse=None):
@@ -479,9 +480,9 @@ class VoltageTapsEditor(QGroupBox):
 
 
 class DevicesEditor(QGroupBox):
-    """Devices mounted in this section, drawn on the device pages: power meters, named PM-s-n
-    (s = section, n through the lineup; decision 2026-10-21), whose model the engineer picks;
-    and power supplies, named PS-s-n (decision 2026-11-05), with one field per attribute of
+    """Devices mounted in this section, drawn on the device pages: power meters, named PM-n
+    (n through the lineup; decision 2026-11-10), whose model the engineer picks;
+    and power supplies, named PS-n (decision 2026-11-05), with one field per attribute of
     their block. A voltage tap says which of them it feeds."""
     changed = Signal()
 
@@ -539,6 +540,12 @@ class DevicesEditor(QGroupBox):
         self.supplies_widget.setVisible(power_supply is not None)
         layout.addWidget(self.supplies_widget)
 
+        # The switchboard's one Ethernet switch (decision 2026-11-09): shown when there are
+        # comms modules or power meters; ticking it here unticks every other section.
+        self.ethernet_check = QCheckBox("Ethernet switch in this section")
+        self.ethernet_check.toggled.connect(self._ethernet_toggled)
+        layout.addWidget(self.ethernet_check)
+
     def set_catalog(self, catalog):
         self._catalog = catalog
         if self._section is not None:
@@ -547,6 +554,7 @@ class DevicesEditor(QGroupBox):
     def load(self, section, select_row=0, select_supply=0):
         self._section = section
         self._load_supplies(select_supply)
+        self.refresh_ethernet()
         meters = section.contents.power_meters
         names = self._names()
         self.meters_list.blockSignals(True)
@@ -564,6 +572,25 @@ class DevicesEditor(QGroupBox):
     def _names(self) -> dict:
         switchboard = self._switchboard()
         return {info.meter.id: info.name for info in meters_in(switchboard)} if switchboard else {}
+
+    # --- Ethernet switch ---------------------------------------------------------------
+
+    def refresh_ethernet(self):
+        """Show the Ethernet switch box when the lineup needs one (or it is already ticked)."""
+        if self._section is None:
+            return
+        switchboard = self._switchboard()
+        ticked = self._section.contents.ethernet_switch
+        self.ethernet_check.setVisible(ticked or (switchboard is not None and needs_ethernet_switch(switchboard)))
+        _set_quietly(self.ethernet_check, self.ethernet_check.setChecked, ticked)
+
+    def _ethernet_toggled(self, on):
+        switchboard = self._switchboard()
+        if on and switchboard is not None:
+            for section in switchboard.sections:
+                section.contents.ethernet_switch = False      # only one in the switchboard
+        self._section.contents.ethernet_switch = on
+        self.changed.emit()
 
     # --- Power supplies ---------------------------------------------------------------
 
@@ -674,7 +701,8 @@ class SlotEditor(QWidget):
         row.addWidget(self.label_edit)
         row.addWidget(self.kind_combo)
         # Communication module on this breaker (decision 2026-10-19; drawing logic later).
-        self.comms_combo = comms_combo(comms_modules)
+        # A group-mounted breaker is a 3VA (decision 2026-11-09).
+        self.comms_combo = comms_combo(comms_choices(comms_modules, MOLDED_CASE))
         self.comms_combo.setToolTip("Communication module")
         row.addWidget(self.comms_combo)
         layout = QVBoxLayout(self)
@@ -774,9 +802,12 @@ class ArrangementEditor(QGroupBox):
         breaker_form = QFormLayout(breaker_page)
         self.breaker_form = breaker_form
         breaker_form.addRow("Label", self.breaker_label)
-        self.breaker_comms_combo = comms_combo(comms_modules)
+        self.breaker_comms_combo = comms_combo(comms_choices(comms_modules))     # a 3WA
         self.breaker_comms_combo.currentTextChanged.connect(self._breaker_comms_changed)
         breaker_form.addRow("Comms module", self.breaker_comms_combo)
+        # Every 3WA has a DAS/MMS, added by the program (decision 2026-11-09).
+        self.mms_info = QLabel()
+        breaker_form.addRow("DAS/MMS", self.mms_info)
         breaker_form.addRow(self.mounting_label, self.mounting_combo)
         breaker_form.addRow("Breaker Feed Direction", self.breaker_feed_combo)
         # One field per block attribute, labelled with the prompt written in the block.
@@ -895,6 +926,10 @@ class ArrangementEditor(QGroupBox):
         if kind in (MAIN, SINGLE, LINE_SIDE):
             _set_quietly(self.breaker_label, self.breaker_label.setText, arrangement.breaker.label)
             set_comms(self.breaker_comms_combo, arrangement.breaker.comms_module)
+            switchboard = self._switchboard_provider() if self._switchboard_provider else None
+            name = mms_name(switchboard, arrangement.breaker) if switchboard is not None else ""
+            self.mms_info.setText(f"{name or 'MMS'} (added automatically)")
+        self.breaker_form.setRowVisible(self.mms_info, kind in (MAIN, SINGLE, LINE_SIDE))
         if kind in (MAIN, SINGLE):
             breaker_feed, termination_feed = feed_directions(arrangement, self._part)
             _set_quietly(self.breaker_feed_combo, self.breaker_feed_combo.setCurrentText, breaker_feed)
@@ -1258,9 +1293,12 @@ class TieEditor(QGroupBox):
         form = QFormLayout(self)
         form.addRow(self.include_check)
         form.addRow("Label", self.label_edit)
-        self.comms_combo = comms_combo(comms_modules)
+        self._switchboard = switchboard_provider or (lambda: None)
+        self.comms_combo = comms_combo(comms_choices(comms_modules))      # a tie is a 3WA
         form.addRow("Comms module", self.comms_combo)
         self.comms_combo.currentTextChanged.connect(self._edited)
+        self.mms_info = QLabel()
+        form.addRow("DAS/MMS", self.mms_info)
         form.addRow("Bus steps", self.steps_combo)
         form.addRow("Mounting", self.mounting_combo)
         self.attributes_box = QGroupBox("Breaker block attributes")
@@ -1284,6 +1322,9 @@ class TieEditor(QGroupBox):
         _set_quietly(self.mounting_combo, self.mounting_combo.setCurrentText, tie.mounting if tie else MOUNTINGS[0])
         for widget in (self.label_edit, self.steps_combo, self.mounting_combo, self.comms_combo):
             widget.setEnabled(tie is not None)
+        switchboard = self._switchboard()
+        name = mms_name(switchboard, tie.breaker) if tie is not None and switchboard is not None else ""
+        self.mms_info.setText(f"{name} (added automatically)" if tie is not None else "")
         self._rebuild_attribute_fields()
         self.ct_editor.load(tie)
 
@@ -1346,6 +1387,8 @@ class SectionEditor(QWidget):
         self.devices_editor = DevicesEditor(meter_models, switchboard_provider, catalog, power_supply)
         for editor in (self.above_editor, self.below_editor, self.tie_editor, self.devices_editor):
             editor.changed.connect(self.changed)
+            # A comms module or a meter may now need the Ethernet switch (decision 2026-11-09).
+            editor.changed.connect(self.devices_editor.refresh_ethernet)
         self.devices_editor.changed.connect(self._meters_changed)
 
         layout = QVBoxLayout(self)

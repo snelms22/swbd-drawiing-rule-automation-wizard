@@ -46,7 +46,7 @@ def test_main_lugs_taps_sit_nearest_the_bus():
     tap = [b for b in page.parts.blocks if b.block == "TEST_TAP"][0]
     # 5 clear of the bus (A at 40), then the tap's bottom, 12 below its A marker.
     assert tap.position[1] == 40 + 5 + 12
-    assert tap.attributes == {"FUSE_DRW_NUM": "1-1"}
+    assert tap.attributes == {"FUSE_DRW_NUM": "1"}
 
 
 def test_a_feed_crosses_into_the_main_in_the_next_section():

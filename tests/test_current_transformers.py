@@ -60,8 +60,8 @@ def test_main_breaker_cts_sit_on_its_riser_with_polarity_toward_the_input():
     ct = blocks(page, "TEST_CT")[0]
     assert ct.position == (35, 81.25)
     assert ct.visibility == TOP_STATE
-    assert ct.attributes == {"CT_A_DWG#": "1-1", "CT_B_DWG#": "1-2", "CT_C_DWG#": "1-3", "STB#": "1-1",
-                             "LOCATION": "PM-1-1", "CURRENT_RATIO": "4000:5A"}
+    assert ct.attributes == {"CT_A_DWG#": "1", "CT_B_DWG#": "2", "CT_C_DWG#": "3", "STB#": "1",
+                             "LOCATION": "PM-1", "CURRENT_RATIO": "4000:5A"}
 
 
 def test_single_breaker_cts_point_toward_the_main_bus():
@@ -79,8 +79,8 @@ def test_ct_sets_are_numbered_through_the_lineup():
     first = SectionContents(above=MainBreaker(Breaker("52-M1"), cts=cts()))
     second = SectionContents(below=SingleBreaker(Breaker("52-F1"), cts=cts(ratio="800:5A")))
     page = layout(board(first, second)).pages[0]
-    second_ct = [b for b in blocks(page, "TEST_CT") if b.attributes["STB#"] == "2-2"][0]
-    assert [second_ct.attributes[t] for t in ("CT_A_DWG#", "CT_B_DWG#", "CT_C_DWG#")] == ["2-4", "2-5", "2-6"]
+    second_ct = [b for b in blocks(page, "TEST_CT") if b.attributes["STB#"] == "2"][0]
+    assert [second_ct.attributes[t] for t in ("CT_A_DWG#", "CT_B_DWG#", "CT_C_DWG#")] == ["4", "5", "6"]
     assert second_ct.attributes["CURRENT_RATIO"] == "800:5A"
 
 
@@ -130,13 +130,14 @@ def test_meters_are_named_in_lineup_order_and_problems_are_listed():
     first = SectionContents(above=MainBreaker(Breaker("52-M1"), cts=cts(meter="")))
     second = SectionContents(below=SingleBreaker(Breaker("52-F1"), cts=cts(meter="gone")))
     second.power_meters = [PowerMeter(model="", id="m2")]
+    second.ethernet_switch = True              # meters mean an Ethernet switch (2026-11-09)
     switchboard = board(first, second)
-    assert [(m.name, m.section_number) for m in meters_in(switchboard)] == [("PM-1-1", 1), ("PM-2-2", 2)]
+    assert [(m.name, m.section_number) for m in meters_in(switchboard)] == [("PM-1", 1), ("PM-2", 2)]
     assert [(c.number, c.part) for c in ct_sets_in(switchboard)] == [(1, "above"), (2, "below")]
     assert device_problems(switchboard) == [
         "Section 1 above (52-M1): choose the power meter its CTs feed.",
         "Section 2 below (52-F1): its CTs feed a power meter that no longer exists.",
-        "PM-2-2 (section 2): choose its model.",
+        "PM-2 (section 2): choose its model.",
     ]
 
 

@@ -15,7 +15,7 @@
     "job_number": "FG NUMBER",
     "item_name_line_1": "FG DESCRIPTION",
     "item_name_line_2": "NUMBER OF BREAKERS",
-    "schematic_pages": "TOTAL PAGES ES"
+    "total_pages": "TOTAL PAGES ES"
   },
-  "drawing_properties_note": "Drawing properties (DWGPROPS custom properties) in HYPER_A; fields in its title block show them on every sheet."
+  "drawing_properties_note": "Drawing properties (DWGPROPS custom properties) in HYPER_A; fields in its title block show them on every sheet. total_pages is the drawing's whole page count (TOC, legend, BOM and the ES pages), shown as the title block's \"OF nn\" (decision 2026-11-11; was the ES pages only)."
 }

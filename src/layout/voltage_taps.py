@@ -13,7 +13,7 @@ LA / LB / LC sit on the A, B and C phases and the wires leave to the right, endi
   fit them (`bus_side_gap`).
 Taps stack outward from the breaker in the order they were entered.
 
-Numbering (src/model/devices.py): fuses FA-s-n through the lineup (s = the tap's section).
+Numbering (src/model/devices.py): fuses FA-n through the lineup (the fuse lives in the tap's section).
 
 Pure Python, no AutoCAD. Coordinates are frame-relative.
 """
@@ -112,7 +112,7 @@ def place_taps(settings, catalog, room: TapRoom, a_x: float, line_side_y: float,
 
 
 def tap_attributes(settings, code: str) -> dict[str, str]:
-    """The tap block's attribute values: its fuse number after "FA-" ("s-n"). The sheet
+    """The tap block's attribute values: its fuse number after "FA-" ("n"). The sheet
     keeps its default until the device pages exist."""
     return {settings.voltage_taps.fuse_number_attribute: code}
 

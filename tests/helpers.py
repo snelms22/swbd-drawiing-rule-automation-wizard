@@ -23,6 +23,7 @@ Useful facts:
 from src.layout.block_catalog import BlockInfo
 from src.layout.settings import (
     CurrentTransformerSettings, DevicePageSettings, DividerSettings, InterlockSettings, LineSideBreakerSettings,
+    PageTitleSettings, WireLabelSettings,
     VoltageTapSettings, GroundBusSettings, GroupMountedSettings, LayoutSettings,
     BusBreakSettings, FeederSettings, InputOutputSettings, MainBreakerSettings, MainBusSettings, PlaceholderSizes,
     SectionLabelSettings, TextSettings,
@@ -97,10 +98,13 @@ TEST_SETTINGS = LayoutSettings(
         sheet_attribute="SHEET#",
     ),
     device_pages=DevicePageSettings(
-        heading_format="SECTION {number}", heading_gap=4.0, unit_gap=10.0, row_gap=10.0,
-        group_gap=5.0, wire_spacing=5.0, stub_length=8.0, from_tap_label="FROM {page}",
-        to_meter_label="TO {meter} SHEET {sheet}", sheet_format="{page}",
+        unit_gap=10.0, row_gap=10.0, wire_spacing=5.0, stub_length=8.0, from_tap_label="FROM {page}",
+        to_meter_label="TO {meter} SHEET {sheet}", sheet_format="{sheet}",
         placeholder_width=100.0, placeholder_height=40.0,
+        ethernet_switch_text="ETHERNET SWITCH", ethernet_switch_width=80.0, ethernet_switch_height=30.0,
+        comms_width=60.0, comms_height=20.0,
+        feed_rail_gap=8.0, feed_box_gap=8.0, feed_box_spacing=6.0, feed_into_box=2.0,
+        shipping_split_cable=40.0, split_stub_length=6.0,
         wire_break_block="TEST_WIRE_TILDE", wire_break_state="VERTICAL", wire_break_marker="CONN",
         wire_break_text_attribute="TEXT_H", remote_display_gap=12.0, remote_display_rise=6.0,
         wire_break_state_horizontal="HORIZONTAL", from_fuse_label="FROM {fuse} SHEET {sheet}",
@@ -108,6 +112,16 @@ TEST_SETTINGS = LayoutSettings(
     ),
     line_side_breakers=LineSideBreakerSettings(tie_gap=10.0, gap_to_breaker=15.0,
                                                gap_breaker_to_output=25.0),
+    wire_labels=WireLabelSettings(
+        layer="TEXT", height=1.25, gap=1.0, digits=3,
+        prefixes={"WIRE A": "4A", "WIRE B": "4B", "WIRE C": "4C"},
+    ),
+    page_title=PageTitleSettings(
+        layer="0", x=390.0, y=5.0, height=3.0, mtext_format="{{\\L{title}}}",
+        three_line_format="THREE-LINE DIAGRAM {page:02d}",
+        device_page_format="ELECTRICAL SCHEMATIC SECTION {section}",
+        shipping_split_page="SHIPPING SPLITS",
+    ),
     interlocks=InterlockSettings(
         layer="INTERLOCK", start_past_left_c=2.5, end_before_right_a=1.0, background_mask=True,
         text_mechanical=("MECHANICAL INTERLOCK",), text_electrical=("ELECTRICAL INTERLOCK",),
@@ -126,7 +140,7 @@ TEST_SETTINGS = LayoutSettings(
         bracket_state_horizontal_bus="VERTICAL BRACKET",
         bracket_state_vertical_bus="HORIZONTAL BRACKET", bracket_gap=2.0,
         label_attribute_horizontal_bus="VERTICAL_LABLE",
-        label_attribute_vertical_bus="HORIZONTAL_LABLE", page_reference="ES_{number:02d}",
+        label_attribute_vertical_bus="HORIZONTAL_LABLE", page_reference="SHEET {sheet}",
         to_label="TO {page}", from_label="FROM {page}",
         column_cut_label="BUS CONTINUES", continued_from_below_label="FROM BELOW",
         continued_from_above_label="FROM ABOVE",

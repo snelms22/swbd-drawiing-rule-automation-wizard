@@ -74,8 +74,11 @@ def test_section_labels_and_ground_text():
         ("GROUND BUS", "bottom_left"),
         ("SECTION 1", "bottom_center"),
         ("SECTION 2", "bottom_center"),
+        ("{\\LTHREE-LINE DIAGRAM 01}", "middle_right"),        # the page title (2026-11-09)
     ]
-    assert all(t.height == 1.25 and t.style == "Hyper_Text" for t in texts)
+    assert all(t.height == 1.25 and t.style == "Hyper_Text" for t in texts[:-1])
+    title = texts[-1]
+    assert (title.position, title.height, title.layer) == ((390.0, 5.0), 3.0, "0")
 
 
 def test_one_placeholder_rectangle_per_content_box():
@@ -127,4 +130,29 @@ def test_autocad_electrical_is_refused(tmp_path):
     bad = tmp_path / "autocad_settings.json"
     bad.write_text(json.dumps(data))
     with pytest.raises(SettingsError, match="Electrical"):
+        load_autocad_settings(bad, PROJECT_ROOT)
+
+
+def test_pages_are_numbered_in_tab_order_toc_first():
+    # The rule of the engineers' NumberByLayout.lsp (decision 2026-11-10).
+    numbers = autocad_settings().page_numbers(page_count=3)
+    assert numbers == {"TOC_01": "01", "LEG_01": "02", "BOM_01": "03",
+                       "ES_01": "04", "ES_02": "05", "ES_03": "06"}
+
+
+def test_page_numbers_agree_with_the_sheet_references():
+    # ES_01 is SHEET 4 in the TO / FROM labels, so its frame must say 04.
+    from src.layout.settings import load_settings
+    layout_settings = load_settings(PROJECT_ROOT / "config" / "layout_settings.json")
+    numbers = autocad_settings().page_numbers(page_count=5)
+    for page in range(1, 6):
+        assert int(numbers[f"ES_{page:02d}"]) == layout_settings.device_pages.sheet_number(page)
+
+
+def test_a_kept_layout_needs_its_frame(tmp_path):
+    data = json.loads(REAL_AUTOCAD_SETTINGS.read_text(encoding="utf-8"))
+    del data["keep_layout_frames"]["LEG_ES"]
+    bad = tmp_path / "autocad_settings.json"
+    bad.write_text(json.dumps(data))
+    with pytest.raises(SettingsError, match="LEG_ES"):
         load_autocad_settings(bad, PROJECT_ROOT)
