@@ -1,5 +1,19 @@
 # Switchboard Configurator: release history
 
+## 2.3.0 (2026-11-12)
+- New: 24 V power supply in a section's Devices box, fed by a voltage tap, drawn on the device pages with its fuse beside it
+- Device pages: one page per section ("ELECTRICAL SCHEMATIC SECTION n"); every page has its title, including "THREE-LINE DIAGRAM 01"
+- Wire labels on every wire on the device pages (4A001, 2+001 ...), on layer 0; the same wire keeps the same label on both sides of a jump
+- Breakers by position (3WA / 3VA): comms offered by family (COM190 / COM060), and every 3WA gets its MMS automatically
+- Ethernet switch: choose the section it goes in
+- Ethernet switch and comms modules shown as boxes on the device pages until their blocks exist
+- First 24 V wiring: one power supply per lineup feeds + and - to the comms modules and Ethernet switch
+- Shipping splits: males at the ends of each section's page, females (the cables) on a SHIPPING SPLITS page at the end; wires passing through a section run straight across; a fuse feeding another section lies down and runs straight into its split
+- Device names no longer include the section (PM-1, FA-12, STB-1); shipping splits keep it (5SSM-3)
+- Table of contents is page 1; pages are numbered in their title blocks (01 OF 10 ...), and SHEET references and TO/FROM labels use those numbers
+- Block catalog refreshed for the smaller tildes and the shipping splits
+- Note: terminal blocks do not follow the new hybrid standards yet
+
 ## 2.2.1 (2026-10-26)
 - New: interlocks between main breakers (mechanical, electrical or both), set in the main breaker's Interlock box and drawn between the two mains
 - Scrolling the editor no longer changes drop-downs
