@@ -50,7 +50,8 @@ OneDrive locking files mid-install.
 commits only when Sammy asks.
 **Reason:** Shows what changed, when, and why, and allows undoing a specific change.
 OneDrive alone can't do that. Kept local so no company drawings leave the PC.
-**Status:** Approved
+**Status:** Approved. Changed 2026-11-23: pushed to GitHub, see "2026-11-23 — GitHub remote;
+the reference DXFs kept out of git".
 
 ### 2026-10-07 — Milestone 1 scope
 **Decision:** Milestone 1 = project data (ordered sections with placeholder width/height,
@@ -432,6 +433,18 @@ for now"; past that the logic may change, later, when needed. Plan 1-3 approved:
 Open (found 2026-11-23, there before this change): a + terminal group that feeds a device in
 its own section, ahead of fuses for the split, sends that wire low, across the later fuses'
 risers (the trip units' shared fuse with meters in other sections).
+
+### 2026-11-23 — GitHub remote; the reference DXFs kept out of git
+**Decision (Sammy, 2026-11-23):** the history is pushed to GitHub: `origin` is
+github.com/snelms22/swbd-drawiing-rule-automation-wizard (`main` tracks `origin/main`).
+GitHub refuses files over 100 MB and Sabey-011485.dxf is 135 MB (four more are about 70 MB),
+so the reference DXFs are kept out of git: the history was rewritten without
+`docs/SWBD_reference/*.dxf` (every commit and release tag) and `.gitignore` leaves them out.
+The DXFs stay on disk in that folder (backed up by OneDrive); their PDFs and INDEX.md stay
+in git. Claude still commits and pushes only when Sammy asks.
+**Reason:** Sammy, 2026-11-23 (chose this over Git LFS, which would use most of GitHub's free
+1 GB, and over dropping only the 135 MB file).
+**Status:** Done 2026-11-23. A bundle of the history before the rewrite was kept.
 
 ### 2026-11-17 — Ground terminal strip in the power supply's section
 **Decision (Sammy, 2026-11-17):**

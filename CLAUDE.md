@@ -10,13 +10,16 @@
 - Record every approved decision in `docs/DECISIONS.md` (date + decision + reason).
 - Numbers that control layout are never hard-coded. They live in config files the owner
   can edit.
-- Version history is local git only (no remote). Commit ONLY when Sammy asks.
+- Version history is git, pushed to GitHub (`origin`, Sammy 2026-11-23). Commit and push
+  ONLY when Sammy asks.
 - The legacy V4.12.2 package is reference only. Do not copy its patch-on-patch structure;
   ask before reusing any of its logic.
 
 ## Reference drawings (check at the start of every session)
 - Sammy adds finished jobs to `docs/SWBD_reference/` as a `.dxf` (exact geometry) plus a
   `.pdf` with the same base name (visual check). He does not track what has been studied.
+- The DXFs are kept out of git (too big for GitHub; `.gitignore`), so they exist only on disk
+  and in OneDrive. Never delete or move them. The PDFs and INDEX.md are in git.
 - At the start of each session, compare the files in that folder against
   `docs/SWBD_reference/INDEX.md`. For any job not yet in the index: read it, add an entry
   to INDEX.md using the format at the top of that file, and tell Sammy what was found.

@@ -7,4 +7,6 @@ venv/
 *.dwl
 *.dwl2
 output/
-docs/SWBD_reference/
+# The reference DXFs stay out of git: too big for GitHub (Sabey-011485.dxf is 135 MB).
+# They live on disk and in OneDrive; their PDFs and INDEX.md are in git (Sammy, 2026-11-23).
+docs/SWBD_reference/*.dxf
