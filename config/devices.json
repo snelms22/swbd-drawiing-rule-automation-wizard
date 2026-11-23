@@ -161,7 +161,9 @@
     "bus_label": "TO GROUND BUS",
     "to_strip_label": "TO {strip}",
     "from_device_label": "FROM {device}",
-    "stub_length": 12.0
+    "stub_length": 12.0,
+    "strip_rotation_note": "Sammy, 2026-11-23: the strip's terminal blocks are turned right (-90 degrees, scale 1), so the strip runs across under the power supply. All four connections of each block are used: each other device's ground wire leaves a point facing down (straight down to an upright tilde, its text under it reading up) or, once those are full, a point facing up (straight up, its text over the tilde; the strip moves down to make room). 2.5 apart: one line each. The supply's ground comes in on a point facing up on the right-hand block; the wire TO GROUND BUS leaves the left-hand block on a point facing left, through a tilde to its bracket, as before.",
+    "strip_rotation": -90
   },
   "remote_display_note": "A remote display for a power meter (decision 2026-10-23): a checkbox on the meter; drawn beside it on the device page, the meter's USB marker joined to the display's USB marker by a line on usb_layer. The program fills the number after 'RD-' (s-n).",
   "remote_display": {

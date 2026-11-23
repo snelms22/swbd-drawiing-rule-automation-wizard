@@ -30,12 +30,13 @@ class Polyline:
 class BlockInsert:
     layer: str
     block: str
-    position: tuple[float, float]           # base point; always scale 1, no rotation
+    position: tuple[float, float]           # base point; always scale 1
     attributes: dict[str, str]
     visibility: str = ""                    # dynamic visibility state; "" = leave as is
     flipped: bool = False                   # set the block's flip parameters
     flip_parameter: str = ""                # only this one when flipped; "" = all of them
     distances: dict = field(default_factory=dict)   # dynamic distance settings, {name: value}
+    rotation: float = 0.0                   # degrees, counter-clockwise (the ground strip: -90)
 
 
 @dataclass
@@ -62,7 +63,7 @@ def page_shapes(page, settings, placeholder_layer: str) -> list:
     shapes += _placeholder_shapes(parts.content_boxes, placeholder_layer)
     shapes += [Line(settings.main_bus.layer, line.start, line.end) for line in parts.bus_lines]
     shapes += [BlockInsert(b.layer, b.block, b.position, dict(b.attributes), b.visibility,
-                           b.flipped, b.flip_parameter, dict(b.distances))
+                           b.flipped, b.flip_parameter, dict(b.distances), b.rotation)
                for b in parts.blocks]
     shapes += [Line(wire.layer, wire.start, wire.end) for wire in parts.wires]
     shapes += [Polyline(p.layer, list(p.points), width=p.width) for p in parts.polylines]

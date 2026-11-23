@@ -157,6 +157,11 @@ From the team meeting (DECISIONS 2026-11-10; Sammy's questions listed there firs
 Order (Sammy, 2026-11-10): wrap up this release (2.3.0), then the UI release, then more
 "intelligence" in the configurator.
 
+Releases (Sammy, 2026-11-23): **2.4.0 the wiring update** (released 2026-11-23: 24 V through
+fuses and terminal blocks, the 24 V ladder, ground strip, Ethernet cables, labelled tildes),
+**2.5.0 the ATC and breaker control update** (control power step C: the ATC and 120 V, with
+the comms modules as real blocks), then **2.6.0 the UI rebuild**.
+
 Waiting: device pages will likely become one section per page as devices are added.
 
 ## Docket (agreed next work, in order; added 2026-10-15)

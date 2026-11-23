@@ -184,6 +184,10 @@ class GroundSettings:
     to_strip_label: str         # on a device's tilde: "TO {strip}"
     from_device_label: str      # on the strip's tilde for that wire: "FROM {device}"
     stub_length: float          # a ground stub, long enough for its number beside the tilde's text
+    # The strip's terminal blocks turned this many degrees (counter-clockwise; -90 = turned
+    # right), so the strip runs across and the devices' ground wires leave straight down
+    # (Sammy, 2026-11-23). 0 = the blocks as drawn, stacked.
+    strip_rotation: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -329,7 +333,8 @@ def _ground(data) -> GroundSettings:
                           pin_markers=tuple(str(m) for m in data["pin_markers"]),
                           bus_label=str(data["bus_label"]), to_strip_label=str(data["to_strip_label"]),
                           from_device_label=str(data["from_device_label"]),
-                          stub_length=float(data["stub_length"]))
+                          stub_length=float(data["stub_length"]),
+                          strip_rotation=float(data.get("strip_rotation", 0.0)))
 
 
 def _ethernet_switch(data) -> EthernetSwitchSettings:

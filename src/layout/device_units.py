@@ -89,7 +89,7 @@ def moved_block(b, dx, dy) -> BlockPlacement:
     return BlockPlacement(block=b.block, layer=b.layer, position=(b.position[0] + dx, b.position[1] + dy),
                           attributes=dict(b.attributes), visibility=b.visibility, label=b.label,
                           extents=b.extents, flipped=b.flipped, flip_parameter=b.flip_parameter,
-                          distances=dict(b.distances))
+                          distances=dict(b.distances), rotation=b.rotation)
 
 
 def moved_wire(w, dx, dy) -> Wire:

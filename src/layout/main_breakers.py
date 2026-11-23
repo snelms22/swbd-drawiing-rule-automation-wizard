@@ -89,6 +89,10 @@ class BlockPlacement:
     # Dynamic-block distance settings to set, {setting name: value}, e.g. a bracket stretched
     # to its wires {"Distance1": 17.5}. The block's own stretch does the drawing.
     distances: dict = field(default_factory=dict)
+    # Turned by this many degrees about its base point (counter-clockwise; -90 = turned right),
+    # e.g. the ground strip's terminal blocks (Sammy, 2026-11-23). Still scale 1. `extents`
+    # are then the turned block's.
+    rotation: float = 0.0
 
 
 @dataclass

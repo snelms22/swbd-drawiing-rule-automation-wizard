@@ -428,11 +428,35 @@ for now"; past that the logic may change, later, when needed. Plan 1-3 approved:
   The showcase's own 6 fuses: no new crossings (the 7 known ones).
 - **The fuses add lanes**, and the - has its own slot now, so the supply's section is wider:
   with 7 or more fuses its row carries on to one more page than before.
+- **Ground strip turned (Sammy, 2026-11-23, after seeing it):** "go back to the idea of
+  flipping it... rotate it right"; the ground wires "fully vertical as well as their labels".
+  The strip's terminal blocks are inserted turned right (-90 degrees, `ground.strip_rotation`
+  in devices.json; still scale 1, not exploded), so the strip runs across. Each other device's
+  ground leaves a terminal point facing down, straight down to an upright tilde (Flip state2),
+  its text under it reading up; 2.5 apart, so one line each (all end level). Then (Sammy,
+  same day: "there should be 4 connections per TB") the points facing up take wires too,
+  straight up to an upright tilde with its text over it, and the strip moves down so that text
+  stays ladder_zone_gap under the supply. Devices fill the points facing down, left to right,
+  then those facing up.
+  The supply's ground comes in on a point facing up on the right-hand block; the wire TO
+  GROUND BUS keeps its bracket, out of the left-hand block on a point facing left. The
+  strip's name stands on its left. The terminal numbers turn with the blocks (read top to
+  bottom; Sammy chose right over left).
 **Reason:** Sammy, 2026-11-20 / 2026-11-23.
-**Status:** Built 2026-11-23 for 2.3.1; Sammy to look at the drawing and say whether to keep it.
+**Status:** Built 2026-11-23; Sammy: "looks good". Released in 2.4.0.
 Open (found 2026-11-23, there before this change): a + terminal group that feeds a device in
 its own section, ahead of fuses for the split, sends that wire low, across the later fuses'
 risers (the trip units' shared fuse with meters in other sections).
+
+### 2026-11-23 — Release plan: 2.4.0 wiring, 2.5.0 ATC and breaker control, 2.6.0 UI
+**Decision (Sammy, 2026-11-23):** what was being built as 2.3.1 is released as **2.4.0, the
+wiring update** (the new blocks were meant for 2.3.x, but the new way of wiring is the focus).
+Next **2.5.0, the ATC and breaker control update** (control power step C, with the comms
+modules), then **2.6.0, the UI rebuild** (was 2.4.0). The known crossing (a + terminal group's
+wire to its own section's trip unit across later fuses' risers) stays: "it still makes sense
+and is easy to follow".
+**Reason:** Sammy, 2026-11-23: each is its own update.
+**Status:** 2.4.0 released 2026-11-23. "2.3.1" in the entries above means 2.4.0.
 
 ### 2026-11-23 — GitHub remote; the reference DXFs kept out of git
 **Decision (Sammy, 2026-11-23):** the history is pushed to GitHub: `origin` is

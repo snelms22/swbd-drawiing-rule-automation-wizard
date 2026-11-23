@@ -20,27 +20,27 @@ above it.
   - Tilde: text flips with the wire
   - Tilde: text multi-line
 - SWBD Configurator Updates
-  - 2.3.1 - Upcoming
+  - 2.4.0 - Released 2026-11-23 (wiring update)
     - Fuse per device
     - Terminal blocks
     - Trip unit, COM800 24 V
     - New UMG 801, meter 24 V
-    - CT bracket stretched to wires
-    - Tall boxes, COM190 in trip unit
     - 24 V ladder: devices in a row
-    - Ground terminal strip (1TBG)
+    - Up to 12 fuses per page
+    - Ground strip under supply, turned
     - Ethernet switch sized automatically
     - Ethernet cables, both ends
     - Phases straight into meter, supply
-    - Every tilde labelled
-    - Tilde labels: two lines, never overlap
-  - 2.4.0 - Upcoming
+    - Every tilde labelled, two lines
+  - 2.5.0 - Upcoming
+    - ATC and breaker control
+  - 2.6.0 - Upcoming
     - UI rebuild
 - Coming Up
-  - Blocks: trip unit with COM190, COM800 markers, COM060
-  - 2.3.x: real blocks for boxes
-  - 2.4.0 (after the drawing logic): UI rebuild, MMS choice, double-click to fix
-  - Later: auto TO/FROM labels, 120 V control power, fuse sizes from device list
+  - Blocks: trip unit with COM190, COM800 markers, COM060, ATC
+  - 2.5.0: ATC, breaker control, comms modules as real blocks
+  - 2.6.0: UI rebuild, MMS choice, double-click to fix
+  - Later: auto TO/FROM labels, fuse sizes from device list
 
 ## Friday 2026-11-20 (held)
 

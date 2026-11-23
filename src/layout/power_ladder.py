@@ -21,6 +21,7 @@
 The plan (control_power.py) says which wires there are, in which order (fuse column, split
 pins); this module only places things and routes the wires. Pure Python, no AutoCAD.
 """
+import math
 from dataclasses import dataclass, field, replace
 from itertools import permutations
 
@@ -127,6 +128,19 @@ def build_ladder(section: LadderSection, ctx: LadderContext) -> list[Unit]:
     trial.build()
     return _Ladder(section, ctx, supply_rise=trial.supply_rise_room(),
                    wires_under_supply=trial.wires_under_supply()).build()
+
+
+def _turned(point, degrees):
+    """A point turned `degrees` (counter-clockwise) about (0, 0), rounded so a quarter turn
+    lands exactly."""
+    a = math.radians(degrees)
+    x, y = point
+    return (round(x * math.cos(a) - y * math.sin(a), 9) + 0.0, round(x * math.sin(a) + y * math.cos(a), 9) + 0.0)
+
+
+def _corners(extents):
+    left, bottom, right, top = extents
+    return [(left, bottom), (right, bottom), (right, top), (left, top)]
 
 
 class _Ladder:
@@ -750,112 +764,166 @@ class _Ladder:
         points += [(b.lane_x, run.height), (b.lane_x, b.point[1]), b.point]
         return path_wires(points, self._layer(run.sign), run.label)
 
-    # --- Ground (Sammy, 2026-11-17; under the supply 2026-11-20) ------------------------------
+    # --- Ground (Sammy, 2026-11-17; under the supply 2026-11-20; turned 2026-11-23) ----------
 
-    def _ground_points(self):
-        """The ground strip's terminal points: (the one the supply's ground comes in on, how
-        many blocks, [(block index, marker)] for the devices' stubs, top first). The wire in
-        on the top block's rightmost TOP point, the bus out on the LEFT side, the devices'
-        stubs on the RIGHT side."""
-        strip, markers = self.s.ground, self.terminal.markers or {}
-        tops = [(y, x, name) for name, (x, y) in markers.items() if name.endswith("_TOP") and name.split("_")[0].isdigit()]
-        entry = max(tops)[2] if tops else ""    # on the block's top edge, the right one of those
+    def _ground_strip(self):
+        """The ground strip's terminal blocks, turned by the ground settings' strip_rotation
+        (-90: turned right, so the strip runs across, right to left), around its own (0, 0):
+        {"count": blocks, "offsets": [each block's base point], "extents": the strip's,
+        "block_extents": one turned block's, "entry": the point the supply's ground comes in on
+        (facing up, the rightmost on the right-hand block), "bus": the one the wire TO GROUND
+        BUS leaves by (facing left, on the left-hand block), "devices": [(x, y, marker, "down" /
+        "up")], one per other device: every point facing down, left to right, then every one
+        facing up (Sammy, 2026-11-23: all four connections of each block)}. One wire per
+        terminal (marker number) per block."""
+        strip, gs = self.s.ground, self.ctx.devices.ground
+        markers, pitch = self.terminal.markers or {}, self.dp.terminal_pitch
+        turn = gs.strip_rotation
+        facing = {"LEFT": (-1.0, 0.0), "RIGHT": (1.0, 0.0), "TOP": (0.0, 1.0), "BOTTOM": (0.0, -1.0)}
+
+        def contacts(count):
+            found = []          # (block, terminal number, x, y, facing, marker)
+            for index in range(count):
+                ox, oy = _turned((0.0, -index * pitch), turn)
+                for name, point in markers.items():
+                    number, _, side = name.partition("_")
+                    if number.isdigit() and side in facing:
+                        x, y = _turned(point, turn)
+                        found.append((index, number, x + ox, y + oy, _turned(facing[side], turn), name))
+            return found
+
         count = 1
-        while (len(self._side_points(count, "RIGHT", entry)) < len(strip.devices)
-               or not self._side_points(count, "LEFT", entry)):
+        while True:
+            found = contacts(count)
+            ends = sorted(range(count), key=lambda i: _turned((0.0, -i * pitch), turn)[0])
+            left_block, right_block = ends[0], ends[-1]
+            lefts = sorted((c for c in found if c[0] == left_block and c[4][0] < -0.5), key=lambda c: c[2])
+            bus = lefts[0] if lefts else None
+            ins = sorted((c for c in found if c[0] == right_block and c[4][1] > 0.5
+                          and (bus is None or (c[0], c[1]) != (bus[0], bus[1]))), key=lambda c: -c[2])
+            entry = ins[0] if ins else None
+            taken = {(c[0], c[1]) for c in (bus, entry) if c}
+            downs = sorted((c for c in found if c[4][1] < -0.5 and (c[0], c[1]) not in taken), key=lambda c: c[2])
+            ups = sorted((c for c in found if c[4][1] > 0.5 and (c[0], c[1]) not in taken), key=lambda c: c[2])
+            if len(downs) + len(ups) >= len(strip.devices) or count > len(strip.devices) + 1:
+                break
             count += 1
-        return entry, count, self._side_points(count, "RIGHT", entry)[:len(strip.devices)]
+        offsets = [_turned((0.0, -i * pitch), turn) for i in range(count)]
+        corners = [_turned(c, turn) for c in _corners(self.terminal.extents)]
+        block = (min(x for x, _ in corners), min(y for _, y in corners),
+                 max(x for x, _ in corners), max(y for _, y in corners))
+        xs = [ox + x for ox, _ in offsets for x in (block[0], block[2])]
+        ys = [oy + y for _, oy in offsets for y in (block[1], block[3])]
+        return {"count": count, "offsets": offsets, "extents": (min(xs), min(ys), max(xs), max(ys)),
+                "block_extents": block,
+                "entry": entry and (entry[2], entry[3], entry[5]), "bus": bus and (bus[2], bus[3], bus[5]),
+                "devices": ([(c[2], c[3], c[5], "down") for c in downs]
+                            + [(c[2], c[3], c[5], "up") for c in ups])[:len(strip.devices)]}
+
+    def _ground_reach(self, g) -> tuple:
+        """How far above and below the strip's (0, 0) its wires and their text reach (the wires
+        up end level stub_length above the highest point, their text over them; the same down)."""
+        strip, gs, dp = self.s.ground, self.ctx.devices.ground, self.dp
+        left, bottom, right, top = g["extents"]
+        texts = [gs.from_device_label.format(device=device) for _, device in strip.devices] or [""]
+        ups = [y for _, y, _, way in g["devices"] if way == "up"]
+        downs = [y for _, y, _, way in g["devices"] if way == "down"]
+        if ups:
+            top = max(top, max(ups) + gs.stub_length
+                      + max(tilde_text_box(t, dp, False, vertical=True)[3] for t in texts))
+        if downs:
+            bottom = min(bottom, min(downs) - gs.stub_length
+                         + min(tilde_text_box(t, dp, True, vertical=True)[1] for t in texts))
+        return top, bottom
 
     def _ground_depth(self) -> float:
         """How far the ground strip reaches below the supply (and what stands left of its -
-        lane): the gap, the strip, its stubs and their text (estimated)."""
+        lane): the gap, the strip, its wires down and their text (estimated)."""
         strip, gs = self.s.ground, self.ctx.devices.ground
         if strip is None or gs is None or self.s.supply is None or self.terminal is None:
             return 0.0
-        dp, markers = self.dp, self.terminal.markers or {}
-        t_left, t_bottom, t_right, t_top = self.terminal.extents
-        entry, count, rights = self._ground_points()
-        strip_low = (count - 1) * dp.terminal_pitch - t_bottom + dp.ladder_zone_gap     # its name under it
-        if not rights:
-            return dp.ladder_zone_gap + t_top + strip_low
-        lowest = min(markers[name][1] - index * dp.terminal_pitch for index, name in rights)
-        text = max((tilde_text_box(gs.from_device_label.format(device=device), dp, True, vertical=True)[1]
-                    for _, device in strip.devices), key=abs)
-        return dp.ladder_zone_gap + t_top + max(strip_low, -lowest + gs.stub_length - text)
+        top, bottom = self._ground_reach(self._ground_strip())
+        return self.dp.ladder_zone_gap + top - bottom
 
     def _ground(self):
-        """The ground strip under the power supply, in the room left of its fuses (Sammy,
-        2026-11-20; it stood at the bottom, under the fuses, and kept them from reaching lower):
+        """The ground strip under the power supply, in the room left of its fuses, its terminal
+        blocks turned right so it runs across (Sammy, 2026-11-20 / 2026-11-23):
 
-                   [PS ]
-              G002 +--+G                   (the supply's ground drops in from above)
-                   |
-            ]~--[ 1TBG ]--------+          (each other device's ground: out on the right,
-           TO GROUND BUS [  ]---+|          down in a lane of its own, the top one outermost,
-                                ||          so none cross)
-                                ~~          (upright tildes, their text under them reading
-                                FF          up: FROM PM-1, FROM PS-2)
+                    [PS ]G
+               G002 +---+                 (the supply's ground drops in from above)
+                    |
+          ]~--[ 1TBG  turned ]            (TO GROUND BUS out of the left end, as before)
+                 F F F F                  (devices on the points facing up: straight up to
+                 ~ ~ ~ ~                   an upright tilde, its text over it)
+                 | | | |
+                 | | | | |                (on the points facing down: straight down, the
+                 ~ ~ ~ ~ ~                 text under the tilde, reading up: FROM PM-1 ...)
+                 F F F F F
 
-        G001 leaves on the left through a tilde to a bracket TO GROUND BUS. The stubs' lanes
-        stay a lane short of the lane the supply's - drops in."""
+        The strip stays a lane short of the lane the supply's - drops in; its name stands on
+        its left, under the wire to the ground bus."""
         strip, gs = self.s.ground, self.ctx.devices.ground
         if strip is None or gs is None or self.s.supply is None or self.terminal is None:
             return
         dp, br, cp = self.dp, self.br, self.cp
-        markers, pitch, lane = self.terminal.markers or {}, dp.terminal_pitch, dp.lane_spacing
-        t_left, t_bottom, t_right, t_top = self.terminal.extents
+        lane = dp.lane_spacing
+        markers = self.terminal.markers or {}
         dx, dy = self.supply_shift
         ground = self.s.supply.ground
         pin = (ground[0] + dx, ground[1] + dy) if ground else None
-        entry, count, rights = self._ground_points()
-        # Across: the stubs' lanes right of the strip, the outermost a lane short of the
-        # supply's - lane; the supply's ground drops in a lane left of its pin.
-        x = self.s.supply.minus_lane_x + dx - lane * (len(rights) + 1) - t_right
-        if pin and entry:
-            x = min(x, pin[0] - lane - markers[entry][0])
-        # Down: ladder_zone_gap under the supply and what stands left of its - lane.
-        base = self._body_bottom() + dy - dp.ladder_zone_gap - t_top
+        g = self._ground_strip()
+        s_left, s_bottom, s_right, s_top = g["extents"]
+        # Across: a lane short of the supply's - lane, the supply's ground dropping in a lane
+        # left of its pin. Down: the text over the wires going up stays ladder_zone_gap under the
+        # supply and what stands left of its lane (Sammy, 2026-11-23: move it down for them).
+        x = self.s.supply.minus_lane_x + dx - lane - s_right
+        if pin and g["entry"]:
+            x = min(x, pin[0] - lane - g["entry"][0])
+        y = self._body_bottom() + dy - dp.ladder_zone_gap - self._ground_reach(g)[0]
         layer = gs.wire_layer
-        for index in range(count):
+        for index, (ox, oy) in enumerate(g["offsets"]):
             self.unit.blocks.append(BlockPlacement(
-                block=cp.terminal_block, layer=cp.terminal_layer, position=(x, base - index * pitch),
+                block=cp.terminal_block, layer=cp.terminal_layer, position=(x + ox, y + oy),
                 attributes={cp.terminal_number_attribute: str(index + 1)}, label=f"{strip.name}({index + 1})",
-                extents=self.terminal.extents))
-        name_y = base - (count - 1) * pitch + t_bottom - cp.strip_name_gap - cp.strip_name_height
-        self.unit.texts.append(PageText(strip.name, x + (t_left + t_right) / 2, name_y,
-                                        cp.strip_name_layer, cp.strip_name_height))
+                extents=g["block_extents"], rotation=gs.strip_rotation))
         top_mark, bottom_mark = markers.get(cp.bridge_top_marker), markers.get(cp.bridge_bottom_marker)
-        if count > 1 and top_mark and bottom_mark:
-            self.unit.polylines.append(WidePolyline(cp.bridge_layer, [
-                (x + top_mark[0], base + top_mark[1]),
-                (x + bottom_mark[0], base - (count - 1) * pitch + bottom_mark[1])], cp.bridge_width))
+        if g["count"] > 1 and top_mark and bottom_mark:
+            (fx, fy), (lx, ly) = g["offsets"][0], g["offsets"][-1]
+            tx, ty = _turned(top_mark, gs.strip_rotation)
+            bx, by = _turned(bottom_mark, gs.strip_rotation)
+            self.unit.polylines.append(WidePolyline(cp.bridge_layer, [(x + fx + tx, y + fy + ty),
+                                                                      (x + lx + bx, y + ly + by)], cp.bridge_width))
         # The supply's ground: out of its pin to the left, down into the strip.
-        if pin and entry:
-            ex, ey = markers[entry]
-            entry_point = (x + ex, base + ey)
-            self.unit.wires += path_wires([pin, (entry_point[0], pin[1]), entry_point], layer, strip.supply_label)
-        # To the ground bus: out on the left, a tilde and the bracket.
-        index, name = self._side_points(count, "LEFT", entry)[0]
-        mx, my = markers[name]
-        start = (x + mx, base + my - index * pitch)
-        end = (start[0] - dp.stub_length, start[1])
-        self.unit.wires.append(Wire(layer, start, end, strip.bus_label))
-        self.unit.blocks += wire_breaks([end], self.ctx.settings, self.ctx.catalog, dp.wire_break_state_horizontal,
-                                        flip_parameter=dp.wire_break_flip_horizontal)
-        self.unit.blocks.append(self._single_bracket(end[0] - br.bracket_gap, end[1], gs.bus_label))
-        # Each other device's ground: out on the right to its lane, down to a tilde naming it.
-        if not rights:
+        if pin and g["entry"]:
+            entry = (x + g["entry"][0], y + g["entry"][1])
+            self.unit.wires += path_wires([pin, (entry[0], pin[1]), entry], layer, strip.supply_label)
+        # To the ground bus: out of the left end, a tilde and the bracket.
+        if g["bus"]:
+            start = (x + g["bus"][0], y + g["bus"][1])
+            end = (start[0] - dp.stub_length, start[1])
+            self.unit.wires.append(Wire(layer, start, end, strip.bus_label))
+            self.unit.blocks += wire_breaks([end], self.ctx.settings, self.ctx.catalog, dp.wire_break_state_horizontal,
+                                            flip_parameter=dp.wire_break_flip_horizontal)
+            self.unit.blocks.append(self._single_bracket(end[0] - br.bracket_gap, end[1], gs.bus_label))
+        # The strip's name on its left, in its lower half (the wire to the ground bus leaves higher).
+        name_y = y + (s_bottom + s_top) / 2 - cp.strip_name_height     # its middle
+        self.unit.texts.append(PageText(strip.name, x + s_left - cp.strip_name_gap, name_y,
+                                        cp.strip_name_layer, cp.strip_name_height, align="middle_right"))
+        # Each other device's ground: straight down (or up) to a tilde naming it, its text under
+        # (over) it. The wires each way end level.
+        points = [(x + px, y + py, way) for px, py, _, way in g["devices"]]
+        if not points:
             return
-        lowest = min(base + markers[name][1] - index * pitch for index, name in rights)
-        end_y = lowest - gs.stub_length
-        for k, ((label, device), (index, name)) in enumerate(zip(strip.devices, rights)):
-            mx, my = markers[name]
-            start = (x + mx, base + my - index * pitch)
-            lane_x = x + t_right + lane * (len(rights) - k)
-            self.unit.wires += path_wires([start, (lane_x, start[1]), (lane_x, end_y)], layer, label)
-            self.unit.blocks += wire_breaks([(lane_x, end_y)], self.ctx.settings, self.ctx.catalog,
-                                            dp.wire_break_state, flip_parameter=dp.wire_break_flip_vertical,
-                                            text=gs.from_device_label.format(device=device), spacing=lane)
+        ends = {"down": min((py for _, py, way in points if way == "down"), default=0.0) - gs.stub_length,
+                "up": max((py for _, py, way in points if way == "up"), default=0.0) + gs.stub_length}
+        xs = sorted(px for px, _, _ in points)
+        spacing = min((b - a for a, b in zip(xs, xs[1:]) if b - a > TOLERANCE), default=None)
+        for (label, device), (px, py, way) in zip(strip.devices, points):
+            self.unit.wires.append(Wire(layer, (px, py), (px, ends[way]), label))
+            self.unit.blocks += wire_breaks([(px, ends[way])], self.ctx.settings, self.ctx.catalog,
+                                            dp.wire_break_state,
+                                            flip_parameter=dp.wire_break_flip_vertical if way == "down" else "",
+                                            text=gs.from_device_label.format(device=device), spacing=spacing)
 
     def _single_bracket(self, x, y, label) -> BlockPlacement:
         """The bracket as drawn (one wire), facing a wire that arrives from the right, its

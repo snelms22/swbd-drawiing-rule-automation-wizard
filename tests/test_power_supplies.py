@@ -869,7 +869,8 @@ def test_a_ladder_wider_than_a_page_carries_on_with_one_bracket_each_side():
 
 from src.model.devices import GroundSettings  # noqa: E402
 
-GROUND = GroundSettings("{section}TBG", "WIRE G", ("G",), "TO GROUND BUS", "TO {strip}", "FROM {device}", 12.0)
+GROUND = GroundSettings("{section}TBG", "WIRE G", ("G",), "TO GROUND BUS", "TO {strip}", "FROM {device}", 12.0,
+                        strip_rotation=-90.0)
 GROUND_SETTINGS = replace(POWER_SETTINGS, wire_labels=replace(
     POWER_SETTINGS.wire_labels, prefixes={**POWER_SETTINGS.wire_labels.prefixes, "WIRE G": "G"}))
 
@@ -885,19 +886,21 @@ def ground_layout(board):
 
 
 def test_the_ground_strip_takes_the_supplys_ground_and_sends_one_wire_to_the_ground_bus():
-    # As in NTT-013628 (PS ground G002 -> TB1-G -> G001 TO GROUND BUS), named 1TBG, at the
-    # bottom left under the supply, left of the - terminals.
+    # As in NTT-013628 (PS ground G002 -> TB1-G -> G001 TO GROUND BUS), named 1TBG, under
+    # the supply, left of the - terminals; its blocks turned right (Sammy, 2026-11-23).
     result, pages = ground_layout(lineup_of(2, 1, set()))
     page = pages[0]
     assert "1TBG" in [t.text for t in page.parts.texts]
     strip = [t for t in placed(page, "TEST_TB") if t.label.startswith("1TBG")]
     assert len(strip) == 1
     terminal = strip[0]
+    assert terminal.rotation == -90.0
     sx, sy = placed(page, "TEST_PS")[0].position
-    # G002: out of the supply's ground pin, down into the strip's top (3_TOP).
+    # G002: out of the supply's ground pin, down into a point facing up: 2_LEFT (-3.0, 1.5)
+    # turned right is (1.5, 3.0) (point 1 is taken by the wire to the ground bus).
     g002 = [w for w in page.parts.wires if w.label == "G002"]
     assert (sx + 0.5, sy - 27.5) in {w.start for w in g002}
-    assert (terminal.position[0] + 2.5, terminal.position[1] + 2.0) in {w.end for w in g002}
+    assert (terminal.position[0] + 1.5, terminal.position[1] + 3.0) in {w.end for w in g002}
     # G001: out on the left, a tilde, the bracket TO GROUND BUS.
     g001 = [w for w in page.parts.wires if w.label == "G001"]
     assert len(g001) == 1 and g001[0].end[0] < g001[0].start[0]
@@ -919,12 +922,12 @@ def test_every_other_device_with_a_ground_pin_is_wired_by_reference_with_tildes(
     assert len(stub) == 1 and stub[0].end[0] < stub[0].start[0]          # out to the left
     assert [b.attributes["TEXT_H"] for b in placed(section_2, "TEST_WIRE_TILDE")
             if any(at_point(b.position, w.end) for w in stub)] == ["TO 1TBG"]
-    # On the strip (under the supply, Sammy 2026-11-20): out to the right, down to an upright
-    # tilde flipped up-down, its text under it.
+    # On the strip (under the supply, its blocks turned right, Sammy 2026-11-23): straight
+    # down to an upright tilde flipped up-down, its text under it.
     on_strip = [w for w in section_1.parts.wires if w.label == "G003"]
-    assert len(on_strip) == 2
-    across, down = sorted(on_strip, key=lambda w: abs(w.start[1] - w.end[1]))
-    assert across.end[0] > across.start[0] and down.start == across.end and down.end[1] < down.start[1]
+    assert len(on_strip) == 1
+    down = on_strip[0]
+    assert down.start[0] == down.end[0] and down.end[1] < down.start[1]
     tilde = [b for b in placed(section_1, "TEST_WIRE_TILDE") if at_point(b.position, down.end)]
     assert len(tilde) == 1 and tilde[0].visibility == "VERTICAL" and tilde[0].flip_parameter == "Flip state2"
     assert tilde[0].attributes["TEXT_V"] == "FROM PS-2"
@@ -954,7 +957,7 @@ def test_the_meters_digital_ground_goes_to_the_strip_by_reference():
     page = [p for p in result.pages if not p.placed_sections][0]
     mx, my = placed(page, "TEST_REV2")[0].position
     stub = [w for w in page.parts.wires if w.label == "G003"]
-    assert len(stub) == 3                               # the meter's, and the strip's across and down
+    assert len(stub) == 2                               # the meter's, and the strip's straight down
     at_meter = next(w for w in stub if w.start == (mx, my - 72.5))
     assert at_meter.end == (mx - 12.0, my - 72.5)
     texts = {b.attributes.get("TEXT_H") or b.attributes.get("TEXT_V") for b in placed(page, "TEST_WIRE_TILDE")
@@ -1209,29 +1212,28 @@ def test_the_meters_and_the_switchs_labels_keep_clear_of_each_other_and_of_the_b
                                                              b.position[0] + b.extents[2], b.position[1] + b.extents[3]))], text
 
 
-def test_the_ground_strip_stands_under_the_supply_its_stubs_going_down_short_of_the_minus_lane():
+def test_the_ground_strip_stands_under_the_supply_turned_its_wires_straight_down():
     # Sammy, 2026-11-20: the strip moves up under the power supply, into the room left of its
-    # fuses; its stubs go down in lanes of their own, upright tildes with their text under them.
+    # fuses. 2026-11-23: its blocks turned right, so every device's ground wire goes straight
+    # down from its terminal (two per block, 2.5 apart) to an upright tilde, its text under it.
     board = lineup_of(2, 1, set())
-    board.sections[1].contents.power_supplies.append(PowerSupply())     # PS-2: FROM PS-2 on the strip
-    board.sections[1].contents.power_supplies.append(PowerSupply())     # PS-3: FROM PS-3
+    for _ in range(3):                                                  # PS-2, PS-3, PS-4
+        board.sections[1].contents.power_supplies.append(PowerSupply())
     result, pages = ground_layout(board)
     page = pages[0]
     supply = placed(page, "TEST_PS")[0]
-    sx, sy = supply.position
     strip = [t for t in placed(page, "TEST_TB") if t.label.startswith("1TBG")]
-    assert max(t.position[1] + t.extents[3] for t in strip) <= sy + supply.extents[1]      # under the supply
+    assert len(strip) == 2 and all(t.rotation == -90.0 for t in strip)
+    assert max(t.position[1] + t.extents[3] for t in strip) <= supply.position[1] + supply.extents[1]
     fuses = placed(page, "TEST_FD")
     assert max(t.position[0] + t.extents[2] for t in strip) < min(f.position[0] for f in fuses)
-    # Each stub: across to its lane, down to its tilde; the top one outermost, so none cross.
-    downs = sorted((w for w in page.parts.wires if w.layer == "WIRE G" and w.label in ("G003", "G004")
-                    and abs(w.start[0] - w.end[0]) < 1e-6), key=lambda w: w.start[0])
-    assert len(downs) == 2 and downs[0].start[1] < downs[1].start[1]
-    minus_lane = [w.start[0] for w in page.parts.wires if w.layer == "WIRE 24-" and abs(w.start[0] - w.end[0]) < 1e-6
-                  and w.start[0] < min(f.position[0] for f in fuses)]
-    assert max(w.start[0] for w in downs) <= min(minus_lane) - TEST_SETTINGS.device_pages.lane_spacing + 1e-6
+    downs = sorted((w for w in page.parts.wires if w.layer == "WIRE G" and w.label in ("G003", "G004", "G005")),
+                   key=lambda w: w.start[0])
+    assert len(downs) == 3 and all(w.start[0] == w.end[0] and w.end[1] < w.start[1] for w in downs)
+    assert len({w.end[1] for w in downs}) == 1                          # all end level
+    assert [round(b.start[0] - a.start[0], 6) for a, b in zip(downs, downs[1:])] == [2.5, 2.5]
     texts = sorted(text for text, _ in label_boxes(page) if text.startswith("FROM PS"))
-    assert texts == ["FROM PS-2", "FROM PS-3"]
+    assert texts == ["FROM PS-2", "FROM PS-3", "FROM PS-4"]             # one line each: 2.5 apart
     boxes = [box for _, box in label_boxes(page)]
     assert not [1 for i, a in enumerate(boxes) for b in boxes[i + 1:] if overlap(a, b)]
     assert crossings_on(page, layers=("WIRE 24+", "WIRE 24-", "WIRE G")) == []
@@ -1310,4 +1312,28 @@ def test_wires_passing_over_the_supply_keep_it_under_them():
             and min(w.start[0], w.end[0]) < left and max(w.start[0], w.end[0]) > right]
     assert over
     assert supply.position[1] + supply.extents[3] < min(w.start[1] for w in over)
+    assert crossings_on(page, layers=("WIRE 24+", "WIRE 24-", "WIRE G")) == []
+
+
+def test_the_ground_strip_uses_all_four_connections_of_each_block_wires_going_up_too():
+    # Sammy, 2026-11-23: 4 connections per terminal block; the points facing up take wires
+    # too, straight up to a tilde with its text over it, the strip moved down to make room.
+    board = lineup_of(2, 1, set())
+    for _ in range(5):                                                  # PS-2 ... PS-6: 5 devices
+        board.sections[1].contents.power_supplies.append(PowerSupply())
+    result, pages = ground_layout(board)
+    page = pages[0]
+    supply = placed(page, "TEST_PS")[0]
+    strip = [t for t in placed(page, "TEST_TB") if t.label.startswith("1TBG")]
+    assert len(strip) == 2                          # 8 points: in, out to the bus, 4 down, 2 up
+    wires = [w for w in page.parts.wires if w.layer == "WIRE G" and w.label in {f"G{n:03d}" for n in range(3, 8)}]
+    assert len(wires) == 5 and all(w.start[0] == w.end[0] for w in wires)
+    up = [w for w in wires if w.end[1] > w.start[1]]
+    assert len(up) == 1
+    tilde = next(b for b in placed(page, "TEST_WIRE_TILDE") if at_point(b.position, up[0].end))
+    assert tilde.visibility == "VERTICAL" and not tilde.flipped and tilde.attributes["TEXT_V"] == "FROM PS-6"
+    text_top = max(box[3] for text, box in label_boxes(page) if text == "FROM PS-6")
+    assert text_top <= supply.position[1] + supply.extents[1] - TEST_SETTINGS.device_pages.ladder_zone_gap + 1e-6
+    boxes = [box for _, box in label_boxes(page)]
+    assert not [1 for i, a in enumerate(boxes) for b in boxes[i + 1:] if overlap(a, b)]
     assert crossings_on(page, layers=("WIRE 24+", "WIRE 24-", "WIRE G")) == []

@@ -201,7 +201,8 @@ class Drawing:
         for shape in shapes:
             if isinstance(shape, BlockInsert):
                 entity = _retry(lambda: self.model_space.InsertBlock(
-                    _point(*moved(shape.position)), shape.block, 1.0, 1.0, 1.0, 0.0))
+                    _point(*moved(shape.position)), shape.block, 1.0, 1.0, 1.0,
+                    math.radians(shape.rotation)))       # always scale 1; turned only when asked
                 problems += self._fill_block(entity, shape)
             elif isinstance(shape, Line):
                 entity = _retry(lambda: self.model_space.AddLine(
