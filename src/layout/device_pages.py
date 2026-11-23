@@ -22,9 +22,18 @@ own block, "FROM STB-k SHEET n"). A meter whose fuse is in another section gets 
 voltage input block ("FROM FA-n SHEET n").
 
 Boxes until their blocks exist (Sammy, 2026-11-11): the Ethernet switch, in the section ticked
-for it, and each breaker's comms module, in its breaker's section ("52-M1 Siemens COM190").
-In a section with a power supply they stack to its right, fed + and - 24 V from its outputs
-(a first look at 24 V wiring); otherwise they come after the section's other devices, unwired.
+for it, each 3WA's trip unit (its COM190 named inside it, Sammy 2026-11-17), each COM800, and
+each other comms module (a 3VA's COM060), in its breaker's section. The comms modules get no
+wires.
+
+24 V (Sammy, 2026-11-13; plan approved 2026-11-16; control_power.py plans it): the trip units
+(one shared fuse), the Ethernet switch, the COM800s and the meters with 24 V pins (a fuse each)
+are fed from the power supply's fuse column, the - shared; a circuit meeting three or more
+points in a section is split on a terminal block there; circuits reach other sections through
+shipping splits. Each section's 24 V ladder comes first on its page (power_ladder.py, Sammy
+2026-11-17): the devices in a row, + along the top, - along the bottom, the splits at the
+ends. This module hands it what stands in the row (_ladder_section). Without a supply that can
+feed it, the Ethernet switch is an unwired box and the trip units and COM800s aren't drawn.
 
 Power supplies (decision 2026-11-05, option A): the fuse lies down to the left of the power
 supply, its load side lined up with the supply's inputs (L1-L3), so the three wires run
@@ -43,8 +52,8 @@ fuse) and each fuse on its own is a "unit". Each section starts a new page; its 
 placed left to right in rows from the top left (power supplies first, then meters, then
 fuses on their own), clear of the title block; a section that doesn't fit carries on on
 another page. Sizes come from the blocks in the catalog; spacing from config
-("device_pages"). How the devices will be arranged once they are wired together (power
-left to right, as in the hybrid NTT-013628) comes with the 24 V chain.
+("device_pages"). A section's 24 V ladder comes first; a ladder wider than a page carries on on
+the section's next page.
 
 Sheets: the device pages are numbered after the 3-line pages. Every cross-reference is
 filled in both ways: on the 3-line, a CT set's SHEET# (its meter's page) and a tap's
@@ -55,59 +64,24 @@ Pure Python, no AutoCAD. Coordinates are frame-relative.
 from dataclasses import dataclass, field
 from itertools import permutations
 
+from src.layout.control_power import (
+    COM800, ETHERNET_SWITCH, MINUS, PLUS, POWER_METER, TRIP_UNIT, Load, control_power_loads,
+    plan_control_power,
+)
+from src.layout.device_units import (
+    TOLERANCE, PageText, Unit, WidePolyline, Wire, label_wires, lane_route, moved_block, wire_breaks,
+)
 from src.layout.main_breakers import BlockPlacement, Placeholder, _filled
+from src.layout.power_ladder import GroundStrip, LadderContext, LadderSection, RowItem, Supply, build_ladder
 from src.model.devices import (
-    comms_modules_in, ct_sets_in, ethernet_switch_sections, meters_in, power_supplies_in,
+    ethernet_connections, comms_modules_in, ct_sets_in, ethernet_switch_sections, meters_in, mms_in, power_supplies_in,
     voltage_taps_in,
 )
 
 PHASES = "ABC"
 UNKNOWN_SHEET = "#"
-TOLERANCE = 1e-6
-
-
-@dataclass
-class Wire:
-    """A wire the program draws itself (no block), on its own layer. Every straight piece of
-    one wire run carries the run's label ("4A002"; "" = not labelled)."""
-    layer: str
-    start: tuple[float, float]
-    end: tuple[float, float]
-    label: str = ""
-
-
-@dataclass
-class WireLabel:
-    """A wire's label on the page (decision 2026-11-09): its middle, and turned 90 degrees
-    on an upright wire."""
-    text: str
-    x: float
-    y: float
-    rotation: float = 0.0
-
-
-@dataclass
-class Unit:
-    """One meter with what is wired to it, or one fuse on its own, drawn around (0, 0)."""
-    section_number: int
-    names: list = field(default_factory=list)       # device names placed here ("PM-1", "FA-12")
-    blocks: list = field(default_factory=list)
-    wires: list = field(default_factory=list)
-    placeholders: list = field(default_factory=list)
-
-    def extents(self):
-        xs, ys = [], []
-        for b in self.blocks:
-            left, bottom, right, top = b.extents
-            xs += [b.position[0] + left, b.position[0] + right]
-            ys += [b.position[1] + bottom, b.position[1] + top]
-        for w in self.wires:
-            xs += [w.start[0], w.end[0]]
-            ys += [w.start[1], w.end[1]]
-        for p in self.placeholders:
-            xs += [p.left_x, p.right_x]
-            ys += [p.bottom_y, p.top_y]
-        return min(xs), min(ys), max(xs), max(ys)
+# How the boxes waiting for their blocks are named in Generate's note, in this order.
+BOXED_LOADS = ((TRIP_UNIT, "trip units"), (ETHERNET_SWITCH, "Ethernet switch"), (COM800, "COM800s"))
 
 
 @dataclass
@@ -139,31 +113,37 @@ def device_pages(switchboard, settings, devices, catalog, first_page: int, secti
     by_key = {(u.section_number, tuple(u.names)): u for _, units in final for u in units}
     for page_index, placed in enumerate(placements):
         title = settings.page_title.device_page_format.format(section=placed["section"])
-        page = {"number": first_page + page_index, "blocks": [], "wires": [], "placeholders": [],
-                "notes": [], "title": title, "wire_labels": []}
+        page = _empty_page(first_page + page_index, title)
         for unit, dx, dy in placed["units"]:
-            unit = by_key[(unit.section_number, tuple(unit.names))]
-            page["blocks"] += [_moved_block(b, dx, dy) for b in unit.blocks]
-            moved = [Wire(w.layer, (w.start[0] + dx, w.start[1] + dy), (w.end[0] + dx, w.end[1] + dy), w.label)
-                     for w in unit.wires]
-            page["wires"] += moved
-            page["wire_labels"] += _wire_labels(moved, settings.wire_labels.gap)
-            page["placeholders"] += [Placeholder(p.text, p.left_x + dx, p.bottom_y + dy, p.right_x + dx,
-                                                 p.top_y + dy) for p in unit.placeholders]
+            _add_unit(page, by_key[(unit.section_number, tuple(unit.names))], dx, dy, settings)
         result.pages.append(page)
     # The shipping splits' females (the cables between sections), on a page at the very end.
     split_units = builder.female_units()
     for placed in _flow([(0, split_units)], settings) if split_units else []:
-        page = {"number": first_page + len(result.pages), "blocks": [], "wires": [], "placeholders": [],
-                "notes": [], "title": settings.page_title.shipping_split_page, "wire_labels": []}
+        page = _empty_page(first_page + len(result.pages), settings.page_title.shipping_split_page)
         for unit, dx, dy in placed["units"]:
-            page["blocks"] += [_moved_block(b, dx, dy) for b in unit.blocks]
-            moved = [Wire(w.layer, (w.start[0] + dx, w.start[1] + dy), (w.end[0] + dx, w.end[1] + dy), w.label)
-                     for w in unit.wires]
-            page["wires"] += moved
-            page["wire_labels"] += _wire_labels(moved, settings.wire_labels.gap)
+            _add_unit(page, unit, dx, dy, settings)
         result.pages.append(page)
     return result
+
+
+def _empty_page(number, title) -> dict:
+    return {"number": number, "blocks": [], "wires": [], "placeholders": [], "notes": [], "title": title,
+            "wire_labels": [], "texts": [], "polylines": []}
+
+
+def _add_unit(page, unit, dx, dy, settings):
+    """Put a unit's contents on a page, moved by (dx, dy)."""
+    page["blocks"] += [moved_block(b, dx, dy) for b in unit.blocks]
+    moved = [Wire(w.layer, (w.start[0] + dx, w.start[1] + dy), (w.end[0] + dx, w.end[1] + dy), w.label)
+             for w in unit.wires]
+    page["wires"] += moved
+    page["wire_labels"] += label_wires(moved, settings.wire_labels.gap)
+    page["placeholders"] += [Placeholder(p.text, p.left_x + dx, p.bottom_y + dy, p.right_x + dx, p.top_y + dy)
+                             for p in unit.placeholders]
+    page["texts"] += [PageText(t.text, t.x + dx, t.y + dy, t.layer, t.height, t.align) for t in unit.texts]
+    page["polylines"] += [WidePolyline(p.layer, [(x + dx, y + dy) for x, y in p.points], p.width)
+                          for p in unit.polylines]
 
 
 def three_line_sheet_values(settings, devices, sheets: dict) -> dict:
@@ -199,8 +179,12 @@ class _Builder:
         self.comms = comms_modules_in(switchboard)
         self.switch_sections = ethernet_switch_sections(switchboard)
         self.section_count = len(switchboard.sections)
+        self.switchboard = switchboard
         self.split_pairs = []           # filled by groups(): one per shipping split
         self.feeding_number = None      # n of the PS-n whose 24 V feeds the lineup
+        self.plan = None                # the 24 V plan (control_power.py), when a supply feeds it
+        self.split_wires = {}           # {(boundary, wire key): (layer, label)} through the splits
+        self.split_inputs = {}          # {meter / supply name: {wire key: its pin}}: phases straight from the split
 
     def groups(self) -> list[tuple[int, list[Unit]]]:
         """[(section number, its units)] in lineup order, sections with devices only."""
@@ -237,91 +221,403 @@ class _Builder:
         # comes after them), then meters, then fuses on their own.
         units = {}
         feeder = None           # (unit, supply): the one power supply whose 24 V feeds the lineup
+        self.switch_size = self._switch_size()
+        supply_units = []               # (supply, its unit)
         for supply in self.supplies:
             unit = self._supply_unit(supply, wired.get(supply.supply.id), elsewhere.get(supply.supply.id))
             units.setdefault(supply.section_number, []).append(unit)
+            supply_units.append((supply, unit))
             if feeder is None and self._can_feed(unit):
                 feeder = (unit, supply)
         if len(self.supplies) > 1:
             others = [s.name for s in self.supplies if feeder is None or s is not feeder[1]]
             self.warnings.append(f"A lineup has one 24 V power supply (Sammy, 2026-11-11); "
                                  f"{', '.join(others)} {'is' if len(others) == 1 else 'are'} drawn but not wired.")
+        meter_units = []                # (meter, its unit): drawn on their own unless the 24 V group takes them
         for meter in self.meters:
             sets = [s for s in self.ct_sets if s.cts.meter_id == meter.meter.id]
-            units.setdefault(meter.section_number, []).append(
-                self._meter_unit(meter, sets, wired.get(meter.meter.id), elsewhere.get(meter.meter.id)))
+            meter_units.append((meter, self._meter_unit(meter, sets, wired.get(meter.meter.id),
+                                                        elsewhere.get(meter.meter.id))))
         fuse_units = []                 # (tap, target): fuses on their own, drawn after the splits are known
         for tap in lone_taps:
             if self.devices.fuse is None or self.devices.fuse.block not in self.catalog:
                 continue
             fuse_units.append((tap, meter_of.get(tap.tap.feeds) or supply_of.get(tap.tap.feeds)))
-        # Boxes until their blocks exist (Sammy, 2026-11-11): the Ethernet switch, then the
-        # comms modules. The power supply's 24 V feeds them: in its own section directly,
-        # in the other sections through shipping splits. Boxes it can't reach come last in
-        # their section, unwired, so the devices already drawn don't move.
+        # 24 V (Sammy, 2026-11-13; plan approved 2026-11-16): the trip units, the Ethernet
+        # switch and the COM800s, each on its fuse beside the power supply, the - shared,
+        # split on terminal blocks (control_power.py plans it). Without a supply that can
+        # feed them, the Ethernet switch is an unwired box as before. The comms modules take
+        # no 24 V wire: boxes after the section's other devices.
         dp = self.settings.device_pages
-        boxes = {}              # section number -> [(name, text, width, height)]
-        for section_number in self.switch_sections:
-            boxes.setdefault(section_number, []).append(
-                ("ETHERNET SWITCH", dp.ethernet_switch_text, dp.ethernet_switch_width, dp.ethernet_switch_height))
-        for comms in self.comms:
-            text = f"{comms.breaker.label} {comms.module}".strip()
-            boxes.setdefault(comms.section_number, []).append(
-                (f"COMMS-{comms.number}", text, dp.comms_width, dp.comms_height))
-        # What crosses the section boundaries, through shipping splits (Sammy, 2026-11-11):
-        # the 24 V (+ and -) from the supply's section to every section with a box, and the
-        # three phases of a fuse to the meter or power supply it feeds in another section.
-        self.split_wires = {}           # {wire key: (layer, label)}
-        crossings = []                  # (first section, last section, [wire keys])
         self.feeding_number = feeder[1].number if feeder else None
-        if feeder is not None and boxes:
-            supply = feeder[1]
+        self.plan = None
+        self.split_wires = {}           # {(boundary, wire key): (layer, label)}
+        if feeder is not None and self._can_distribute():
+            loads = control_power_loads(self.switchboard, self.devices.control_power, dp)
+            loads += self._meter_loads(meter_units)
             layers = self.devices.power_supply.output_wire_layers
-            for sign in "+-":
-                self.split_wires[sign] = (layers[sign], self.settings.wire_labels.label(layers[sign], supply.number))
-            ends = [supply.section_number, *boxes]
-            crossings.append((min(ends), max(ends), ["+", "-"]))
+            self.plan = plan_control_power(loads, self.devices.control_power, feeder[1].section_number,
+                                           lambda sign, n: self.settings.wire_labels.label(layers[sign], n),
+                                           row_order=dp.row_order)
+            for (boundary, key), label in self.plan.split_labels.items():
+                self.split_wires[(boundary, key)] = (layers[key[0]], label)
+        # What crosses the section boundaries besides the 24 V (Sammy, 2026-11-11): the three
+        # phases of a fuse to the meter or power supply it feeds in another section.
+        self.fa_wires = {}              # {wire key: (layer, label)} for the fuses' phases
+        self.fa_ends = {}               # {wire key: (fuse, its section, what it feeds, its section)}
+        fa_crossings = []
         for tap in lone_taps:
             target = meter_of.get(tap.tap.feeds) or supply_of.get(tap.tap.feeds)
             if target is None or target.section_number == tap.section_number or self.devices.fuse is None:
                 continue
             labels = self._labels(tap, "load")
             keys = [f"{tap.fuse} PHASE-{p}" for p in PHASES]
+            first, last = sorted((tap.section_number, target.section_number))
             for p, key in zip(PHASES, keys):
-                self.split_wires[key] = (self.devices.fuse.wire_layers[p], labels[p])
-            crossings.append((min(tap.section_number, target.section_number),
-                              max(tap.section_number, target.section_number), keys))
-        males = self._shipping_splits(crossings)
-        # A fuse whose wires leave its section through a split lies down in the section's
-        # split group and is wired straight into the male (Sammy, 2026-11-11); the others
-        # stand on their own with a TO bracket.
-        leaving = {}
+                self.fa_wires[key] = (self.devices.fuse.wire_layers[p], labels[p])
+                self.fa_ends[key] = (tap.fuse, tap.section_number, target.name, target.section_number)
+                for boundary in range(first, last):
+                    self.split_wires[(boundary, key)] = self.fa_wires[key]
+            fa_crossings.append((first, last, keys))
+        males = self._shipping_splits(fa_crossings)
+        # A 3WA's comms module (COM190) is part of its trip unit's block (Sammy, 2026-11-17):
+        # when the trip units are drawn, it is named in its trip unit's box instead.
+        in_trip_unit = {id(info.breaker) for info in mms_in(self.switchboard)} if self.plan is not None else set()
+        loose_comms = [c for c in self.comms if id(c.breaker) not in in_trip_unit]
+        # A fuse whose phases leave to the right through a split lies down beside that split,
+        # wired straight in (Sammy, 2026-11-11 / 2026-11-17: lone fuses near the split their
+        # wires leave by); the others stand on their own with a TO bracket.
+        wired_in = {}
         lying = bool(self.devices.fuse and self.devices.fuse.horizontal_state)
         for tap, target in fuse_units:
-            if (lying and target is not None and target.section_number != tap.section_number
-                    and tap.section_number in males):
-                leaving.setdefault(tap.section_number, []).append(tap)
+            if (lying and target is not None and target.section_number > tap.section_number
+                    and males.get(tap.section_number, ([], []))[1]):
+                wired_in.setdefault(tap.section_number, []).append(tap)
             else:
                 units.setdefault(tap.section_number, []).append(self._fuse_unit(tap, target))
-        if feeder is not None:
-            unit, supply = feeder
-            left, right = males.pop(supply.section_number, ([], []))
-            self._feed(unit, supply, boxes.pop(supply.section_number, []), left, right,
-                       leaving.pop(supply.section_number, []))
-        for section_number, (left, right) in sorted(males.items()):
-            # The section's shipping splits (and its 24 V group, if the 24 V reaches it) come
-            # first on its page.
-            unit = Unit(section_number)
-            fed = feeder is not None and "+" in self.split_wires
-            self._feed(unit, feeder[1] if fed else None, boxes.pop(section_number, []) if fed else [], left, right,
-                       leaving.pop(section_number, []))
-            units.setdefault(section_number, []).insert(0, unit)
-        for section_number, specs in boxes.items():
-            units.setdefault(section_number, []).extend(_box_unit(section_number, *spec) for spec in specs)
-        if self.switch_sections or self.comms:
-            self.warnings.append("The Ethernet switch and the comms modules are drawn as boxes until their "
-                                 "blocks exist.")
+        # Each section's 24 V ladder comes first on its page (power_ladder.py, Sammy
+        # 2026-11-17): the supply, the devices in a row, the splits at the ends.
+        ladder_sections = set(males)
+        if self.plan is not None:
+            ladder_sections |= {self.plan.supply_section} | {load.section_number for load in self.plan.loads}
+        self.switch_items = {load.name: self._switch_item(load) for load in (self.plan.loads if self.plan else [])
+                             if load.kind == ETHERNET_SWITCH}
+        self.switch_items = {name: item for name, item in self.switch_items.items() if item is not None}
+        self.ground = self._ground(feeder, supply_units, meter_units)
+        taken = set()                   # ids of the units the ladders drew
+        context = LadderContext(self.plan, self.settings, self.devices, self.catalog, self.fa_wires,
+                                lambda name: self._sheet(self.sheets.get(name)), self.warnings,
+                                other_ends=self.fa_ends)
+        for section_number in sorted(ladder_sections):
+            section = self._ladder_section(section_number, males, feeder, meter_units, loose_comms,
+                                           wired_in.get(section_number, []))
+            if section.supply is not None:
+                taken.add(id(feeder[0]))
+            taken |= {id(item.unit) for item in section.devices}
+            pieces = build_ladder(section, context)
+            units[section_number] = pieces + [u for u in units.get(section_number, []) if id(u) not in taken]
+        # A supply whose phases were to come straight in from the split, but that no ladder
+        # drew (it doesn't feed the 24 V): its FROM bracket after all.
+        for supply, unit in supply_units:
+            if supply.name in self.split_inputs and id(unit) not in taken:
+                self._supply_from_bracket(unit, self.split_inputs.pop(supply.name), elsewhere[supply.supply.id])
+        for meter, unit in meter_units:
+            if id(unit) not in taken:
+                units.setdefault(meter.section_number, []).append(unit)
+        if self.plan is None:
+            for number, section_number in enumerate(self.switch_sections[:1], start=1):
+                units.setdefault(section_number, []).append(_box_unit(
+                    section_number, f"ES-{number}", self._switch_text(), dp.ethernet_switch_width,
+                    dp.ethernet_switch_height))
+        for comms in loose_comms:           # in the row where there is a ladder, else on their own
+            if not (self.plan is not None and comms.section_number in ladder_sections):
+                units.setdefault(comms.section_number, []).append(self._comms_box(comms))
+        boxed = []
+        if self.plan is not None:
+            kinds = {load.kind for load in self.plan.loads if load.name not in self.switch_items}
+            boxed += [f"the {words}" for kind, words in BOXED_LOADS if kind in kinds]
+        elif self.switch_sections:
+            boxed.append("the Ethernet switch")
+        if loose_comms:
+            boxed.append("the comms modules")
+        if boxed:
+            listed = boxed[0] if len(boxed) == 1 else ", ".join(boxed[:-1]) + " and " + boxed[-1]
+            self.warnings.append(f"{listed[0].upper()}{listed[1:]} {'is' if listed == 'the Ethernet switch' else 'are'} "
+                                 f"drawn as boxes until their blocks exist.")
         return sorted(units.items())
+
+    def _meter_loads(self, meter_units) -> list:
+        """The power meters that take 24 V (their model names its 24 V pins and the block has
+        them), as loads drawn whole, with their fuse and inputs, in the 24 V group (decision
+        2026-11-12, option A)."""
+        loads = []
+        for meter, unit in meter_units:
+            model = self._model(meter)
+            if model is None or not model.supply_pins or not unit.blocks or unit.blocks[0].block != model.block:
+                continue
+            markers = self.catalog[model.block].markers or {}
+            if not all(m in markers for m in model.supply_pins.values()):
+                continue
+            left, bottom, right, top = unit.extents()
+            loads.append(Load(meter.name, POWER_METER, meter.name, meter.section_number, right - left, top - bottom,
+                              unit=unit, pins={sign: markers[m] for sign, m in model.supply_pins.items()}))
+        return loads
+
+    # --- The 24 V ladder's contents (power_ladder.py, Sammy 2026-11-17) --------------------
+
+    def _ladder_section(self, number, males, feeder, meter_units, loose_comms, wired_in) -> LadderSection:
+        """What stands in a section's 24 V ladder: the power supply with its fuse column (in
+        its own section), the devices in row order (meters, Ethernet switch, each COM800 with
+        the section's COM060s next to it, trip units), and the lone fuses wired into the
+        outgoing split."""
+        left, right = males.get(number, ([], []))
+        section = LadderSection(number, left_males=left, right_males=right,
+                                lone_fuses=[self._lone_fuse_item(tap) for tap in wired_in])
+        plan = self.plan
+        order = {kind: index for index, kind in enumerate(self.settings.device_pages.row_order)}
+        meter_index = {meter.name: index for index, (meter, _) in enumerate(meter_units)}
+        placed = []                     # (sort key, RowItem)
+        fed = set()
+        if plan is not None:
+            if number == plan.supply_section:
+                section.supply = self._supply_item(feeder[0], feeder[1].name)
+                section.ground = self.ground
+            for load in plan.loads:
+                if load.section_number != number:
+                    continue
+                within = meter_index.get(load.name, 0) if load.kind == POWER_METER else plan.rank[load.name]
+                placed.append(((order.get(load.kind, len(order)), within), self._load_item(load)))
+                fed.add(load.name)
+        # A meter always has its place in the row, fed or not (and with or without the 24 V,
+        # so its voltage can come straight in from the split, Sammy 2026-11-19).
+        for meter, unit in meter_units:
+            if meter.section_number == number and meter.name not in fed:
+                placed.append(((order.get(POWER_METER, len(order)), meter_index[meter.name]),
+                               RowItem(meter.name, unit, fed_by_split=self.split_inputs.get(meter.name, {}))))
+        if plan is not None:
+            for comms in loose_comms:       # next to the COM800 they connect to
+                if comms.section_number == number:
+                    placed.append(((order.get(COM800, len(order)) + 0.5, comms.number),
+                                   RowItem(f"COMMS-{comms.number}", self._comms_box(comms))))
+        section.devices = [item for _, item in sorted(placed, key=lambda p: p[0])]
+        return section
+
+    def _load_item(self, load) -> RowItem:
+        """A 24 V load in the row: a meter drawn whole with its 24 V pins, or a box (until its
+        block exists) with + and - on its left edge, + near the top and - near the bottom. A
+        box with an Ethernet cable (a trip unit's COM190, a COM800) takes it on its right edge,
+        half way down; the switch's box takes its cables down its right edge."""
+        if load.unit is not None:
+            return RowItem(load.name, load.unit, pins=dict(load.pins),
+                           fed_by_split=self.split_inputs.get(load.name, {}))
+        if load.name in self.switch_items:
+            return self.switch_items[load.name]
+        dp = self.settings.device_pages
+        height = load.height
+        if load.kind == ETHERNET_SWITCH and self.switch_size:
+            height = max(height, dp.wire_spacing * (self.switch_size[0] + 1))    # room for its ports
+        text = self._switch_text() if load.kind == ETHERNET_SWITCH else load.text
+        unit = _box_unit(load.section_number, load.name, text, load.width, height)
+        box = unit.placeholders[0]
+        if load.kind == ETHERNET_SWITCH:
+            self._switch_cables(unit, lambda port: (box.right_x, box.top_y - dp.wire_spacing * port), load.name)
+        else:
+            self._device_cable(unit, load.name, (box.right_x, (box.top_y + box.bottom_y) / 2))
+        x = box.left_x + dp.feed_into_box
+        return RowItem(load.name, unit, pins={PLUS: (x, box.top_y - dp.box_plus_pin_from_top),
+                                              MINUS: (x, box.bottom_y + dp.box_minus_pin_from_bottom)})
+
+    # --- The Ethernet switch and its cables (Sammy, 2026-11-19) ---------------------------
+
+    def _switch_size(self):
+        """(ports, block) of the switch: the smallest size with a port for everything that
+        plugs into it (devices.ethernet_connections), the customer's connection and a spare.
+        Also works out the cables: the customer's on port 1, the others on the next ports in
+        lineup order, each numbered E-001, E-002 ... in port order. None without the switch
+        settings or a switch ticked."""
+        es = self.devices.ethernet_switch
+        self.cables = []                # (port, EthernetConnection or None for the customer's, number)
+        if es is None or not self.switch_sections:
+            return None
+        connections = ethernet_connections(self.switchboard)
+        needed = len(connections) + 1
+        ports, block = es.block_for(needed)
+        if needed > ports:
+            self.warnings.append(f"The Ethernet switch needs {needed} ports; the biggest has {ports}, so some "
+                                 f"connections have no port.")
+        if len(self.switch_sections) > 1:
+            others = ", ".join(str(n) for n in self.switch_sections[1:])
+            self.warnings.append(f"One Ethernet switch per lineup for now: ES-1 is drawn in section "
+                                 f"{self.switch_sections[0]}; the switch ticked in section {others} is left out.")
+        free = [port for port in range(1, ports + 1) if port != es.customer_port]
+        pairs = sorted([(es.customer_port, None)] + list(zip(free, connections)), key=lambda pair: pair[0])
+        self.cables = [(port, connection, es.cable_label.format(number=index))
+                       for index, (port, connection) in enumerate(pairs, start=1)]
+        return ports, block
+
+    def _switch_text(self) -> str:
+        """The switch's box text, with its size when known: "ETHERNET SWITCH" / "8 PORT"."""
+        text = self.settings.device_pages.ethernet_switch_text
+        return f"{text}\n{self.switch_size[0]} PORT" if self.switch_size else text
+
+    def _cable_stub(self, unit, point, out, label, text):
+        """One end of an Ethernet cable: a stub from `point` (out -1 to the left, 1 to the right)
+        carrying the cable's number, ending in a tilde that says `text`."""
+        es, dp = self.devices.ethernet_switch, self.settings.device_pages
+        px, py = point
+        end = (px + out * es.stub_length, py)
+        unit.wires.append(Wire(es.wire_layer, (px, py), end, label))
+        unit.blocks += self._wire_breaks([end], dp.wire_break_state_horizontal,
+                                         flip_parameter=dp.wire_break_flip_horizontal if out < 0 else "", text=text)
+
+    def _switch_cables(self, unit, port_point, switch_name):
+        """The switch's end of every cable: on each port used, a stub and a tilde naming what it
+        goes to and its section ("TO PM-1 SECTION 4"), or CUSTOMER CONNECTION. `port_point(port)`
+        is where the port is in the unit."""
+        es = self.devices.ethernet_switch
+        for port, connection, label in self.cables:
+            text = (es.customer_connection if connection is None else
+                    es.to_device_label.format(device=connection.name, section=connection.section_number))
+            self._cable_stub(unit, port_point(port), 1, label, text)
+
+    def _device_cable(self, unit, device, point, out=1):
+        """A device's end of its cable, if it has one: a stub and a tilde naming the switch and
+        its section ("TO ES-1 SECTION 1"; one switch per lineup for now)."""
+        es = self.devices.ethernet_switch
+        for port, connection, label in getattr(self, "cables", []):
+            if connection is not None and connection.device == device:
+                text = es.to_switch_label.format(switch="ES-1", section=self.switch_sections[0])
+                self._cable_stub(unit, point, out, label, text)
+
+    def _switch_item(self, load):
+        """The switch drawn with its block (the size picked for the lineup), its 24 V pins
+        from its markers, its cables on its ports. None (a box instead) until the block has
+        its 24 V markers."""
+        es = self.devices.ethernet_switch
+        if self.switch_size is None:
+            return None
+        ports, block_name = self.switch_size
+        block = self.catalog.get(block_name)
+        markers = (block.markers or {}) if block else {}
+        if block is None or not all(m in markers for m in es.supply_pins.values()):
+            self.warnings.append(f"The Ethernet switch is a box until {block_name} has its 24 V markers "
+                                 f"({', '.join(es.supply_pins.values())}); then run Audit Blocks.")
+            return None
+        unit = Unit(load.section_number, names=[load.name])
+        unit.blocks.append(BlockPlacement(block=block_name, layer=es.layer, position=(0.0, 0.0),
+                                          attributes={es.name_attribute: load.name}, label=load.name,
+                                          extents=block.extents))
+        missing = [port for port, _, _ in self.cables if es.port_marker.format(port=port) not in markers]
+        if missing:
+            self.warnings.append(f"{block_name} has no marker for port {', '.join(str(p) for p in missing)}, "
+                                 f"so those cables aren't drawn at the switch.")
+        for port, connection, label in [c for c in self.cables if c[0] not in missing]:
+            px, py = markers[es.port_marker.format(port=port)]
+            out = -1 if px < (block.extents[0] + block.extents[2]) / 2 else 1
+            text = (es.customer_connection if connection is None else
+                    es.to_device_label.format(device=connection.name, section=connection.section_number))
+            self._cable_stub(unit, (px, py), out, label, text)
+        return RowItem(load.name, unit, pins={sign: markers[m] for sign, m in es.supply_pins.items()})
+
+    def _ground(self, feeder, supply_units, meter_units):
+        """The ground strip in the power supply's section (Sammy, 2026-11-17), and every other
+        device's ground by reference: each ground pin (a marker named in ground.pin_markers)
+        on a device's block gets a stub ending in a tilde TO the strip. Numbered G001 (to the
+        ground bus), G002 (the supply's), then the devices in lineup order. None without a
+        24 V ladder to put the strip in."""
+        gs = self.devices.ground
+        if gs is None or self.plan is None or feeder is None:
+            return None
+        strip = gs.strip_name.format(section=feeder[1].section_number)
+
+        def label(n):
+            return self.settings.wire_labels.label(gs.wire_layer, n)
+        ground = GroundStrip(strip, label(2), label(1))
+        others = [(info.section_number, 0, index, unit) for index, (info, unit) in enumerate(supply_units)
+                  if unit is not feeder[0]]
+        others += [(meter.section_number, 1, index, unit) for index, (meter, unit) in enumerate(meter_units)]
+        others += [(item.unit.section_number, 2, index, item.unit)
+                   for index, item in enumerate(self.switch_items.values())]
+        number = 3
+        for *_, unit in sorted(others, key=lambda o: o[:3]):
+            for block in list(unit.blocks):
+                info = self.catalog.get(block.block)
+                markers = (info.markers or {}) if info else {}
+                for marker in gs.pin_markers:
+                    if marker in markers:
+                        self._ground_stub(unit, block, markers[marker], label(number),
+                                          gs.to_strip_label.format(strip=strip))
+                        ground.devices.append((label(number), block.label or unit.names[0]))
+                        number += 1
+        return ground
+
+    def _ground_stub(self, unit, block, marker, label, text):
+        """A device's ground pin by reference: a stub out from the pin, away from the block,
+        ending in a tilde that says `text` ("TO 1TBG")."""
+        gs, dp = self.devices.ground, self.settings.device_pages
+        px, py = block.position[0] + marker[0], block.position[1] + marker[1]
+        left, _, right, _ = self.catalog[block.block].extents
+        out = -1 if marker[0] < (left + right) / 2 else 1
+        end = (px + out * gs.stub_length, py)
+        unit.wires.append(Wire(gs.wire_layer, (px, py), end, label))
+        unit.blocks += self._wire_breaks([end], dp.wire_break_state_horizontal,
+                                         flip_parameter=dp.wire_break_flip_horizontal if out < 0 else "", text=text)
+
+    def _comms_box(self, comms) -> Unit:
+        """A breaker's comms module that isn't part of a trip unit (a 3VA's COM060): a small
+        box, its breaker and module on two lines. No 24 V: the Siemens cable powers it."""
+        dp = self.settings.device_pages
+        text = "\n".join(part for part in (comms.breaker.label, comms.module) if part)
+        return _box_unit(comms.section_number, f"COMMS-{comms.number}", text, dp.comms_width, dp.comms_height)
+
+    def _supply_item(self, unit, name) -> Supply:
+        """The power supply that feeds the lineup, with its fuse column beside it (and its
+        phases straight in from the split when its fuse is in a section to its left)."""
+        ps, dp = self.devices.power_supply, self.settings.device_pages
+        supply_block = self.catalog[ps.block]
+        fuses, _ = self._fuse_column(unit, supply_block)
+        gs = self.devices.ground
+        ground = next((supply_block.markers[m] for m in (gs.pin_markers if gs else ())
+                       if m in (supply_block.markers or {})), None)
+        return Supply(unit, fuses, supply_block.markers[ps.outputs[MINUS]],
+                      supply_block.extents[2] + dp.fuse_column_gap / 2, ground=ground,
+                      fed_by_split=self.split_inputs.get(name, {}))
+
+    def _lone_fuse_item(self, tap) -> RowItem:
+        """A fuse whose phases leave through the outgoing split: lying down, its line side FROM
+        the 3-line, its load side wired straight into the split by the ladder."""
+        fuse = self.devices.fuse
+        block = self.catalog[fuse.block]
+        load_a = block.markers[fuse.horizontal_load_markers["A"]]
+        unit = Unit(tap.section_number, names=[tap.fuse])
+        load = self._lying_fuse(unit, tap, (-load_a[0], -load_a[1]))
+        return RowItem(tap.fuse, unit, phases={f"{tap.fuse} PHASE-{p}": load[p] for p in PHASES})
+
+    def _can_distribute(self) -> bool:
+        """Can the 24 V be planned and drawn? The control power settings and the terminal
+        block, with its point markers, in the catalog. Says why not when not."""
+        cp = self.devices.control_power
+        if cp is None:
+            return False
+        block = self.catalog.get(cp.terminal_block)
+        if block is None or not self._terminal_points(block)[0] or not self._terminal_points(block)[1]:
+            self.warnings.append(f'The 24 V isn\'t wired: block "{cp.terminal_block}" (with its point markers) '
+                                 f"isn't in catalog/blocks.json (run Audit Blocks).")
+            return False
+        return True
+
+    @staticmethod
+    def _terminal_points(block) -> tuple[list, list]:
+        """The terminal block's points that take a wire from the left and from the right, top
+        first, as marker names: read from the markers' names, <point>_LEFT / <point>_RIGHT
+        (Sammy, 2026-11-13). TOP and BOTTOM aren't used: in a strip they face the next
+        terminal."""
+        sides = {"LEFT": [], "RIGHT": []}
+        for name, (_, y) in (block.markers or {}).items():
+            point, _, side = name.partition("_")
+            if point.isdigit() and side in sides:
+                sides[side].append((-y, int(point), name))
+        return [n for *_, n in sorted(sides["LEFT"])], [n for *_, n in sorted(sides["RIGHT"])]
 
     def _model(self, meter):
         model = self.devices.power_meters.get(meter.meter.model)
@@ -358,18 +654,26 @@ class _Builder:
             return unit
         block = self.catalog[model.block]
         layer = self.devices.fuse.layer if self.devices.fuse else "0"
+        names = {}
+        if model.number_attribute:
+            names[model.number_attribute] = meter.code
+        if model.name_attribute:
+            names[model.name_attribute] = meter.name
         unit.blocks.append(BlockPlacement(block=model.block, layer=layer, position=(0.0, 0.0),
-                                          attributes=_filled({model.number_attribute: meter.code}),
-                                          label=meter.name, extents=block.extents))
+                                          attributes=_filled(names), label=meter.name, extents=block.extents))
         # CT inputs: always FROM the shorting kit on the 3-line.
-        if len(sets) > len(model.current_inputs):
-            extra = ", ".join(s.shorting_kit for s in sets[len(model.current_inputs):])
-            self.warnings.append(f"{meter.name} takes {len(model.current_inputs)} CT sets; {extra} not drawn.")
+        if len(sets) > model.current_sets:
+            extra = ", ".join(s.shorting_kit for s in sets[model.current_sets:])
+            self.warnings.append(f"{meter.name} takes {model.current_sets} CT sets; {extra} not drawn.")
+        if model.wired_by_pins:
+            self._pinned_meter(unit, meter, model, block, sets, wired_tap, tap_elsewhere)
+            return unit
         for ct_set, connected in zip(sets, model.current_inputs):
             unit.blocks += self._input_block(block, connected, ct_set.code,
                                              self._sheet(self.section_pages.get(ct_set.section_number)),
                                              f"FROM {ct_set.shorting_kit}")
         self._remote_display(unit, block, model, meter)
+        self._meter_cable(unit, block, model, meter)
         # Voltage: wired to its fuse in the same section, or FROM a fuse elsewhere.
         if wired_tap is not None:
             self._wire_fuse(unit, block, model, wired_tap)
@@ -380,10 +684,127 @@ class _Builder:
                                              f"FROM {tap_elsewhere.fuse}")
         return unit
 
+    def _pinned_meter(self, unit, meter, model, block, sets, wired_tap, tap_elsewhere):
+        """A meter block with every pin on its edge (the UMG 801 Rev2, Sammy 2026-11-17), at
+        (0, 0), wired straight into its pins with horizontal wires:
+
+                                                  FROM SHEET 4 ]~--[ FA-2 ]--+--+------>[  ] VN
+            (the fuse lying to the left, A level with its pin;      |        |  +------>[  ] V3
+             the other phases turn in lanes)                        +-----------------> [  ] V1
+                                       FROM STB-1 SHEET 4 ]~----------------------------[  ] I1+ ...
+
+        - each CT set FROM its shorting kit on the 3-line: a stub out from each of its pins, a
+          tilde on each end and a bracket, on the side the set's pins are on;
+        - its voltage from its fuse lying to its left (same section), clear of the CT inputs;
+          or FROM its fuse in another section, through tildes and a bracket;
+        - its remote display on the side its USB pin is on.
+        Its 24 V pins are wired by the 24 V ladder (power_ladder.py) when it is fed."""
+        dp = self.settings.device_pages
+        middle_x = (block.extents[0] + block.extents[2]) / 2
+        layers = model.current_wire_layers or {}
+        reach = 0.0                     # how far left of the meter the CT inputs reach
+        for ct_set, pins in zip(sets, model.current_pins):
+            points = {key: block.markers[marker] for key, marker in pins.items()}
+            side = "left" if min(x for x, _ in points.values()) < middle_x else "right"
+            labels = {key: self.settings.wire_labels.label(layers.get(key[-1], ""),
+                                                           3 * ct_set.number - 2 + PHASES.index(key[0]))
+                      for key in pins}
+            label = dp.from_fuse_label.format(fuse=ct_set.shorting_kit,
+                                              sheet=self._sheet(self.section_pages.get(ct_set.section_number)))
+            width = self._pin_bracket(unit, points, {key: layers.get(key[-1], "0") for key in pins}, labels,
+                                      label, side)
+            if side == "left":
+                reach = max(reach, width)
+        targets = {p: block.markers[m] for p, m in model.voltage_terminals().items()}
+        if wired_tap is not None:
+            self._fuse_left_of(unit, targets, wired_tap, block.extents[0] - reach)
+            unit.names.append(wired_tap.fuse)
+        elif tap_elsewhere is not None and targets and self._comes_by_split(meter, tap_elsewhere):
+            # Its fuse is in a section to its left: the phases come in on the split on the left
+            # and the ladder wires them straight into its pins, no tildes (Sammy, 2026-11-19).
+            self.split_inputs[meter.name] = {f"{tap_elsewhere.fuse} PHASE-{p}": point
+                                             for p, point in targets.items()}
+        elif tap_elsewhere is not None and targets:
+            label = dp.from_fuse_label.format(fuse=tap_elsewhere.fuse,
+                                              sheet=self._sheet(self.sheets.get(tap_elsewhere.fuse)))
+            self._pin_bracket(unit, targets, dict(self.devices.fuse.wire_layers),
+                              self._labels(tap_elsewhere, "load"), label, "left")
+        self._remote_display(unit, block, model, meter)
+        self._meter_cable(unit, block, model, meter)
+
+    def _comes_by_split(self, device, tap) -> bool:
+        """Do a meter's or power supply's phases come straight in from the split on its left
+        (Sammy, 2026-11-19 / 2026-11-20)? When its fuse is in a section to its left and the
+        splits can be drawn (it then stands in its section's row). From the right they would
+        have to go round it and its 24 V, so it keeps its FROM bracket."""
+        ss = self.devices.shipping_split
+        return (tap.section_number < device.section_number and ss is not None and self.devices.fuse is not None
+                and ss.male_block in self.catalog and ss.female_block in self.catalog)
+
+    def _pin_bracket(self, unit, points, layers, labels, label, side) -> float:
+        """Wires arriving at a block's pins from elsewhere, on its `side` ("left" or "right"):
+        a stub out from each pin (labelled), a tilde on each end, and the bracket with `label`
+        beside them, centred on them and stretched so its grip lines up with the outer wires
+        (Sammy, 2026-11-17: six CT wires outgrow the bracket as drawn). Returns how far from
+        the pins they reach."""
+        br, dp = self.settings.bus_break, self.settings.device_pages
+        out = -1 if side == "left" else 1
+        ends = {key: (x + out * dp.stub_length, y) for key, (x, y) in points.items()}
+        unit.wires += [Wire(layers[key], points[key], ends[key], labels.get(key, "")) for key in points]
+        unit.blocks += self._wire_breaks(list(ends.values()), dp.wire_break_state_horizontal,
+                                         flip_parameter=dp.wire_break_flip_horizontal if side == "left" else "")
+        bracket = self.catalog[br.bracket_block]
+        state = br.bracket_state_horizontal_bus
+        left, bottom, right, top = (bracket.states[state]["extents"] if bracket.states and state in bracket.states
+                                    else bracket.extents)
+        ys = [y for _, y in ends.values()]
+        middle = (max(ys) + min(ys)) / 2
+        distances = {}
+        if br.bracket_stretch_horizontal_bus:
+            # Each unit of stretch moves its grip and both arms one unit further out.
+            grow = (max(ys) - min(ys)) / 2 - br.bracket_grip_at_rest
+            if abs(grow) > TOLERANCE:
+                distances = {br.bracket_stretch_horizontal_bus: br.bracket_stretch_at_rest + grow}
+                bottom, top = bottom - grow, top + grow
+        if side == "left":
+            x = min(x for x, _ in ends.values()) - br.bracket_gap
+            unit.blocks.append(BlockPlacement(block=br.bracket_block, layer=br.layer, position=(x, middle),
+                                              attributes={br.label_attribute_horizontal_bus: label}, label=label,
+                                              visibility=state, extents=(-right, bottom, -left, top), flipped=True,
+                                              flip_parameter=br.bracket_flip_horizontal_bus, distances=distances))
+        else:
+            x = max(x for x, _ in ends.values()) + br.bracket_gap
+            unit.blocks.append(BlockPlacement(block=br.bracket_block, layer=br.layer, position=(x, middle),
+                                              attributes={br.label_attribute_horizontal_bus: label}, label=label,
+                                              visibility=state, extents=(left, bottom, right, top),
+                                              distances=distances))
+        return dp.stub_length + br.bracket_gap + right
+
+    def _fuse_left_of(self, unit, targets, tap, clear_x):
+        """The tap's fuse lying down to the left of a block's voltage pins `targets` ({phase:
+        (x, y)}), left of `clear_x`: phase A level with its pin (one straight wire); the
+        others turn in lanes between the fuse and `clear_x`, the lowest start in the lane
+        furthest right, so they don't cross each other."""
+        fuse, dp = self.devices.fuse, self.settings.device_pages
+        block = self.catalog[fuse.block]
+        load = {p: block.markers[fuse.horizontal_load_markers[p]] for p in PHASES}
+        y = targets["A"][1] - load["A"][1]
+        turning = sorted((p for p in PHASES if abs(load[p][1] + y - targets[p][1]) > TOLERANCE),
+                         key=lambda p: load[p][1])
+        lanes = {p: clear_x - dp.lane_spacing * (index + 1) for index, p in enumerate(turning)}
+        load_x = min(lanes.values(), default=clear_x) - dp.lane_spacing
+        load_points = self._lying_fuse(unit, tap, (load_x - load["A"][0], y))
+        labels = self._labels(tap, "load")
+        for p in PHASES:
+            if p in lanes:
+                unit.wires += lane_route(load_points[p], targets[p], lanes[p], fuse.wire_layers[p], labels[p])
+            else:
+                unit.wires.append(Wire(fuse.wire_layers[p], load_points[p], targets[p], labels[p]))
+
     def _remote_display(self, unit, meter_block, model, meter):
-        """The meter's remote display to its left, joined meter USB to display USB: left
-        `remote_display_gap`, then up `remote_display_rise` into the display (decision
-        2026-10-23)."""
+        """The meter's remote display beside it, on the side its USB pin is on, joined meter
+        USB to display USB: out `remote_display_gap`, then up `remote_display_rise` into the
+        display (decision 2026-10-23; on the right for the UMG 801 Rev2)."""
         rd, dp = self.devices.remote_display, self.settings.device_pages
         if not meter.meter.remote_display or rd is None:
             return
@@ -393,12 +814,22 @@ class _Builder:
                                  f"markers aren't in catalog/blocks.json; run Audit Blocks).")
             return
         sx, sy = meter_block.markers[model.usb_marker]
-        ux, uy = sx - dp.remote_display_gap, sy + dp.remote_display_rise
+        out = 1 if sx > (meter_block.extents[0] + meter_block.extents[2]) / 2 else -1
+        ux, uy = sx + out * dp.remote_display_gap, sy + dp.remote_display_rise
         mx, my = block.markers[rd.usb_marker]
         unit.blocks.append(BlockPlacement(block=rd.block, layer=rd.layer, position=(ux - mx, uy - my),
                                           attributes=_filled({rd.number_attribute: meter.display_code}),
                                           label=f"RD-{meter.display_code}", extents=block.extents))
         unit.wires += [Wire(rd.usb_layer, (sx, sy), (ux, sy)), Wire(rd.usb_layer, (ux, sy), (ux, uy))]
+
+    def _meter_cable(self, unit, block, model, meter):
+        """The meter's end of its Ethernet cable (Sammy, 2026-11-19): from its Ethernet pin,
+        away from the meter, ending in a tilde TO the switch."""
+        if not model.ethernet_pin or model.ethernet_pin not in (block.markers or {}):
+            return
+        px, py = block.markers[model.ethernet_pin]
+        out = 1 if px > (block.extents[0] + block.extents[2]) / 2 else -1
+        self._device_cable(unit, meter.name, (px, py), out)
 
     def _input_block(self, meter_block, connected, number, sheet, label) -> list:
         own = self.catalog.get(connected.block)
@@ -490,12 +921,21 @@ class _Builder:
         if wired_tap is not None:
             self._fuse_beside(unit, block, inputs, wired_tap)
             unit.names.append(wired_tap.fuse)
+        elif tap_elsewhere is not None and self._comes_by_split(info, tap_elsewhere):
+            # Its fuse is in a section to its left: the phases come in on the split on the left
+            # and the ladder wires them straight into its inputs, no tildes (Sammy, 2026-11-20).
+            self.split_inputs[info.name] = {f"{tap_elsewhere.fuse} PHASE-{p}": point for p, point in inputs.items()}
         elif tap_elsewhere is not None:
-            dp = self.settings.device_pages
-            label = dp.from_fuse_label.format(fuse=tap_elsewhere.fuse,
-                                              sheet=self._sheet(self.sheets.get(tap_elsewhere.fuse)))
-            self._side_bracket(unit, inputs, label, self._labels(tap_elsewhere, "load"))
+            self._supply_from_bracket(unit, {f"PHASE-{p}": point for p, point in inputs.items()}, tap_elsewhere)
         return unit
+
+    def _supply_from_bracket(self, unit, inputs, tap):
+        """A power supply's inputs FROM its fuse in another section: stubs, tildes and a
+        bracket on its left. `inputs` is {"... PHASE-A": point, ...}."""
+        dp = self.settings.device_pages
+        label = dp.from_fuse_label.format(fuse=tap.fuse, sheet=self._sheet(self.sheets.get(tap.fuse)))
+        points = {key.rsplit("-", 1)[1]: point for key, point in inputs.items()}
+        self._side_bracket(unit, points, label, self._labels(tap, "load"))
 
     def _can_feed(self, unit) -> bool:
         """Is this power supply drawn with its block, which has the 24 V output markers?"""
@@ -506,25 +946,30 @@ class _Builder:
         return (set(settings.outputs) == {"+", "-"} and all(m in markers for m in settings.outputs.values())
                 and set(settings.output_wire_layers) == {"+", "-"})
 
-    def _shipping_splits(self, crossings) -> dict:
+    def _shipping_splits(self, other_crossings) -> dict:
         """The males each section draws, {section: (left males, right males)}, each male
         (name, {wire key: pin}); and self.split_pairs, one per split, for the page of
         females at the end (Sammy, 2026-11-11).
 
-        `crossings` is [(first section, last section, wire keys)]: those wires cross every
-        boundary from the first section to the last. At each boundary the wires take the next
-        free pins, in that order (24 V first); a boundary with more wires than one split has
-        pins gets more splits. Names are numbered within their section, males and females
-        separately, left boundary first. Empty without the split blocks."""
+        At each boundary the pins are, top first (Sammy, 2026-11-17): the + wires in the
+        plan's order (control_power._boundary_key), then the other wires (`other_crossings`,
+        [(first section, last section, wire keys)]: a fuse's phases), then the -. A boundary
+        with more wires than one split has pins gets more splits. Names are numbered within
+        their section, males and females separately, left boundary first. Empty without the
+        split blocks."""
         self.split_pairs = []
         ss = self.devices.shipping_split
-        if (not crossings or ss is None or ss.male_block not in self.catalog
+        boundaries = {b for first, last, _ in other_crossings for b in range(first, last)}
+        if self.plan is not None:
+            boundaries |= {b for first, last, _ in self.plan.crossings() for b in range(first, last)}
+        if (not boundaries or ss is None or ss.male_block not in self.catalog
                 or ss.female_block not in self.catalog):
             return {}
         per_boundary = {}
-        for first, last, keys in crossings:
-            for b in range(first, last):
-                per_boundary.setdefault(b, []).extend(keys)
+        for b in sorted(boundaries):
+            power = self.plan.boundary_keys(b) if self.plan is not None else []
+            others = [key for first, last, keys in other_crossings if first <= b < last for key in keys]
+            per_boundary[b] = [k for k in power if k != MINUS] + others + [k for k in power if k == MINUS]
         groups = {b: [wires[i:i + ss.pins] for i in range(0, len(wires), ss.pins)]
                   for b, wires in per_boundary.items()}
         count = {}
@@ -559,222 +1004,44 @@ class _Builder:
         self.split_pairs = [(b, female_of[lm], lm, female_of[rm], rm, used) for b, lm, rm, used in pairs]
         return males
 
-    def _feed(self, unit, supply, specs, left_males, right_males, fuses=()):
-        """A section's shipping splits and 24 V group (Sammy, 2026-11-11).
-
-        Left column, top down: the power supply's outputs (in its own section), the males
-        from the left boundary (flush with the page's left edge), then any fuse whose wires
-        leave the section through a split, lying down with its line side FROM the 3-line.
-        Right: the males to the right boundary at the page's right edge, each lined up with
-        the first wire it shares with the left column, so wires passing through (and a
-        fuse's wires on their way out) run straight across the page. The boxes stack down
-        below those wires, fed from a + rail and a - rail. The 24 V always joins the rails,
-        with a dot where three wires meet. A pin with nothing to meet here (the wire ends at
-        a meter or power supply that keeps its FROM bracket) gets a short labelled stub.
-        `supply` None: no 24 V here.
-
-            [SSM] + -----+--------------------------------[SSM] +
-                  - -----|--+-----------------------------[   ] -
-                  A ---------------------------------------[   ] A
-                         |  |
-                         +--|------->[ box 1 ]
-                            +------->[       ]
-        """
-        ps, ss, dp = self.devices.power_supply, self.devices.shipping_split, self.settings.device_pages
-        spacing = dp.wire_spacing
-        left, right = [], []        # (wire key, point): "+" / "-" join the rails
-        first_middle = None
-        if supply is not None and unit.blocks and unit.blocks[0].block == ps.block:   # the supply's section
-            block = self.catalog[ps.block]
-            plus, minus = block.markers[ps.outputs["+"]], block.markers[ps.outputs["-"]]
-            left += [("+", plus), ("-", minus)]
-            pin_x = max(plus[0], minus[0])
-            top = block.extents[1] - dp.feed_box_spacing             # below the supply
-            first_middle = (plus[1] + minus[1]) / 2
-        else:
-            pin_x, top = 0.0, 0.0
-        male = self.catalog[ss.male_block] if (left_males or right_males) else None
-        m_left, m_bottom, m_right, m_top = male.extents if male else (0, 0, 0, 0)
-
-        def pin_point(number):
-            return male.markers[ss.pin_marker.format(pin=number)]
-
-        # Left column.
-        left_male_blocks = []
-        male_entries = []                       # which entries of `left` are the left males' pins
-        from_left_males = set()
-        for name, used in left_males:          # facing right: its pins on its right side
-            position = (pin_x - pin_point(1)[0], top - m_top)
-            block = BlockPlacement(block=ss.male_block, layer=ss.layer, position=position,
-                                   attributes={ss.name_attribute: name}, label=name, extents=male.extents)
-            unit.blocks.append(block)
-            left_male_blocks.append(block)
-            unit.names.append(name)
-            points = {key: (position[0] + pin_point(n)[0], position[1] + pin_point(n)[1]) for key, n in used.items()}
-            male_entries += range(len(left), len(left) + len(points))
-            left += list(points.items())
-            from_left_males |= set(points)
-            if first_middle is None and "+" in points:
-                first_middle = (points["+"][1] + points["-"][1]) / 2
-            top = position[1] + m_bottom - dp.feed_box_spacing
-        fuse = self.devices.fuse
-        column_right = pin_x                    # the rails start this far right of the left column
-        for tap in fuses:                       # lying down, its load side at the pin column
-            state = fuse.horizontal_state
-            block = self.catalog[fuse.block]
-            load_a = block.markers[fuse.horizontal_load_markers["A"]]
-            position = (pin_x - load_a[0], top - block.states[state]["extents"][3])
-            load = self._lying_fuse(unit, tap, position)
-            unit.names.append(tap.fuse)
-            left += [(f"{tap.fuse} PHASE-{p}", load[p]) for p in PHASES]
-            top = position[1] + block.states[state]["extents"][1] - dp.feed_box_spacing
-            column_right = max(column_right, position[0] + block.states[state]["extents"][2])
-        rail = {"+": column_right + dp.feed_rail_gap}
-        rail["-"] = rail["+"] + spacing
-        box_left = rail["-"] + dp.feed_box_gap
-        wire_end = box_left + dp.feed_into_box
-        # The left males sit flush with the page's left edge (the left of everything here).
-        if left_male_blocks:
-            shift = unit.extents()[0] - min(b.position[0] + m_left for b in left_male_blocks)
-            if shift < 0:
-                for b in left_male_blocks:
-                    b.position = (b.position[0] + shift, b.position[1])
-                for i in male_entries:
-                    key, (x, y) = left[i]
-                    left[i] = (key, (x + shift, y))
-
-        left_points = {}
-        for key, point in left:
-            left_points.setdefault(key, []).append(point)
-
-        # Right males: at the page's right edge, lined up with a wire from the left column:
-        # first choice a wire that isn't 24 V (a fuse's or one passing through), so it runs
-        # straight in; else the 24 V from a left male (never the supply's own outputs: the
-        # 24 V reaches a male along the rails anyway).
-        group_left = unit.extents()[0] if (unit.blocks or unit.wires or unit.placeholders) else 0.0
-        group_top = unit.extents()[3] if (unit.blocks or unit.wires or unit.placeholders) else 0.0
-        page_width = self.settings.drawable_width - 2 * self.settings.margin_standard
-        far_x = group_left + page_width + m_left          # base point of a flipped male flush right
-
-        def right_male_points(x, base_y, used):
-            return {key: (x - pin_point(n)[0], base_y + pin_point(n)[1]) for key, n in used.items()}
-
-        def on_page_bottom(base_y):
-            return self.settings.main_bus.content_top_y - (group_top - (base_y + m_bottom))
-
-        lined_up, later = [], []
-        lowest = None
-        for name, used in right_males:
-            in_order = sorted(used, key=used.get)
-            anchor = (next((k for k in in_order if k in left_points and k not in ("+", "-")), None)
-                      or next((k for k in in_order if k in left_points and k in from_left_males), None))
-            if anchor is None:
-                later.append((name, used))
-                continue
-            base_y = left_points[anchor][0][1] - pin_point(used[anchor])[1]
-            if lowest is not None and base_y + m_top > lowest:
-                base_y = lowest - m_top                 # below the one before
-            x = far_x if on_page_bottom(base_y) >= self.settings.keepout_height else wire_end + pin_point(1)[0]
-            lined_up.append((name, used, (x, base_y)))
-            lowest = base_y + m_bottom - dp.feed_box_spacing
-
-        # Wires crossing the box column (to the lined-up males): the boxes go below them.
-        band = [p[1] for _, used, (x, y) in lined_up for p in right_male_points(x, y, used).values()]
-        band += [left_points[k][0][1] for _, used, _ in lined_up for k in used if k in left_points]
-        left_minus = [p[1] for k, p in left if k == "-"]
-
-        def clear_of_left(plus_y):
-            # A + wire going right must not run along a - wire coming from the left.
-            return all(abs(plus_y - y) > TOLERANCE for y in left_minus)
-
-        if band:
-            y_top = min(band) - dp.feed_box_spacing
-        elif specs and first_middle is not None:
-            y_top = first_middle + specs[0][3] / 2
-        else:
-            y_top = 0.0
-        for name, text, width, height in specs:
-            while not clear_of_left(y_top - height / 2 + spacing / 2):
-                y_top -= spacing
-            unit.placeholders.append(Placeholder(text, box_left, y_top - height, box_left + width, y_top))
-            unit.names.append(name)
-            middle = y_top - height / 2
-            right += [("+", (wire_end, middle + spacing / 2)), ("-", (wire_end, middle - spacing / 2))]
-            y_top -= height + dp.feed_box_spacing
-        if lowest is not None:
-            y_top = min(y_top, lowest)
-
-        # The other right males below the boxes, at the right edge (beside the boxes if that
-        # would reach the title block).
-        for name, used in later:
-            while True:
-                base_y = y_top - m_top
-                x = far_x if on_page_bottom(base_y) >= self.settings.keepout_height else wire_end + pin_point(1)[0]
-                points = right_male_points(x, base_y, used)
-                if "+" not in points or clear_of_left(points["+"][1]):
-                    break
-                y_top -= spacing
-            lined_up.append((name, used, (x, base_y)))
-            y_top = base_y + m_bottom - dp.feed_box_spacing
-        for name, used, (x, base_y) in lined_up:
-            unit.blocks.append(BlockPlacement(block=ss.male_block, layer=ss.layer, position=(x, base_y),
-                                              attributes={ss.name_attribute: name}, label=name,
-                                              extents=(-m_right, m_bottom, -m_left, m_top), flipped=True))
-            unit.names.append(name)
-            right += list(right_male_points(x, base_y, used).items())
-
-        # Wires that aren't 24 V: left to right straight across (or across, up or down near
-        # the male, and in); two ends on the left (a fuse going out the left side): out,
-        # up or down, and back; one end only: a short stub.
-        right_points = {}
-        for key, point in right:
-            right_points.setdefault(key, []).append(point)
-        keys = [k for k in dict.fromkeys([k for k, _ in left] + [k for k, _ in right]) if k not in ("+", "-")]
-        for index, key in enumerate(keys):
-            layer, label = self.split_wires[key]
-            ends_left, ends_right = left_points.get(key, []), right_points.get(key, [])
-            if ends_left and ends_right:
-                (lx, ly), (rx, ry) = ends_left[0], ends_right[0]
-                if abs(ly - ry) < TOLERANCE:
-                    unit.wires.append(Wire(layer, (lx, ly), (rx, ry), label))
-                else:
-                    turn = rx - dp.split_stub_length
-                    unit.wires += [Wire(layer, (lx, ly), (turn, ly), label), Wire(layer, (turn, ly), (turn, ry), label),
-                                   Wire(layer, (turn, ry), (rx, ry), label)]
-            elif len(ends_left) == 2:
-                (ax, ay), (bx, by) = ends_left
-                turn = max(ax, bx) + 2.0 + 1.5 * index
-                unit.wires += [Wire(layer, (ax, ay), (turn, ay), label), Wire(layer, (turn, ay), (turn, by), label),
-                               Wire(layer, (turn, by), (bx, by), label)]
+    def _fuse_column(self, unit, supply_block) -> tuple[dict, float]:
+        """The 24 V fuses (Sammy, 2026-11-13), in a column fuse_column_gap right of the power
+        supply: line side on the left, the first level with the supply's + (one straight
+        wire), each next one fuse_pitch below, their line sides joined by a bridge. A fuse
+        block without its markers is drawn as a box. Returns {circuit key: its fuse's load
+        side} and how low the supply and its fuses reach."""
+        ps, cp, dp = self.devices.power_supply, self.devices.control_power, self.settings.device_pages
+        plus = supply_block.markers[ps.outputs[PLUS]]
+        line_x = supply_block.extents[2] + dp.fuse_column_gap
+        block = self.catalog.get(cp.fuse_block)
+        markers = (block.markers or {}) if block else {}
+        drawn = cp.fuse_line_marker in markers and cp.fuse_load_marker in markers
+        loads, lines, lowest = {}, [], supply_block.extents[1]
+        for index, (name, key) in enumerate(self.plan.fuses):
+            y = plus[1] - index * dp.fuse_pitch
+            if drawn:
+                (lx, ly), (ox, oy) = markers[cp.fuse_line_marker], markers[cp.fuse_load_marker]
+                position = (line_x - lx, y - ly)
+                unit.blocks.append(BlockPlacement(block=cp.fuse_block, layer=cp.fuse_layer, position=position,
+                                                  attributes={cp.fuse_name_attribute: name}, label=name,
+                                                  extents=block.extents))
+                loads[key] = (position[0] + ox, position[1] + oy)
+                lowest = min(lowest, position[1] + block.extents[1])
             else:
-                for (x, y) in ends_left:
-                    unit.wires.append(Wire(layer, (x, y), (x + dp.split_stub_length, y), label))
-                for (x, y) in ends_right:
-                    unit.wires.append(Wire(layer, (x, y), (x - dp.split_stub_length, y), label))
-
-        if supply is None:
-            return
-        # The 24 V: each point across to its rail; the rail joins them; a dot where 3+ meet.
-        layers = ps.output_wire_layers
-        labels = {k: self.settings.wire_labels.label(layers[k], supply.number) for k in "+-"}
-        dot = self.settings.main_bus.junction_dot_block
-        dot_extents = self.catalog[dot].extents if dot in self.catalog else (-0.75, -0.75, 0.75, 0.75)
-        for sign in "+-":
-            x = rail[sign]
-            ends = [(p, "left") for k, p in left if k == sign] + [(p, "right") for k, p in right if k == sign]
-            for point, side in ends:
-                start, end = (point, (x, point[1])) if side == "left" else ((x, point[1]), point)
-                unit.wires.append(Wire(layers[sign], start, end, labels[sign]))
-            ys = sorted({p[1] for p, _ in ends})
-            if len(ys) > 1:
-                unit.wires.append(Wire(layers[sign], (x, ys[-1]), (x, ys[0]), labels[sign]))
-            for y in ys:
-                meeting = (any(side == "left" and abs(p[1] - y) < TOLERANCE for p, side in ends)
-                           + any(side == "right" and abs(p[1] - y) < TOLERANCE for p, side in ends)
-                           + (y < ys[-1]) + (y > ys[0]))
-                if meeting >= 3 and dot in self.catalog:
-                    unit.blocks.append(BlockPlacement(block=dot, layer=layers[sign], position=(x, y),
-                                                      extents=dot_extents))
+                width, height = dp.fuse_box_width, dp.fuse_box_height
+                unit.placeholders.append(Placeholder(name, line_x, y - height / 2, line_x + width, y + height / 2))
+                loads[key] = (line_x + width, y)
+                lowest = min(lowest, y - height / 2)
+            unit.names.append(name)
+            lines.append((line_x, y))
+        if lines:
+            unit.wires.append(Wire(ps.output_wire_layers[PLUS], plus, lines[0], self.plan.supply_label))
+        if len(lines) > 1:
+            unit.polylines.append(WidePolyline(cp.bridge_layer, [lines[0], lines[-1]], cp.bridge_width))
+        if lines and not drawn:
+            self.warnings.append(f"The 24 V fuses are drawn as boxes until block {cp.fuse_block} has its markers "
+                                 f"{cp.fuse_line_marker} and {cp.fuse_load_marker} (then run Audit Blocks).")
+        return loads, lowest
 
     def female_units(self) -> list:
         """The page at the end (Sammy, 2026-11-11): for each shipping split, the cable's two
@@ -787,7 +1054,7 @@ class _Builder:
         l, b, r, t = female.extents
         pin_x = female.markers[ss.pin_marker.format(pin=1)][0]
         units = []
-        for _, left_name, _, right_name, _, used in self.split_pairs:
+        for b, left_name, _, right_name, _, used in self.split_pairs:
             unit = Unit(0, names=[left_name, right_name])
             # Flipped, the left one's pins are on its right side, at x 0; the right one's
             # are on its left side, `shipping_split_cable` further right.
@@ -799,7 +1066,7 @@ class _Builder:
                                               attributes={ss.name_attribute: right_name}, label=right_name,
                                               extents=female.extents))
             for key, number in used.items():
-                layer, label = self.split_wires[key]
+                layer, label = self.split_wires[(b, key)]
                 y = female.markers[ss.pin_marker.format(pin=number)][1]
                 unit.wires.append(Wire(layer, (0.0, y), (dp.shipping_split_cable, y), label))
             units.append(unit)
@@ -872,25 +1139,9 @@ class _Builder:
             unit.blocks.append(self._bracket((b_x, end_y - br.bracket_gap), label, flipped=True))
         return unit
 
-    def _wire_breaks(self, ends, state_name="", flip_parameter="") -> list:
-        """A tilde on each wire end that goes on through a TO / FROM bracket: its CONN point on
-        the end, in its vertical state (or `state_name`), mirrored with `flip_parameter` when
-        given (lying tildes face wires arriving from the left). Every text attribute it has is
-        set empty on purpose, not left to the block's default. None if it isn't catalogued."""
-        dp = self.settings.device_pages
-        state_name = state_name or dp.wire_break_state
-        block = self.catalog.get(dp.wire_break_block)
-        if block is None or not block.states or state_name not in block.states:
-            return []
-        state = block.states[state_name]
-        mx, my = state["markers"][dp.wire_break_marker]
-        left, bottom, right, top = state["extents"]
-        extents = (-right, bottom, -left, top) if flip_parameter else (left, bottom, right, top)
-        blank = {dp.wire_break_text_attribute: "", **{a.tag: "" for a in block.attributes}}
-        return [BlockPlacement(block=dp.wire_break_block, layer=self.settings.bus_break.layer,
-                               position=(x - mx, y - my), attributes=blank, visibility=state_name,
-                               extents=extents, flipped=bool(flip_parameter), flip_parameter=flip_parameter)
-                for x, y in ends]
+    def _wire_breaks(self, ends, state_name="", flip_parameter="", text="") -> list:
+        """Tildes on these wire ends (device_units.wire_breaks)."""
+        return wire_breaks(ends, self.settings, self.catalog, state_name, flip_parameter, text)
 
     def _bracket(self, position, label, flipped) -> BlockPlacement:
         """The bus-break bracket across three vertical wires, label above (or, flipped, below)."""
@@ -944,32 +1195,6 @@ def _across(start, end, layer, label="") -> list[Wire]:
             Wire(layer, (mid_x, ey), end, label)]
 
 
-def _wire_labels(wires, gap) -> list[WireLabel]:
-    """One label per labelled wire run (its pieces share the label): centred on the run's
-    longest across piece, `gap` above it; a run that only goes up and down gets its label
-    turned 90 degrees, `gap` to the left of its longest piece (decision 2026-11-09)."""
-    runs = {}
-    for w in wires:
-        if w.label:
-            runs.setdefault(w.label, []).append(w)
-    labels = []
-    for text, pieces in runs.items():
-        across = [w for w in pieces if abs(w.start[1] - w.end[1]) < TOLERANCE]
-        if across:
-            w = max(across, key=lambda w: abs(w.end[0] - w.start[0]))
-            labels.append(WireLabel(text, (w.start[0] + w.end[0]) / 2, w.start[1] + gap))
-        else:
-            w = max(pieces, key=lambda w: abs(w.end[1] - w.start[1]))
-            labels.append(WireLabel(text, w.start[0] - gap, (w.start[1] + w.end[1]) / 2, rotation=90.0))
-    return labels
-
-
-def _moved_block(b, dx, dy) -> BlockPlacement:
-    return BlockPlacement(block=b.block, layer=b.layer, position=(b.position[0] + dx, b.position[1] + dy),
-                          attributes=dict(b.attributes), visibility=b.visibility, label=b.label,
-                          extents=b.extents, flipped=b.flipped, flip_parameter=b.flip_parameter)
-
-
 # --- Placing the units on pages ------------------------------------------------------------
 
 def _flow(groups, settings) -> list[dict]:
@@ -997,7 +1222,10 @@ def _flow(groups, settings) -> list[dict]:
         for unit in units:
             l, b, r, t = unit.extents()
             width, height = r - l, t - b
-            if x > left and not fits(x, row_top, width, height):
+            if unit.new_page and pages[-1]["units"]:        # a ladder's next page (Sammy, 2026-11-17)
+                pages.append({"section": section, "units": []})
+                x, row_top, row_height = left, top, 0.0
+            elif x > left and not fits(x, row_top, width, height):
                 x, row_top, row_height = left, row_top - row_height - dp.row_gap, 0.0       # next row
             if pages[-1]["units"] and not fits(x, row_top, width, height):
                 pages.append({"section": section, "units": []})                           # next page

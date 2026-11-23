@@ -164,11 +164,16 @@ def _read_one(work, name, visibility="", flip_parameter="") -> dict:
     for index in range(_retry(lambda: definition.Count)):
         item = _retry(lambda: definition.Item(index))
         if _retry(lambda: item.ObjectName) == "AcDbAttributeDefinition" and not _retry(lambda: item.Constant):
-            attributes.append({
+            attribute = {
                 "tag": _retry(lambda: item.TagString),
                 "prompt": _retry(lambda: item.PromptString),
                 "default": _retry(lambda: item.TextString),
-            })
+            }
+            # Recorded only when true, so single-line attributes read as before. A tilde's text
+            # goes on two lines only if its attribute is multi-line (Sammy, 2026-11-20).
+            if _retry(lambda: item.MTextAttribute):
+                attribute["multiline"] = True
+            attributes.append(attribute)
 
     reference = _retry(lambda: work.ModelSpace.InsertBlock(_point(0, 0), name, 1.0, 1.0, 1.0, 0.0))
     dynamic = _retry(lambda: reference.IsDynamicBlock)

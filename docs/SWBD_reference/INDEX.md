@@ -568,3 +568,60 @@ vertical bus to PM-1, shorting blocks. 6 pages: 3-line ES_01, control ES_02, com
 **Proposed rules (pending approval):** as 011509; bus-foot label with voltage, kAIC, phases/wires
 and bus rating; accessory balloon (twin mounting kit) per level.
 **Questions for Sammy:** see the 2026-10-19 report.
+
+## 120V_POWER-SCH_EXAMPLE  (Sammy's sketch of a 120 V control power circuit, not a job)
+**Files:** .dxf only (no .pdf)  **Studied:** 2026-11-13 (read with ezdxf; the sketch rendered
+and viewed)
+**Contents:** a full copy of the template (112 frames; TOC / LEG / BOM, ES_01-30, EO_01-06,
+EW_01-50 layouts, all empty) with one sketch on an ES page ("ES-", "OF XX"): a 120 V control
+power circuit for three sources.
+- SOURCE 1, 2 and 3 each arrive as a line and a neutral (bracket on the left), each landing on
+  its own terminal block ("TB- XXX").
+- One control relay "CR-3V" per source (coil A1/A2, contacts 11/12/14 and 41/42/44), and a
+  fourth at the bottom.
+- Two transfer relays (coil A1/A2; contacts 1-2 / 3-4 and R1-R2 / R3-R4): Sources 2 and 3
+  feed the upper one, Source 1 the lower one, which looks like a priority chain.
+- The chosen 120 V goes through three terminal blocks to four 1-pole fuses "FA-11 10A/1P
+  LP-CC". Notes under them, still being written: "CONTROL CIRCUIT FOR 52-MSB-401D-M section
+  7, thorugh SS...", "CONTROL CIRCUIT FOR 52-MSB-401D-G this section...", "to SKRU this
+  section...".
+- The legend page is the hybrid's, with the designation examples: device "1TB120-"
+  (terminals "1" and "2", TB_4PT blocks); wire "120N-J3" from "PS1(N-)", "#12"; terminal
+  block wire "2TB24+(1-4)"; shipping split "SS1-2M-2(4)".
+**Blocks:**
+- Terminal blocks: an anonymous dynamic block (`*U110`), a 7 x 7 square with 4 points at the
+  corners (+/-2.5, +/-2.5). Attributes TB_DWG_NUM "#" (inside) and TB_LABLE "XXX" (above, after
+  a fixed "TB-"). This is not the library's new `Terminal_Block` (12.5 x 5, staggered points,
+  read 2026-11-13).
+- Fuses: dynamic blocks with the BOM balloons built in.
+- Relays and transfer relays: loose lines.
+**Measurements:** terminal block points 5 apart both ways; fuses 17.5 apart; wires on
+WIRE - 120P-BLK and WIRE - 120N-WHT.
+**What it shows:** terminal blocks are where a wire splits. Each source's line lands on one
+point, and the block's other points carry it to the relay coil and the transfer contact.
+Near the fuses, terminal blocks split one wire to two fuses. Every wire runs between two
+points; there are no junction dots.
+**Proposed rules (pending approval):**
+1. Wherever one conductor goes to more than one place, it splits on a terminal block, for
+   120 V as well as 24 V: one wire per point, no junction dots. (The 24 V rails built
+   2026-11-11 use junction dots.)
+2. Terminal blocks are named as in the legend: section, TB, voltage, polarity ("1TB120-",
+   "2TB24+"), with terminals numbered inside it. A wire's end is written "2TB24+(1-4)".
+**Questions for Sammy:** none for now. (Seen in this early version: the source line wires
+from each source's terminal block to its relay coil and transfer contact were on
+WIRE - 24-_BLK, though they carry 120 V.)
+**Sammy's notes:** 2026-11-13: added too early. He is redoing it with the new blocks, and then
+it shows how the blocks could be used.
+**Updated version (.dxf + .pdf, studied 2026-11-13):** the same circuit, now with the library's
+`Terminal_Block` (15 of them):
+- **A bridged pair** near the fuses: two blocks 5 apart, touching, joined by one polyline
+  0.5 wide from the top block's bridge point to the bottom block's. (This file's copy of the
+  block predates the BRIDGE markers.)
+- **A strip of 4 blocks** at the bottom left, not bridged. Each wire ends in a tag naming the
+  device and its terminal: "TO CS-AM (#1-1)", "TO ATC-1 (01)" (TEXT layer, height 1.25), like
+  the shipping split tags "1SSM-2 (4)" in Hybrid_ES-013631.
+- **Every wire has its own number** (2+026, 2+027, 2+031, 2+032), even on one terminal.
+- **A `WIRELABEL` block** carries each wire number: one attribute, `LABELNUM` (default
+  "4A001", height 1.25), sitting just above the wire. *(Sammy, 2026-11-16: it's the block the
+  team's wire label LISP uses; the program writes its own labels, so it isn't needed.)*
+- A lone Terminal_Block sits out to the right as a sample.

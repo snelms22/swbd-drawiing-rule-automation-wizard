@@ -5,7 +5,7 @@ Pure Python, no AutoCAD: everything here is decided by the layout (src/layout/),
 module only translates it into shapes. connection.py then sends the shapes to AutoCAD.
 Keeping the two apart means this part can be tested without AutoCAD.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 ROUNDING_TOLERANCE = 1e-9
 MTEXT_NEW_LINE = "\\P"      # AutoCAD MText's code for "start a new line"
@@ -23,6 +23,7 @@ class Polyline:
     layer: str
     points: list[tuple[float, float]]
     closed: bool = False
+    width: float = 0.0              # constant width (e.g. a terminal bridge, 0.5); 0 = a plain line
 
 
 @dataclass
@@ -34,6 +35,7 @@ class BlockInsert:
     visibility: str = ""                    # dynamic visibility state; "" = leave as is
     flipped: bool = False                   # set the block's flip parameters
     flip_parameter: str = ""                # only this one when flipped; "" = all of them
+    distances: dict = field(default_factory=dict)   # dynamic distance settings, {name: value}
 
 
 @dataclass
@@ -60,9 +62,11 @@ def page_shapes(page, settings, placeholder_layer: str) -> list:
     shapes += _placeholder_shapes(parts.content_boxes, placeholder_layer)
     shapes += [Line(settings.main_bus.layer, line.start, line.end) for line in parts.bus_lines]
     shapes += [BlockInsert(b.layer, b.block, b.position, dict(b.attributes), b.visibility,
-                           b.flipped, b.flip_parameter)
+                           b.flipped, b.flip_parameter, dict(b.distances))
                for b in parts.blocks]
     shapes += [Line(wire.layer, wire.start, wire.end) for wire in parts.wires]
+    shapes += [Polyline(p.layer, list(p.points), width=p.width) for p in parts.polylines]
+    shapes += [Text(t.layer, t.text, (t.x, t.y), t.height, settings.text.style, t.align) for t in parts.texts]
     w = settings.wire_labels
     shapes += [Text(w.layer, label.text, (label.x, label.y), w.height, settings.text.style, "middle_center",
                     rotation=label.rotation) for label in parts.wire_labels]
@@ -178,7 +182,8 @@ def _waiting_block_shapes(placeholders, layer, settings):
         corners = [(box.left_x, box.bottom_y), (box.right_x, box.bottom_y),
                    (box.right_x, box.top_y), (box.left_x, box.top_y)]
         shapes.append(Polyline(layer, corners, closed=True))
-        shapes.append(Text(layer, box.text, ((box.left_x + box.right_x) / 2, box.bottom_y + 1.0),
+        # A name on two lines (e.g. a trip unit and its COM190) is one MText: \P breaks a line.
+        shapes.append(Text(layer, box.text.replace("\n", "\\P"), ((box.left_x + box.right_x) / 2, box.bottom_y + 1.0),
                            settings.text.height, settings.text.style, "bottom_center"))
     return shapes
 

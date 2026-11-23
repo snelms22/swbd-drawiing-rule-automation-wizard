@@ -38,7 +38,8 @@
   so it goes into code once Sammy approves that.
 
 ## Weekly meeting updates (keep current without being asked)
-- `docs/WEEKLY_UPDATES.md` is what Sammy brings to the weekly meeting (Friday mornings). Update it whenever a
+- `docs/WEEKLY_UPDATES.md` is what Sammy brings to the weekly meeting (Fridays, 9 am Eastern;
+  sometimes skipped, so don't assume one happened just because Friday passed). Update it whenever a
   library block is added or changed (Block Updates), a release goes out or its scope changes
   (SWBD Configurator Updates, listed by release: released since the last meeting, then
   upcoming), and when the outlook changes (Coming Up).

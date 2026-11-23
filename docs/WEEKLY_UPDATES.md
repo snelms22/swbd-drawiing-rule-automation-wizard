@@ -14,14 +14,76 @@ above it.
 
 ---
 
-## Friday 2026-11-13
+## Friday 2026-11-27
+
+- Block Updates
+  - Tilde: text flips with the wire
+  - Tilde: text multi-line
+- SWBD Configurator Updates
+  - 2.3.1 - Upcoming
+    - Fuse per device
+    - Terminal blocks
+    - Trip unit, COM800 24 V
+    - New UMG 801, meter 24 V
+    - CT bracket stretched to wires
+    - Tall boxes, COM190 in trip unit
+    - 24 V ladder: devices in a row
+    - Ground terminal strip (1TBG)
+    - Ethernet switch sized automatically
+    - Ethernet cables, both ends
+    - Phases straight into meter, supply
+    - Every tilde labelled
+    - Tilde labels: two lines, never overlap
+  - 2.4.0 - Upcoming
+    - UI rebuild
+- Coming Up
+  - Blocks: trip unit with COM190, COM800 markers, COM060
+  - 2.3.x: real blocks for boxes
+  - 2.4.0 (after the drawing logic): UI rebuild, MMS choice, double-click to fix
+  - Later: auto TO/FROM labels, 120 V control power, fuse sizes from device list
+
+## Friday 2026-11-20 (held)
+
+- Block Updates
+  - Terminal block bridge points
+  - Fixed fuses: attributes, connection points
+  - New UMG 801 (Rev2)
+  - UMG 801: 24V- to bottom
+  - Ethernet switches added (5, 8, 16 port), markers
+  - UMG 801: USB above RJ45
+  - Bridge layer in template
+  - Tilde: text on horizontal wires
+- SWBD Configurator Updates
+  - 2.3.1 - Upcoming
+    - Fuse per device
+    - Terminal blocks
+    - Trip unit, COM800 24 V
+    - New UMG 801, meter 24 V
+    - CT bracket stretched to wires
+    - Tall boxes, COM190 in trip unit
+    - 24 V ladder: devices in a row
+    - Ground terminal strip (1TBG)
+    - Ethernet switch sized automatically
+    - Ethernet cables, both ends
+    - Phases straight into meter, supply
+    - Every tilde labelled
+  - 2.4.0 - Upcoming
+    - UI rebuild
+- Coming Up
+  - Blocks: trip unit with COM190, COM800 markers, COM060, tilde text in flip
+  - 2.3.x: real blocks for boxes
+  - 2.4.0 (after the drawing logic): UI rebuild, MMS choice, double-click to fix
+  - Later: auto TO/FROM labels, 120 V control power, fuse sizes from device list
+
+## Friday 2026-11-13 (held)
 
 - Block Updates
   - Tildes resized (all orientations)
   - Shipping splits added (male, female)
   - Tilde "X" text removed
+  - Terminal block added (4 points)
 - SWBD Configurator Updates
-  - 2.3.0 - Upcoming *(being stress tested)*
+  - 2.3.0 - Released 2026-11-12
     - Power supplies
     - Communication
     - Shipping splits
@@ -32,7 +94,7 @@ above it.
 - Coming Up
   - Blocks: COM190, Ethernet switch, new UMG 801
   - 2.3.x: real blocks in place of boxes, meter 24 V
-  - 2.4.0: UI rebuild, MMS choice
+  - 2.4.0: UI rebuild, MMS choice, double-click to fix
   - Later: auto TO/FROM labels, 120 V control power, 24 V fusing, wire label standard, terminal blocks
 
 ## Previous meeting (as Sammy gave it)

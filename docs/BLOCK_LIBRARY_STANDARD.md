@@ -1,4 +1,4 @@
-# Block Library Standard (draft)
+I # Block Library Standard (draft)
 
 How to add or change blocks in Hyper's block library so the configurator can use them.
 
@@ -63,6 +63,38 @@ Items marked **(proposed)** still need Sammy's approval; the rest are already de
    layer: attributes on `TEXT` or `TXT`, bus bars on `BUS`, and so on. The configurator
    never changes the layers inside a block; it only chooses the layer the block itself is
    inserted on.
+
+## Device blocks: 24 V and terminals (Sammy, 2026-11-13 and 2026-11-16)
+
+10. **24 V pins on device blocks:** + and - both on the block's **left edge**, marked `24V+`
+    and `24V-`: **`24V+` at the top, `24V-` at the bottom** (Sammy, 2026-11-17, for the 24 V
+    ladder: + comes down from the wires along the top, - comes up from those along the
+    bottom, so they never cross). Devices are tall and skinny. A pin that takes **more than one wire** (daisy-chaining)
+    gets **one marker per connection, numbered**: `24V+_1`, `24V+_2`, `24V-_1` ... The second
+    may sit on the right edge: the configurator works out the side from where the marker is,
+    so the name only says which pin it belongs to.
+11. **Points that take a wire from several directions** (the terminal block): one marker
+    per direction, `<point>_<SIDE>`: `1_LEFT`, `1_TOP`, `1_BOTTOM`, `3_RIGHT` ... always with
+    an underscore. The configurator reads the points and their sides from the names alone.
+12. **Blocks that stack and bridge** (terminal blocks): the next block goes 5 below the one
+    before (`terminal_pitch` in config). The bridge runs between `BRIDGE_TOP` and
+    `BRIDGE_BOTTOM` markers; the configurator draws it as a polyline 0.5 wide on the
+    `BRIDGE` layer. On fixed fuses the bridge joins their line-side connection points.
+13. **Fixed fuses** (`1P_FUSE_1`, `2P_FUSE`, `3P_FUSE_1`): a connection marker on each pole's
+    line side (left) and load side (right), `<pole>_LINE` / `<pole>_LOAD`: `1_LINE`, `1_LOAD`,
+    `2_LINE` ... (Sammy, 2026-11-16; the names are in `config/devices.json`). Keep one tag for
+    the rating across the three (today: `CURRENT`, `RATING`, `RAITING`).
+14. **Ground pins** (2026-11-17): a device's ground pin is a marker named `G`, `GND` or `PE`
+    (the list is `ground.pin_markers` in `config/devices.json`; the UMG 801's `DIGITAL_GND`
+    is on it for now). The configurator sends it to the ground strip 1TBG by reference.
+15. **Ethernet switch ports** (2026-11-19): one marker per port, `PORT_1`, `PORT_2` ...
+    (`ethernet_switch.port_marker` in config), plus its 24 V per rule 10. The customer's
+    connection goes on port 1. A device's Ethernet port: a marker the configurator can run a
+    short stub out from without crossing anything else on the block (the UMG 801's RJ45 ports
+    sit under its remote display's USB line; to fix in the block).
+
+Blocks are never final (Sammy, 2026-11-13): any block can change to adjust the look or flow
+of a drawing, or to make the configurator's rules simpler.
 
 ## Checklist when adding or changing a block
 

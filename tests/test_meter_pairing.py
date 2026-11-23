@@ -49,15 +49,26 @@ def test_a_model_without_a_block_is_not_checked():
 def test_the_real_devices_file_loads_and_names_its_blocks():
     devices = load_device_settings("config/devices.json")
     assert devices.power_meter_models == ["Janitza UMG 801", "Schneider PM8000"]
-    assert devices.device_blocks() == ["3P_2P_FUSE_DISCONECT", "3P_PWR_SUP", "CT_Current_Input",
-                                      "Female_Shipping_Split", "Janitza_UMG801", "Male_Shipping_Split",
-                                      "Remote_Distplay", "Voltage_UMG801_Input"]
+    # The UMG 801 Rev2 (2026-11-17) is wired straight into its pins: no input blocks.
+    # The Ethernet switch's three sizes (2026-11-19) are read too.
+    assert devices.device_blocks() == ["1P_FUSE_1", "3P_2P_FUSE_DISCONECT", "3P_PWR_SUP", "Ethernet_Switch_16PORT",
+                                      "Ethernet_Switch_5PORT", "Ethernet_Switch_8PORT", "Female_Shipping_Split",
+                                      "Janitzia_UMG801_Rev2", "Male_Shipping_Split", "Remote_Distplay",
+                                      "Terminal_Block"]
     assert devices.power_supply.inputs == {"A": "L1", "B": "L2", "C": "L3"}
     janitza = devices.power_meters["Janitza UMG 801"]
-    assert janitza.voltage_input.lands_on == {"V_A": "V1", "V_B": "VN", "V_C": "V3"}
-    assert [i.lands_on["CT_A+"] for i in janitza.current_inputs] == ["I1+", "I5+"]
+    assert janitza.wired_by_pins and janitza.voltage_terminals() == {"A": "V1", "B": "VN", "C": "V3"}
+    assert [pins["A+"] for pins in janitza.current_pins] == ["I1+", "I5+"]
+    assert janitza.supply_pins == {"+": "24V+", "-": "24V-"} and janitza.name_attribute == "NAME"
     roles = block_roles(TEST_SETTINGS, devices)
-    assert roles["Janitza_UMG801"] == DEVICE
+    assert roles["Janitzia_UMG801_Rev2"] == DEVICE
+
+
+def test_a_pin_wired_meter_reports_pins_its_block_lacks():
+    model = MeterModel("Rev2", "METER2", None, (), voltage_pins={"A": "V1", "B": "VN", "C": "V3"},
+                       supply_pins={"+": "24V+", "-": "24V-"})
+    assert pairing_problems(model, {"METER2": {"V1": (0, 0), "VN": (0, 5), "24V+": (0, 10)}}) == [
+        "Rev2: METER2 has no marker V3, 24V- (named in config/devices.json)."]
 
 
 def test_device_blocks_keep_every_named_marker_in_the_catalog():

@@ -17,6 +17,7 @@ class AttributeInfo:
     tag: str        # e.g. "BREAKER_NAME"
     prompt: str     # written in the block by Sammy; shown as the field label in the app
     default: str
+    multiline: bool = False     # a multi-line attribute: its text can go on more than one line
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,8 @@ def load_block_catalog(path) -> dict[str, BlockInfo]:
                 connections=entry.get("connections") or {},
                 extents_flipped=tuple(entry["extents_flipped"]) if "extents_flipped" in entry else None,
                 visibility_states=tuple(entry.get("visibility_states", [])),
-                attributes=tuple(AttributeInfo(a["tag"], a.get("prompt", ""), a.get("default", ""))
+                attributes=tuple(AttributeInfo(a["tag"], a.get("prompt", ""), a.get("default", ""),
+                                               a.get("multiline", False))
                                  for a in entry.get("attributes", [])),
                 states=entry.get("states") or {},
                 markers={name: tuple(p) for name, p in (entry.get("markers") or {}).items()},

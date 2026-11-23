@@ -130,11 +130,13 @@ From the team meeting (DECISIONS 2026-11-10; Sammy's questions listed there firs
 - **Wire labels: to discuss** (the group A labels are a placeholder).
 - **Wire labels on the power meter's inputs** (voltage and current) are missing. Wait for the
   new meter block, which brings those wires out horizontally (Sammy, 2026-11-11).
-- **Terminal blocks on the hybrid pages:** what they look like is still to be decided.
-- **24 V to the power meters** (24V+ / 24V- on the UMG 801): left out until the new meter
-  block. The plan is option A: meters join their section's 24 V group and are fed along the
-  bottom from the rails. Meters then count as 24 V loads for the shipping splits. Power
-  depends on the meter model (the Schneider PM8000 takes 120 V). Sammy, 2026-11-12.
+- **2.3.1, 24 V through fuses and terminal blocks: built 2026-11-16** (DECISIONS 2026-11-16),
+  with the new UMG 801 and meter 24 V, the stretched CT bracket and the **24 V ladder**
+  (devices in a row, + along the top, - along the bottom; built 2026-11-17,
+  src/layout/power_ladder.py) and the ground strip 1TBG in the supply's section. Open: how many COM800s (one per section with COM060s for now),
+  how the COM060-COM800 cable is shown, fuse ratings from the device current list, Ethernet
+  stubs once the switch is set up. Power depends on the meter model (the Schneider PM8000
+  takes 120 V).
 - **Blocks Sammy is making** (each replaces a placeholder): the COM190 and the Ethernet
   switch (both drawn as boxes now), and the new UMG 801. Possibly an update to 2.3.0
   after it ships.

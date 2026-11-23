@@ -213,8 +213,11 @@ class PagePreview(QWidget):
             painter.setBrush(Qt.NoBrush)
             rect = self._rect(box.left_x, box.bottom_y, box.right_x, box.top_y, page_top_px)
             painter.drawRect(rect)
-            self._draw_drawing_text(painter, box.text, (box.left_x + box.right_x) / 2,
-                                    box.bottom_y + 1, page_top_px, centred=True)
+            # A name on two lines (a trip unit and its COM190): the last line at the bottom.
+            line_height = self._settings.text.height * self._settings.text.line_spacing_factor
+            for index, line in enumerate(reversed(box.text.split("\n"))):
+                self._draw_drawing_text(painter, line, (box.left_x + box.right_x) / 2,
+                                        box.bottom_y + 1 + index * line_height, page_top_px, centred=True)
 
     def _draw_page_parts(self, painter: QPainter, page: Page, page_top_px: float):
         """Main bus, dividers, ground bus (with its symbol and label) and section labels."""
@@ -310,11 +313,15 @@ class PagePreview(QWidget):
         font.setPixelSize(max(int(self._settings.text.height * self._pixels_per_unit()), MIN_TEXT_PX))
         painter.setFont(font)
         painter.setPen(TEXT_COLOR)
-        anchor = self._to_screen(x, bottom_y, page_top_px)
-        width = painter.fontMetrics().horizontalAdvance(text)
-        if centred:
-            anchor = QPointF(anchor.x() - width / 2, anchor.y())
-        elif right_aligned:
-            anchor = QPointF(anchor.x() - width, anchor.y())
-        painter.drawText(anchor, text)
+        base = self._to_screen(x, bottom_y, page_top_px)
+        metrics = painter.fontMetrics()
+        lines = text.split("\n")        # e.g. a tilde's two lines: the last one at the bottom
+        for index, line in enumerate(lines):
+            width = metrics.horizontalAdvance(line)
+            anchor = QPointF(base.x(), base.y() - (len(lines) - 1 - index) * metrics.lineSpacing())
+            if centred:
+                anchor = QPointF(anchor.x() - width / 2, anchor.y())
+            elif right_aligned:
+                anchor = QPointF(anchor.x() - width, anchor.y())
+            painter.drawText(anchor, line)
         painter.restore()

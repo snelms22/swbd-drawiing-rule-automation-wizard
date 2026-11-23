@@ -123,7 +123,7 @@ def test_a_fuse_in_another_section_goes_TO_its_meter():
     # A tilde on every wire end that goes through a bracket: 3 above the fuse, 3 below,
     # text set empty (not the block's default).
     tildes = blocks(first, "TEST_WIRE_TILDE")
-    assert len(tildes) == 6 and all(t.attributes == {"TEXT_H": ""} and t.visibility == "VERTICAL" for t in tildes)
+    assert len(tildes) == 6 and all(set(t.attributes.values()) == {""} and t.visibility == "VERTICAL" for t in tildes)
     wire_ends = {w.end for w in first.parts.wires}
     assert {t.position for t in tildes} <= wire_ends
     # The meter, on its section's page, gets its voltage input block, FROM the fuse.
@@ -224,8 +224,9 @@ def test_comms_modules_and_the_ethernet_switch_are_boxes_until_their_blocks_exis
                                             SingleLevel(Breaker("52-F3", comms_module="Siemens COM060"))]),
                         ethernet_switch=True))
     first, second = device_pages_of(result)
-    assert first.parts.title.endswith("SECTION 1") and box_texts(first) == ["52-M1 Siemens COM190"]
-    assert box_texts(second) == ["ETHERNET SWITCH", "52-F1 Siemens COM060", "52-F3 Siemens COM060"]
+    # Each comms module's box names its breaker and module on two lines (Sammy, 2026-11-17).
+    assert first.parts.title.endswith("SECTION 1") and box_texts(first) == ["52-M1\nSiemens COM190"]
+    assert box_texts(second) == ["ETHERNET SWITCH", "52-F1\nSiemens COM060", "52-F3\nSiemens COM060"]
     assert "The Ethernet switch and the comms modules are drawn as boxes until their blocks exist."         in result.warnings
 
 

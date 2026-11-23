@@ -88,6 +88,8 @@ class PageParts:
     # Wires the program draws itself, each on its own layer (device pages, 2026-10-23).
     wires: list = field(default_factory=list)
     wire_labels: list = field(default_factory=list)    # WireLabels on those wires (2026-11-09)
+    texts: list = field(default_factory=list)          # PageTexts, e.g. terminal strip names (2026-11-16)
+    polylines: list = field(default_factory=list)      # WidePolylines, e.g. terminal bridges (2026-11-16)
     interlocks: list = field(default_factory=list)     # InterlockLines (decision 2026-10-26)
     bus_start_path: list | None = None
     bus_end_path: list | None = None

@@ -131,6 +131,14 @@ class BusBreakSettings:
     bracket_state_horizontal_bus: str
     bracket_state_vertical_bus: str
     bracket_gap: float          # from the bus end to the bracket's base point
+    # The bracket's stretch beside a block's pins (Sammy, 2026-11-17): its setting in the
+    # horizontal-bus state ("" = never stretch it), that setting as the library draws it, and
+    # how far its grip is from its middle then. Each unit of stretch moves the grip and both
+    # arms one unit out, so the stretch that puts the grip on the outer wire is
+    # at_rest + (half the wires' spread - grip_at_rest).
+    bracket_stretch_horizontal_bus: str
+    bracket_stretch_at_rest: float
+    bracket_grip_at_rest: float
     label_attribute_horizontal_bus: str   # bracket label tag in its horizontal-bus state
     label_attribute_vertical_bus: str     # ...and in its vertical-bus state
     # How a page is named in labels: by its overall sheet number, e.g. "SHEET {sheet}"
@@ -184,19 +192,45 @@ class DevicePageSettings:
     ethernet_switch_height: float
     comms_width: float
     comms_height: float
-    # 24 V from a power supply into those boxes (Sammy, 2026-11-11).
-    feed_rail_gap: float
-    feed_box_gap: float
-    feed_box_spacing: float
-    feed_into_box: float
+    trip_unit_width: float       # a 3WA's trip unit (Sammy, 2026-11-16)
+    trip_unit_height: float
+    com800_width: float
+    com800_height: float
+    # A box's 24 V + and -: on its left edge, + this far below its top and - this far above
+    # its bottom (Sammy, 2026-11-17: + at the top, - at the bottom of every device).
+    box_plus_pin_from_top: float
+    box_minus_pin_from_bottom: float
+    # The 24 V ladder on each section's page (Sammy, 2026-11-17; ladder_note in the config).
+    row_order: tuple             # the devices' kinds, left to right in the row
+    device_gap: float            # before each device in the row (its two lanes stand in it)
+    ladder_zone_gap: float       # devices' tops to the lowest + wire; bottoms to the highest -
+    feed_into_box: float         # how far a wire ends inside a box
+    fuse_column_gap: float       # power supply to its fuses' line side
+    fuse_pitch: float            # between the fuses stacked down
+    fuse_box_width: float        # a fuse drawn as a box (its block has no markers yet)
+    fuse_box_height: float
+    terminal_pitch: float        # between the terminals of a strip (Sammy: 5 down)
+    lane_spacing: float          # between the lanes wires turn in
     shipping_split_cable: float  # pin to pin between a split's two females, on their page
     split_stub_length: float     # a male's pin carrying a wire that isn't 24 V: a stub this long
+    split_stub_to_label: str     # ... ending in a tilde saying where it goes on ("TO 5SSM-2")
+    split_stub_from_label: str   # ... or where it came from ("FROM 5SSM-1")
     wire_break_block: str        # tilde on each wire end at a TO / FROM bracket
     wire_break_state: str        # its state on a vertical wire
     wire_break_marker: str       # its connection point (on the wire end)
     wire_break_text_attribute: str   # its text, left empty
     wire_break_state_horizontal: str # its state on a horizontal wire (beside a power supply)
     wire_break_flip_horizontal: str  # the flip that mirrors it left-right there
+    wire_break_text_attribute_vertical: str  # its text when it stands upright (vertical wire)
+    wire_break_flip_vertical: str    # the flip that mirrors it up-down: text under it (wire from above)
+    # A tilde's text on one line or two (Sammy, 2026-11-20), and the room kept for it. The
+    # program can't measure AutoCAD's font, so the width is estimated per character.
+    wire_break_text_one_line: int            # longer than this many characters: two lines
+    wire_break_text_character_width: float   # estimated width of one character
+    wire_break_text_height: float            # the attribute's text height
+    wire_break_text_line_spacing: float      # baseline to baseline of its two lines
+    wire_break_text_offset: float            # from the wire end to the text
+    wire_break_text_clearance: float         # kept clear between labels stacked above each other
     from_fuse_label: str         # a power supply's inputs when its fuse is in another section
     remote_display_gap: float    # meter USB to the remote display, sideways
     remote_display_rise: float   # ... then up into the display's USB
@@ -479,18 +513,40 @@ def load_settings(path) -> LayoutSettings:
             ethernet_switch_height=_read_number(data, "device_pages", "ethernet_switch_height"),
             comms_width=_read_number(data, "device_pages", "comms_width"),
             comms_height=_read_number(data, "device_pages", "comms_height"),
-            feed_rail_gap=_read_number(data, "device_pages", "feed_rail_gap"),
-            feed_box_gap=_read_number(data, "device_pages", "feed_box_gap"),
-            feed_box_spacing=_read_number(data, "device_pages", "feed_box_spacing"),
+            trip_unit_width=_read_number(data, "device_pages", "trip_unit_width"),
+            trip_unit_height=_read_number(data, "device_pages", "trip_unit_height"),
+            com800_width=_read_number(data, "device_pages", "com800_width"),
+            com800_height=_read_number(data, "device_pages", "com800_height"),
+            box_plus_pin_from_top=_read_number(data, "device_pages", "box_plus_pin_from_top"),
+            box_minus_pin_from_bottom=_read_number(data, "device_pages", "box_minus_pin_from_bottom"),
+            row_order=_read_text_lines(data, "device_pages", "row_order"),
+            device_gap=_read_number(data, "device_pages", "device_gap"),
+            ladder_zone_gap=_read_number(data, "device_pages", "ladder_zone_gap"),
             feed_into_box=_read_number(data, "device_pages", "feed_into_box"),
+            fuse_column_gap=_read_number(data, "device_pages", "fuse_column_gap"),
+            fuse_pitch=_read_number(data, "device_pages", "fuse_pitch"),
+            fuse_box_width=_read_number(data, "device_pages", "fuse_box_width"),
+            fuse_box_height=_read_number(data, "device_pages", "fuse_box_height"),
+            terminal_pitch=_read_number(data, "device_pages", "terminal_pitch"),
+            lane_spacing=_read_number(data, "device_pages", "lane_spacing"),
             shipping_split_cable=_read_number(data, "device_pages", "shipping_split_cable"),
             split_stub_length=_read_number(data, "device_pages", "split_stub_length"),
+            split_stub_to_label=_read_text(data, "device_pages", "split_stub_to_label"),
+            split_stub_from_label=_read_text(data, "device_pages", "split_stub_from_label"),
             wire_break_block=_read_text(data, "device_pages", "wire_break_block"),
             wire_break_state=_read_text(data, "device_pages", "wire_break_state"),
             wire_break_marker=_read_text(data, "device_pages", "wire_break_marker"),
             wire_break_text_attribute=_read_text(data, "device_pages", "wire_break_text_attribute"),
             wire_break_state_horizontal=_read_text(data, "device_pages", "wire_break_state_horizontal"),
             wire_break_flip_horizontal=_read_text(data, "device_pages", "wire_break_flip_horizontal"),
+            wire_break_text_attribute_vertical=_read_text(data, "device_pages", "wire_break_text_attribute_vertical"),
+            wire_break_flip_vertical=_read_text(data, "device_pages", "wire_break_flip_vertical"),
+            wire_break_text_one_line=int(_read_number(data, "device_pages", "wire_break_text_one_line")),
+            wire_break_text_character_width=_read_number(data, "device_pages", "wire_break_text_character_width"),
+            wire_break_text_height=_read_number(data, "device_pages", "wire_break_text_height"),
+            wire_break_text_line_spacing=_read_number(data, "device_pages", "wire_break_text_line_spacing"),
+            wire_break_text_offset=_read_number(data, "device_pages", "wire_break_text_offset"),
+            wire_break_text_clearance=_read_number(data, "device_pages", "wire_break_text_clearance"),
             from_fuse_label=_read_text(data, "device_pages", "from_fuse_label"),
             remote_display_gap=_read_number(data, "device_pages", "remote_display_gap"),
             remote_display_rise=_read_number(data, "device_pages", "remote_display_rise"),
@@ -574,6 +630,9 @@ def load_settings(path) -> LayoutSettings:
             bracket_state_horizontal_bus=_read_text(data, "bus_break", "bracket_state_horizontal_bus"),
             bracket_state_vertical_bus=_read_text(data, "bus_break", "bracket_state_vertical_bus"),
             bracket_gap=_read_number(data, "bus_break", "bracket_gap"),
+            bracket_stretch_horizontal_bus=_read_text(data, "bus_break", "bracket_stretch_horizontal_bus"),
+            bracket_stretch_at_rest=_read_number(data, "bus_break", "bracket_stretch_at_rest"),
+            bracket_grip_at_rest=_read_number(data, "bus_break", "bracket_grip_at_rest"),
             label_attribute_horizontal_bus=_read_text(data, "bus_break", "label_attribute_horizontal_bus"),
             column_cut_label=_read_text(data, "bus_break", "column_cut_label"),
             continued_from_below_label=_read_text(data, "bus_break", "continued_from_below_label"),

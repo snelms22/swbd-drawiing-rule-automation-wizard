@@ -50,13 +50,40 @@ class MeterModel:
     current_inputs: tuple           # InputBlock per CT set, in the order sets are wired
     number_attribute: str = ""      # gets the meter's number after "PM-"
     usb_marker: str = ""            # where a remote display's USB line starts
+    # A meter block with every pin on its edge (the UMG 801 Rev2, Sammy 2026-11-17): the
+    # program wires straight into its pins, with no input blocks.
+    name_attribute: str = ""        # gets the meter's whole name, "PM-1"
+    voltage_pins: dict = None       # {phase: meter marker}, e.g. {"A": "V1", "B": "VN", "C": "V3"}
+    current_pins: tuple = ()        # per CT set, in the order sets are wired: {"A+": "I1+", "A-": "I1-", ...}
+    current_wire_layers: dict = None    # {"+": layer, "-": layer} for the CT wires
+    supply_pins: dict = None        # its 24 V: {"+": "24V+", "-": "24V-"}
+    ethernet_pin: str = ""          # its Ethernet port, where its cable's stub starts (Sammy, 2026-11-19)
+
+    @property
+    def wired_by_pins(self) -> bool:
+        """Is the meter wired straight into its pins (not through input blocks)?"""
+        return bool(self.voltage_pins or self.current_pins)
+
+    @property
+    def current_sets(self) -> int:
+        """How many CT sets the meter takes."""
+        return len(self.current_pins) if self.wired_by_pins else len(self.current_inputs)
 
     def voltage_terminals(self) -> dict:
-        """{phase: meter marker} for wiring a fuse straight to the meter: from the voltage
-        input's pairs, whose markers are named V_A, V_B, V_C."""
+        """{phase: meter marker} for wiring a fuse straight to the meter: its voltage pins, or
+        the voltage input's pairs, whose markers are named V_A, V_B, V_C."""
+        if self.voltage_pins:
+            return dict(self.voltage_pins)
         if self.voltage_input is None:
             return {}
         return {marker[-1]: target for marker, target in self.voltage_input.lands_on.items()}
+
+    def pin_markers(self) -> list[str]:
+        """Every meter marker the program wires into directly (for Audit Blocks)."""
+        names = list((self.voltage_pins or {}).values()) + list((self.supply_pins or {}).values())
+        for pins in self.current_pins:
+            names += list(pins.values())
+        return names
 
     def input_blocks(self) -> list[tuple[str, InputBlock]]:
         """(what it is, the input) for each input, for messages."""
@@ -120,6 +147,72 @@ class ShippingSplitSettings:
 
 
 @dataclass(frozen=True)
+class ControlPowerSettings:
+    """24 V control power (Sammy, 2026-11-13; plan approved 2026-11-16): the fuses beside
+    the power supply, the terminal blocks that split a circuit, and the loads' box texts.
+    The note in config/devices.json says how they are drawn."""
+    fuse_block: str                  # 1P_FUSE_1
+    fuse_name_attribute: str         # gets the fuse's whole name, e.g. "FD-2"
+    fuse_name: str                   # "FD-{number}"
+    fuse_line_marker: str            # where the line side connects (left)
+    fuse_load_marker: str            # where the load side connects (right)
+    fuse_layer: str
+    terminal_block: str              # Terminal_Block
+    terminal_number_attribute: str   # the terminal's number within its strip ("#")
+    terminal_layer: str
+    bridge_top_marker: str
+    bridge_bottom_marker: str
+    bridge_layer: str
+    bridge_width: float
+    strip_name: str                  # "{section}TB24{sign}"
+    strip_name_layer: str
+    strip_name_height: float
+    strip_name_gap: float            # strip's top edge to the bottom of its name
+    trip_unit_text: str              # "{breaker} TRIP UNIT"
+    com800_text: str                 # "COM800-{number}"
+
+
+@dataclass(frozen=True)
+class GroundSettings:
+    """The ground terminal strip in the power supply's section (Sammy, 2026-11-17): the
+    supply's ground wired in, one wire out TO GROUND BUS, and every other device's ground pin
+    by reference (a stub and a tilde at each end). The note in config/devices.json."""
+    strip_name: str             # "{section}TBG"
+    wire_layer: str             # "WIRE_GROUND"
+    pin_markers: tuple          # the marker names that are a device's ground pin ("G", ...)
+    bus_label: str              # on the bracket at the end of the wire to the ground bus
+    to_strip_label: str         # on a device's tilde: "TO {strip}"
+    from_device_label: str      # on the strip's tilde for that wire: "FROM {device}"
+    stub_length: float          # a ground stub, long enough for its number beside the tilde's text
+
+
+@dataclass(frozen=True)
+class EthernetSwitchSettings:
+    """The Ethernet switch blocks (Sammy, 2026-11-19): one per size supply chain offers, the
+    smallest with a port for everything that needs one picked automatically. The note in
+    config/devices.json."""
+    sizes: tuple                # ((ports, block name), ...), smallest first
+    name_attribute: str         # gets the switch's name, "ES-1"
+    supply_pins: dict           # {"+": marker, "-": marker}: its 24 V, + top / - bottom of its left edge
+    port_marker: str            # a port's marker, "PORT_{port}"
+    customer_connection: str    # the tilde's text on the port the customer's network plugs into
+    customer_port: int          # which port that is (Sammy, 2026-11-19: port 1)
+    spare_ports: int            # ports kept free when picking the size (Sammy, 2026-11-19: one)
+    cable_label: str            # each cable's number, on its stub at both ends: "E-{number:03d}"
+    to_device_label: str        # the tilde's text at the switch: "TO {device} SECTION {section}"
+    to_switch_label: str        # the tilde's text at the device: "TO {switch} SECTION {section}"
+    stub_length: float          # a cable's stub, long enough for its number beside the tilde's text
+    wire_layer: str             # the stubs' layer
+    layer: str
+
+    def block_for(self, connections: int) -> tuple[int, str]:
+        """(ports, block) of the smallest switch with a port for `connections` and the spare
+        ones; the biggest if none has enough."""
+        wanted = connections + self.spare_ports
+        return next(((n, block) for n, block in self.sizes if n >= wanted), self.sizes[-1])
+
+
+@dataclass(frozen=True)
 class DeviceSettings:
     # Communication modules offered on a breaker, by its family (decision 2026-11-09):
     # {"3WA": ["Siemens COM190"], "3VA": ["Siemens COM060"]}.
@@ -129,6 +222,9 @@ class DeviceSettings:
     remote_display: RemoteDisplaySettings | None = None
     power_supply: PowerSupplySettings | None = None
     shipping_split: ShippingSplitSettings | None = None
+    control_power: ControlPowerSettings | None = None
+    ground: GroundSettings | None = None
+    ethernet_switch: EthernetSwitchSettings | None = None
 
     @property
     def power_meter_models(self) -> list[str]:
@@ -149,6 +245,10 @@ class DeviceSettings:
             names.append(self.power_supply.block)
         if self.shipping_split is not None:
             names += [self.shipping_split.male_block, self.shipping_split.female_block]
+        if self.control_power is not None:
+            names += [self.control_power.fuse_block, self.control_power.terminal_block]
+        if self.ethernet_switch is not None:
+            names += [block for _, block in self.ethernet_switch.sizes]
         return sorted(set(names))
 
 
@@ -163,6 +263,9 @@ def load_device_settings(path) -> DeviceSettings:
             remote_display=RemoteDisplaySettings(**data["remote_display"]) if "remote_display" in data else None,
             power_supply=_power_supply(data["power_supply"]) if "power_supply" in data else None,
             shipping_split=_shipping_split(data["shipping_split"]) if "shipping_split" in data else None,
+            control_power=_control_power(data["control_power"]) if "control_power" in data else None,
+            ground=_ground(data["ground"]) if "ground" in data else None,
+            ethernet_switch=_ethernet_switch(data["ethernet_switch"]) if "ethernet_switch" in data else None,
         )
     except FileNotFoundError:
         raise SettingsError(f"Settings file not found: {path}")
@@ -180,7 +283,13 @@ def _meter_model(name, entry) -> MeterModel:
                       voltage_input=input_block(voltage) if voltage else None,
                       current_inputs=tuple(input_block(i) for i in entry.get("current_inputs", [])),
                       number_attribute=str(entry.get("number_attribute", "")),
-                      usb_marker=str(entry.get("usb_marker", "")))
+                      usb_marker=str(entry.get("usb_marker", "")),
+                      name_attribute=str(entry.get("name_attribute", "")),
+                      voltage_pins=dict(entry["voltage_pins"]) if entry.get("voltage_pins") else None,
+                      current_pins=tuple(dict(pins) for pins in entry.get("current_pins", [])),
+                      current_wire_layers=dict(entry["current_wire_layers"]) if entry.get("current_wire_layers") else None,
+                      supply_pins=dict(entry["supply_pins"]) if entry.get("supply_pins") else None,
+                      ethernet_pin=str(entry.get("ethernet_pin", "")))
 
 
 def _fuse(data) -> FuseSettings:
@@ -209,6 +318,33 @@ def _shipping_split(data) -> ShippingSplitSettings:
         pins=int(data["pins"]), layer=str(data.get("layer", "0")))
 
 
+def _control_power(data) -> ControlPowerSettings:
+    numbers = {"bridge_width", "strip_name_height", "strip_name_gap"}
+    return ControlPowerSettings(**{name: float(data[name]) if name in numbers else str(data[name])
+                                   for name in ControlPowerSettings.__dataclass_fields__})
+
+
+def _ground(data) -> GroundSettings:
+    return GroundSettings(strip_name=str(data["strip_name"]), wire_layer=str(data["wire_layer"]),
+                          pin_markers=tuple(str(m) for m in data["pin_markers"]),
+                          bus_label=str(data["bus_label"]), to_strip_label=str(data["to_strip_label"]),
+                          from_device_label=str(data["from_device_label"]),
+                          stub_length=float(data["stub_length"]))
+
+
+def _ethernet_switch(data) -> EthernetSwitchSettings:
+    sizes = tuple(sorted((int(size["ports"]), str(size["block"])) for size in data["sizes"]))
+    return EthernetSwitchSettings(sizes=sizes, name_attribute=str(data["name_attribute"]),
+                                  supply_pins={str(k): str(v) for k, v in data["supply_pins"].items()},
+                                  port_marker=str(data["port_marker"]),
+                                  customer_connection=str(data["customer_connection"]),
+                                  customer_port=int(data["customer_port"]), spare_ports=int(data["spare_ports"]),
+                                  cable_label=str(data["cable_label"]), to_device_label=str(data["to_device_label"]),
+                                  to_switch_label=str(data["to_switch_label"]),
+                                  stub_length=float(data["stub_length"]), wire_layer=str(data["wire_layer"]),
+                                  layer=str(data["layer"]))
+
+
 TOLERANCE = 0.05     # markers closer than this count as the same point
 
 
@@ -220,6 +356,10 @@ def pairing_problems(model: MeterModel, markers: dict) -> list[str]:
         return []                       # not built yet, or not read (reported elsewhere)
     meter = markers[model.block]
     problems = []
+    missing_pins = [m for m in model.pin_markers() if m not in meter]
+    if missing_pins:
+        problems.append(f"{model.name}: {model.block} has no marker {', '.join(missing_pins)} "
+                        f"(named in config/devices.json).")
     for what, connected in model.input_blocks():
         if connected.block not in markers:
             continue
@@ -479,12 +619,65 @@ def comms_modules_in(switchboard) -> list[CommsInfo]:
     return found
 
 
+@dataclass
+class EthernetConnection:
+    """One cable into the Ethernet switch: what it is called on the drawing, the section it is
+    in, and the device it is drawn on ("TU-1" for a 3WA's COM190, "COM800-1", "PM-1"; "" for
+    the customer's connection)."""
+    name: str
+    section_number: int
+    device: str
+
+
+def ethernet_connections(switchboard) -> list[EthernetConnection]:
+    """What plugs into the Ethernet switch (Sammy, 2026-11-19), in lineup order: each 3WA's
+    COM190 (its comms module, part of its trip unit), each COM800 (the COM060s reach the
+    switch through it), each power meter. The customer's connection comes on top of these."""
+    found = []
+    trip_units = {id(info.breaker): info for info in mms_in(switchboard)}
+    for comms in comms_modules_in(switchboard):
+        info = trip_units.get(id(comms.breaker))
+        if info is not None:
+            module = comms.module.split()[-1] if comms.module.split() else comms.module
+            found.append(EthernetConnection(f"{comms.breaker.label} {module}".strip(), comms.section_number,
+                                            f"TU-{info.number}"))
+    found += [EthernetConnection(f"COM800-{info.number}", info.section_number, f"COM800-{info.number}")
+              for info in com800s_in(switchboard)]
+    found += [EthernetConnection(meter.name, meter.section_number, meter.name) for meter in meters_in(switchboard)]
+    return found
+
+
 def needs_ethernet_switch(switchboard) -> bool:
     """Any breaker with a communication module, or any power meter, means an Ethernet switch
     (decision 2026-11-09)."""
     if any(section.contents.power_meters for section in switchboard.sections):
         return True
     return bool(comms_modules_in(switchboard))
+
+
+@dataclass
+class Com800Info:
+    """A COM800 gateway for the 3VA breakers' COM060 modules (decision 2026-10-21). It takes
+    24 V on a fuse of its own; the COM060s get power and comms from it over Siemens' cable,
+    shown later (Sammy, 2026-11-16)."""
+    number: int             # n of COM800-n, through the lineup
+    section_number: int
+
+
+def com800s_in(switchboard) -> list[Com800Info]:
+    """One COM800 in each section with a group-mounted (3VA) breaker that has a comms module.
+    One per section is the program's placeholder rule until Sammy says how many there are."""
+    found = []
+    for number, section in enumerate(switchboard.sections, start=1):
+        contents = section.contents
+        breakers = []
+        for arrangement in (contents.above, contents.below):
+            if isinstance(arrangement, GroupMounted):
+                for level in arrangement.levels:
+                    breakers += [getattr(level, side, None) for side in ("left", "right", "slot")]
+        if any(getattr(breaker, "comms_module", "") for breaker in breakers):
+            found.append(Com800Info(len(found) + 1, number))
+    return found
 
 
 def ethernet_switch_sections(switchboard) -> list[int]:

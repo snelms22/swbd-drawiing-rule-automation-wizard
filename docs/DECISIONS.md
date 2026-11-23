@@ -266,6 +266,476 @@ autosave for now.
 **Reason:** Sammy, 2026-10-15.
 **Status:** Approved (to build after saving / opening projects)
 
+### 2026-11-19 — Ground strip always; the meter's ground; the Ethernet switch sized for its ports
+**Decision (Sammy, 2026-11-19):**
+- **The ground strip is drawn whenever there is a power supply**, even with nothing else to
+  connect ("better to add it than not"). (It already was, with the supply feeding the 24 V;
+  now tested.)
+- **The UMG 801's ground is its DIGITAL_GND, for now**: by reference, a tilde with a label at
+  each end ("TO 1TBG" at the meter, "FROM PM-1" on the strip), no wire across. Its
+  ANALOG_GND stays unwired. Config: `ground.pin_markers` gains DIGITAL_GND.
+- **Ethernet switches:** Sammy added three blocks, the sizes supply chain offers:
+  Ethernet_Switch_5PORT / _8PORT / _16PORT (NAME attribute "ES-#"). The program counts what
+  plugs into the switch and picks the smallest size with a port for each, so the block too.
+  One port always has the **customer's connection**.
+**As built:**
+- What needs a port (`ethernet_connections` in devices.py): each 3WA's COM190 (its comms
+  module), each COM800 (the COM060s reach the switch through it), each power meter, and the
+  customer's connection. The showcase needs 9: the 16-port switch.
+- More than 16: the 16-port with a warning. More than one switch ticked: each sized for the
+  whole lineup, with a warning, until we know how they share the connections.
+- The switch block stands in the switch's place in the row, NAME "ES-1", a 24 V load like
+  the others (24V+ / 24V- markers). The customer's connection: first built on the last port,
+  then port 1 (below). Any ground pin on it goes to 1TBG by reference.
+- **The library's switch blocks have no markers yet**, so until they do the switch stays a
+  box that names its size ("ETHERNET SWITCH / 16 PORT"), with a note in Generate's list.
+  Markers it needs: `24V+` (top of the left edge), `24V-` (bottom of the left edge), each
+  port `PORT_1` ... `PORT_n`; a ground pin `G` if it has one. Config: `ethernet_switch` in
+  devices.json.
+- **Later the same day (Sammy's answers):** the customer's connection on **port 1**; **one
+  spare port** kept free when picking the size ("might take it out later"); **both ends of
+  every cable show**: at the switch a stub on its port ending in a tilde "TO PM-1 SECTION 4"
+  ("CUSTOMER CONNECTION" on port 1), at the device a stub ending in a tilde "TO ES-1
+  SECTION 1", both stubs carrying the cable's number (E-001 the customer's on port 1, then
+  E-002 ... in port order). The devices take ports 2, 3 ... in lineup order. A box (a trip
+  unit with its COM190, a COM800) takes its cable on its right edge, half way down; the
+  switch's box down its right edge, a port every 5. Config: `ethernet_switch` in devices.json.
+- **The meter's end of its cable isn't drawn yet:** the UMG 801's RJ45 ports (right edge, y
+  -6.5 and -12.5) sit where its remote display hangs off the USB just below them (-18.5), so
+  a stub from RJ45A runs into the display and its USB line. Proposed block tweak: USB above
+  the RJ45 ports on the right edge, so the display sits up top and the cable goes out under it.
+- **Bracket text (Sammy, 2026-11-19):** a flipped bracket's label lands right only when its
+  text goes in before the flip. Generate now fills every block's text before its flips.
+- **One switch per lineup for now (Sammy, 2026-11-19):** if more than one section is ticked,
+  the first section's switch is drawn (ES-1) and Generate warns the others are left out.
+- **Blocks (Sammy, 2026-11-19):** the switch blocks have their markers: `24+` / `24-` (config
+  names them, the meter's are `24V+` / `24V-`), ports `PORT_1` ... in two columns, the left
+  column's cables leaving to the left, the right column's to the right. The meter's USB
+  moved above its RJ45 ports, so its cable leaves RJ45A to the right under the remote
+  display (`ethernet_pin` on the meter model).
+- **Wire numbers:** two stubs with the same number on one page (both ends of a cable, or a
+  ground drawn by reference near the strip) each get their label.
+- **Bracket text checked** in the generated drawing: a flipped bracket's label now ends at the
+  bracket whatever its length (before, every label started at the same spot and longer ones
+  ran over the bracket).
+**Reason:** Sammy, 2026-11-19.
+**Status:** Built 2026-11-19 for 2.3.1. Open: several switches sharing the connections (later).
+
+### 2026-11-19 — Every tilde says where its wire goes; a fuse's phases to a meter in another section
+**Decision (Sammy, 2026-11-19):**
+- **Every tilde has a tag** saying where the connection goes, and the other end has one too.
+  Wire numbers (E-001 ...) go on both ends, like every other wire. Tildes at a bracket take
+  their tag from the bracket ("FROM SHEET 4"); tildes on their own carry it in their text.
+- **A fuse's phases to a meter in another section** should carry on the same way through the
+  drawing, not stop as bare stubs on the splits; up on top if there's room, otherwise tildes
+  saying which split they go on through. Where they reach their meter they go straight into
+  it, no tildes.
+- **As built:**
+  - Into the meter: when the fuse is in a section to its left, the phases come in on the
+    split on the meter's left and run straight into VN / V3 / V1, each turning in a lane of
+    its own left of the meter's 24 V lanes. The meter keeps no FROM bracket. A still crosses
+    B and C (it goes to the lowest pin), as when the fuse is beside the meter.
+  - Passing a section with devices: a labelled stub on each split pin, its tilde saying
+    "TO 5SSM-2" at the end it leaves by and "FROM 5SSM-1" at the end it came in by.
+    Over the top was checked and doesn't fit: the 24 V comes in from the same side both
+    above (+) and below (-) the phases, so a wire drawn through crosses 24 V wires (6 to 9
+    times in section 5 of the showcase job). A section with nothing in its row still gets
+    the straight wires across.
+  - Any other stub on a split says where its wire goes: "FROM FA-2" in the fuse's own
+    section when the fuse stands on its own, "TO PM-3" in the meter's section when the
+    meter can't take the wires straight in (its fuse is to its right: the phases would go
+    round the meter and its 24 V, so it keeps its FROM bracket).
+  - Meters stand in their section's row whenever the section has splits, with or without
+    the 24 V.
+- **Tilde text is hidden by the block:** TILDE_R0's HORIZONTAL state (every tilde on a
+  horizontal wire) shows neither TEXT_H nor TEXT_V, so "TO ES-1 SECTION 1", "TO 1TBG",
+  "FROM PM-1" etc. are filled in but don't show. Block fix for Sammy: make TEXT_H visible in
+  the HORIZONTAL state.
+- **2026-11-20 (Sammy):**
+  - **No step in A's wire:** the left split is moved up or down so phase A runs level into
+    its pin (the supply's L1, the meter's V1), as when the fuse lies beside the meter. It may
+    stand out of the row into the gap above or below it (ladder_zone_gap), never into the
+    24 V wires.
+  - **A power supply** fed from a fuse in a section to its left takes its phases straight from
+    the split too (L1-L3 run top to bottom like the split's pins: no crossings). If no ladder
+    draws it (it doesn't feed the 24 V), it keeps its FROM bracket.
+  - **Split stubs 12 long** (were 6), like the Ethernet and ground stubs, so the wire number
+    and the tilde's text don't run together.
+  - **TILDE_R0 fixed by Sammy:** the HORIZONTAL state shows TEXT_H just past the tilde, on the
+    wire's line. Later the same day he added TEXT_H / TEXT_V to the flip action, so on a
+    mirrored tilde (a wire leaving to the left) the text sits on the far side too: AutoCAD
+    puts its end 0.5 left of the tilde, as it starts 0.5 right of an un-mirrored one.
+**Reason:** Sammy, 2026-11-19: "it's not good that they just cut the way they do."
+**Status:** Built 2026-11-19 / 2026-11-20 for 2.3.1. The room for a tilde's text: see
+"2026-11-20 — A tilde's text on one line or two, with room kept for it".
+
+### 2026-11-20 — A tilde's text on one line or two, with room kept for it
+**Decision (Sammy, 2026-11-20):** with the text on the far side of mirrored tildes, PM-1's
+"TO ES-1 SECTION 1" ran into the switch's "TO TB02 COM190 SECTION 3". Sammy: make the
+attribute multi-line so long labels stack ("hopefully we would not have any overlap"), and
+"drag out the boundary if needed to make sure it stays no more than 2 lines and sacrifice the
+width only in that case". Approved: the program picks the lines itself, and the layout keeps
+room for the text (option A).
+- **One line or two:** one line up to `wire_break_text_one_line` characters (12); longer,
+  two lines broken at the space that makes the longer line shortest ("TO MCB01 COM190" /
+  "SECTION 1", "CUSTOMER" / "CONNECTION"). Never three: if that line is still long, the
+  label is just wider. No space to break at: one line.
+- **Too close for two lines:** where the next wire is nearer than two lines need (their
+  height plus `wire_break_text_clearance`), the label stays on one line. The ground strip's
+  FROM stubs (2.5 apart) are the case today; the switch's ports (5 apart) have room.
+- **Only with a multi-line attribute:** Audit Blocks records which attributes are multi-line
+  (`"multiline": true` in the catalog). Until TILDE_R0's TEXT_H is, labels stay on one line,
+  and the room kept matches.
+- **AutoCAD:** the line break is written as AutoCAD's `\P` and the attribute's box width set
+  to 0, so AutoCAD never wraps the text again on its own. The drawing shows the program's
+  lines, as the preview does. (Checked in a throwaway drawing: the text and the 0 width are
+  taken.)
+- **Room kept (option A):** a tilde's size takes in its text, so whatever is placed by size
+  keeps clear of it (the row's devices). The program can't measure AutoCAD's font, so the
+  width is estimated: characters x `wire_break_text_character_width` (1.15; measured in
+  AutoCAD 0.89 to 1.13 at height 1.25). The ground strip's stubs and their text stop a lane
+  short of the - terminals.
+- **Checked in the showcase (labels still one line):** no tilde text runs into other text or a
+  wire. Keeping room for the switch's one-line labels pushed ES-1 onto section 1's second
+  page; with two-line labels it fits on the first again (layout checked).
+**Reason:** Sammy, 2026-11-20.
+**Status:** Built 2026-11-20 for 2.3.1. Sammy made TEXT_H and TEXT_V multi-line 2026-11-23;
+Audit Blocks recorded it. Open: check a mirrored two-line label in AutoCAD (its lines may
+stay left-aligned, leaving the shorter one short of the tilde).
+
+### 2026-11-23 — The power supply's section: fuses beside the + wires, room for 11+ fuses
+**Decision (Sammy, 2026-11-20 / 2026-11-23):** more than 8 fuses didn't fit (each fuse is 20
+tall, and its wire adds a level along the top). "There is plenty of space to fit more if the
+first fuses and the power supply get moved up", the ground strip into the empty space, its
+labels vertical. The biggest job seen has 12 fuses: "build the 11 logic and see if that'll do
+for now"; past that the logic may change, later, when needed. Plan 1-3 approved:
+1. **The supply and its fuses move up**, beside the + wires instead of under them: as far as
+   no fuse's wire has to turn down (the first then runs straight across along the top), and
+   staying ladder_zone_gap under any + wire passing over them (to a split on the left). The
+   ladder is built twice: once to find the + wires' heights, then drawn with the supply up.
+2. **The - terminal group stands right of the fuses**, in a slot of its own after the + slots.
+   The supply's - drops between the supply and its fuses, runs under the fuses a lane below
+   the lowest, and comes into its group from above, or from below when the fuses reach lower
+   than the - wires. The - wires no longer run under the fuses (unless one goes on to a split
+   on the left: then they run below the supply and its fuses, as before).
+3. **The ground strip (1TBG) stands under the supply**, ladder_zone_gap under it, left of the
+   fuses. The supply's ground drops in from its pin; TO GROUND BUS leaves on the left as
+   before. Each other device's ground goes out on the right to a lane of its own (the top
+   one outermost, so none cross) and down to an upright tilde flipped up-down (Flip state2),
+   its text (TEXT_V) under it reading up. The lanes stay a lane short of the supply's - lane.
+- **Measured on the showcase lineup** (real blocks, layout only): 8 fuses fitted before, 12 now.
+  The showcase's own 6 fuses: no new crossings (the 7 known ones).
+- **The fuses add lanes**, and the - has its own slot now, so the supply's section is wider:
+  with 7 or more fuses its row carries on to one more page than before.
+**Reason:** Sammy, 2026-11-20 / 2026-11-23.
+**Status:** Built 2026-11-23 for 2.3.1; Sammy to look at the drawing and say whether to keep it.
+Open (found 2026-11-23, there before this change): a + terminal group that feeds a device in
+its own section, ahead of fuses for the split, sends that wire low, across the later fuses'
+risers (the trip units' shared fuse with meters in other sections).
+
+### 2026-11-17 — Ground terminal strip in the power supply's section
+**Decision (Sammy, 2026-11-17):**
+- A ground terminal strip in the section that has the power supply, wired with the same
+  rules as the rest, named like the others: **1TBG** (`{section}TBG`). Same Terminal_Block.
+- **The supply's ground** (pin `G` on 3P_PWR_SUP) is wired straight in. **One wire out "TO
+  GROUND BUS"**, a tilde and a bracket at its end (as in NTT-013628: TB1-G -> G001 TO
+  GROUND BUS).
+- **Anything else with a ground pin**, in any section, is wired by reference, the same idea as
+  a wire through a shipping split: a stub from its pin ending in a tilde that says "TO 1TBG"
+  (the tilde's own text), and on the strip a stub with the same wire number ending in a tilde
+  that says "FROM PM-1".
+**As built:** the strip stands at the bottom left of the supply's ladder, under the supply,
+level with the - terminals and left of them. The supply's ground drops into its top (3_TOP),
+the wire to the ground bus leaves its left side, the devices' stubs its right side (stopping
+clear of the - terminals). Wires on WIRE_GROUND, numbered G001 (to the ground bus), G002 (the
+supply's), then the devices in lineup order. A device's ground pin is a marker named in
+`ground.pin_markers` (config: G, GND, PE). The UMG 801's ANALOG_GND / DIGITAL_GND are signal
+grounds and aren't in that list (to confirm with Sammy). Config: `ground` in devices.json.
+**Reason:** Sammy, 2026-11-17.
+**Status:** Built 2026-11-17 for 2.3.1.
+
+### 2026-11-17 — 24 V ladder: devices in a row, + along the top, - along the bottom (design)
+A rewrite of how each section's 24 V group is drawn (not of the 24 V plan). Sammy asked for the
+details to be settled before building.
+**Decision (Sammy's answers, 2026-11-17):**
+- **Fuse per section: not happening** (the team). Each device keeps its own fuse; the trip
+  units share one, split on terminal blocks as now.
+- **Devices** are tall and skinny, 24V+ at the top of the left edge and 24V- at the bottom of the
+  left edge. Sammy moves the - pin on his blocks (the meter's included). The boxes do the same
+  (config: + from the top, - from the bottom), back to full height once they sit in a row.
+- **The ladder, on every section's page:**
+  - The devices stand in one row, tops lined up. Each gets its + from a wire that comes down
+    in the gap to its left and its - from a wire that comes up in the same gap.
+  - The + wires run along the top: the farther a wire goes, the higher it runs. The - wires
+    run along the bottom: the farther it goes, the lower. So no 24 V wire crosses another.
+  - Terminal blocks: the TB+ at the top, the TB- at the bottom.
+- **Source section:** the power supply (its fuse lying left of it) and its fuse column at the
+  left. Each fuse's wire climbs to its place along the top. The top fuse feeds the device
+  furthest away, so the fuse order follows the row; FD-1 is the top fuse. The supply's - drops
+  to the TB- at the bottom left.
+- **Other sections:** the incoming split sits at the left, centred between the top and bottom.
+  Its + wires go up to the TB+ (or straight along the top when they only pass through), its -
+  down to the TB-. The outgoing split sits at the right end, centred, + coming down into it,
+  - coming up.
+- **Split pins:** + on top (the farthest-going first, those that stop or branch in the next
+  section last), wires that aren't 24 V in the middle, - at the bottom.
+- **Row order (left to right):** meters, the Ethernet switch, each COM800 with its COM060s next
+  to it (small boxes, no 24 V: the Siemens cable powers them), then the trip units (with their
+  COM190). A list in config. Why: a meter's fuse and FROM bracket need the gap on its left,
+  and phases coming through a split land straight in; with the trip units last, their shared
+  circuit's two branches (to the trip unit and on to the next section) sit side by side.
+- **Meters always get a place in the row**, wired or not (24 V now, 120 V later).
+- **A section wider than a page** carries on on its next page. Its shipping splits stay at the
+  section's ends: the incoming on its first page, the outgoing on its last. Where the page
+  breaks, every wire that carries on ends in **one bracket spanning the whole side** ("TO
+  SHEET 6"), from the top + wire to the bottom - wire, and picks up on the next page from one
+  bracket ("FROM SHEET 5"), no tildes (Sammy chose option C of the sample drawing: other wires
+  can break and start again the same way). Each wire keeps its number.
+- **Wires that aren't 24 V:** where they pass through a section that has devices, they are
+  labelled stubs on the split pins (a wire can't cross the row there without crossing 24 V).
+  Signal wires may have tildes, with clear information on where they go. **No tildes on
+  24 V.**
+- **A lone fuse** goes wherever it fits, near the shipping split its phases leave by. Its phases
+  run straight into the split's middle pins.
+- **Ethernet (later, once the switch is set up):** a short labelled stub with a tilde at each
+  end (the switch's port, the device's port) saying which section it goes to. Ethernet doesn't
+  go through the shipping splits.
+- **Later:** the ATC (half a page or more; its signals through the splits follow the stub rule),
+  120 V, and mechanically vs electrically operated breakers.
+**How it is built:**
+- `control_power.py`: the plan keeps its circuits, terminal blocks and wire numbers. Only the
+  fuse order and the split pin order change, both by where the wires go.
+- A new module `src/layout/power_ladder.py` draws the ladder. `device_pages.py` (about 1,500
+  lines) hands it the devices and keeps building the meters, fuses and boxes.
+- Spacings, the row order and the box pins in config. The tests count crossings: none
+  allowed between 24 V wires.
+**Status:** Approved 2026-11-17 (Sammy: "let's go with that", after the page-break sample).
+Built 2026-11-17 for 2.3.1. As built:
+- `src/layout/power_ladder.py` draws the ladder; `src/layout/device_units.py` holds the
+  drawing pieces (wires, units) it shares with device_pages.py. The plan orders the fuse
+  column and the split pins (`_fuse_key`, `_boundary_key` in control_power.py).
+- The splits stand at the page's ends when the ladder fits on one page (as on 2026-11-11);
+  on a section that takes more pages, the outgoing split ends its last page's row.
+- Terminal groups: + takes its wire in on a bottom point (1_BOTTOM), - on a top point
+  (2_TOP); the wires out leave from the side points, stepping down in lanes beside the group.
+- Boxes back to full height (trip unit, Ethernet switch 25 x 60). The COM800 box is tall too
+  (25 x 40), and COM060 boxes small (20 x 15), breaker and module on two lines. All config.
+- The showcase drawing: 97 crossings before, 5 now. Four are the meters' voltage (A crosses
+  B and C, from the meter's pin order). One is the trip units' shared wire (below).
+- **Crossings the ladder can't avoid:** the trip units share one fuse, so their wire runs
+  through every section, branching down to a trip unit in each. A wire that passes a section
+  where it branches and ends in a section where it branches again (or ends left of the trip
+  unit) has to cross it once. About one crossing per such device. With the supply in the
+  middle of the lineup, its wire branches both ways from one terminal group and adds a few
+  more (4 in the test job). Offered: in the last section the trip units' wire reaches, stand
+  the trip unit first in the row (removes the showcase's one). Sammy, 2026-11-17: the one
+  crossing is okay; the trip units stay last in the row.
+
+### 2026-11-17 — Bracket stretched to its wires; wires cross only where they must; device shapes
+**Decision / status:**
+- **Bracket stretched (Sammy, approved; he did it by hand first):** beside a block's pins (a
+  meter's CT set, or its voltage FROM another section) BRACKET_TEXT_R0 is stretched with its
+  own `Distance1` setting so its grip lines up with the outer wire. Read from the block: as
+  drawn, Distance1 is 10 and the grip is 5 below the middle; each unit more moves the grip
+  and both arms one unit out, so the bracket stays centred. Six CT wires (25 top to bottom)
+  get 17.5; the meter's VN/V3/V1 (15) get 12.5; three wires 5 apart keep 10 and the setting
+  is left alone. The block draws the stretch; the program only sets the value. Other
+  brackets (3-line, fuses, splits) are unchanged. Config: `bus_break.bracket_stretch_*`.
+- **Wires don't cross unless they have to (Sammy's request).** The test drawing had 97
+  crossings on the section pages, most avoidable. Claude proposed ordering rules (split pins,
+  fuse column, a fuse's phases above the incoming split, terminal points and lanes in order,
+  a crossing count in the tests). Sammy then asked about putting the - along the bottom of
+  the page and at the bottom of each block. Claude's answer: it removes the - / + crossings
+  only with the devices side by side in a row (+ down from the top, - up from the bottom); in
+  today's stacked column a - wire still crosses one + per device it passes. Pending Sammy.
+- **Device blocks to come (Sammy):** the trip unit and the Ethernet switch will be tall
+  rectangles like the meter, their 24 V pins at the top (as the meter's are). The trip unit's
+  block includes its COM190, wired to it inside the block. The COM190 holds the Ethernet port:
+  later, a wire with a tilde from the Ethernet switch (once the switch is set up).
+- **Boxes reshaped (Sammy approved):** the trip unit and Ethernet switch boxes are tall
+  (25 x 40), + and - on the left edge 2.5 and 7.5 below the top (config). 40, not 60: in the
+  stacked column, 60-tall boxes ran section 1 off the bottom of the page. A 3WA's comms
+  module is named on a second line in its trip unit's box and gets no box of its own; with no
+  supply to feed the trip units it keeps its own box, as before.
+**Reason:** Sammy, 2026-11-17.
+**Status:** Bracket stretch and box shapes built 2026-11-17. Crossing rules and the - along the
+bottom pending Sammy.
+
+### 2026-11-17 — Fuse markers in; new UMG 801 block; a fuse per section (to the team)
+**Decision / status:**
+- **Fixed fuse markers:** Sammy named them `<pole>_LINE` / `<pole>_LOAD` (`1_LINE`, `1_LOAD`
+  ...), on the line side (left, x 0) and load side (right, x 10). Config now uses them
+  (`control_power.fuse_line_marker` / `fuse_load_marker`). The 24 V fuses are drawn as the
+  1P_FUSE_1 block, not boxes. Block standard rule 13 is updated.
+- **New UMG 801 block:** Sammy finished it, to go into the next test drawing. In the library
+  it is spelled `Janitzia_UMG801_Rev2`.
+  - Every pin is on an edge, for horizontal wires.
+    - Left, top down: 24V+, 24V-, VN, V3, V2, V1, I1+ to I4-, ANALOG_GND, DIGITAL_GND.
+    - Right: I5+ to I8-, DI_COM, DI_4, DI_3, USB, RJ45A/B.
+  - A `NAME` attribute takes the whole name ("PM-#").
+  - The old input blocks (Voltage_UMG801_Input, CT_Current_Input) don't fit its pins.
+  - **How it is wired (Sammy approved Claude's proposal the same day; "use the block as is"):**
+    1. `NAME` gets the meter's whole name, "PM-1".
+    2. **Voltage:** its fuse lies to the meter's left, phase A level with its pin (one straight
+       wire). The phase-to-pin mapping is kept: A to V1, B to VN, C to V3, V2 unused. B and C
+       turn in lanes between the fuse and the CT inputs, C's lane right of B's, so they don't
+       cross each other. A fuse in another section: tildes and a "FROM FA-n SHEET n" bracket
+       on the voltage pins, as the power supply has.
+    3. **CTs:** each set's six wires go straight into its pins, I1-I3 on the left (the second
+       set I5-I7 on the right). Each wire is a labelled stub (3+ / 3-, numbered by the set:
+       set k = 3k-2 ... 3k) with a tilde, and one bracket "FROM STB-k SHEET n" is centred on
+       the set. The bracket is drawn for three wires, so on six it covers the middle. (Fixed
+       later the same day: the bracket is stretched to the wires, see "Bracket stretched".)
+    4. **Remote display:** on the side its USB pin is on, the right for Rev2.
+    5. **24 V (option A of 2026-11-12, built):** the meter is a 24 V load on a fuse of its own.
+       It is drawn whole, with its fuse, CT inputs and remote display, in its section's 24 V
+       group, its left edge at the loads' column. The 24 V wires run straight to its pins
+       over its fuse, which sits below them.
+  - Config: `power_meters` in devices.json (`voltage_pins`, `current_pins`,
+    `current_wire_layers`, `supply_pins`, `name_attribute`). Meters with input blocks still
+    work the old way (no meter uses them now).
+  - Without a supply that can feed it, the meter is drawn on its own, its 24 V pins unwired.
+  - **Not changed:** a meter whose fuse is in another section still gets the FROM bracket on
+    its voltage pins. The phases stop at stubs on the shipping split (2026-11-11). With the
+    new block they could run straight from the split into its pins; Sammy's call.
+- **A fuse per section (Sammy's proposal, 2026-11-17; for the team's meeting the same day):**
+  where a section has more than just a trip unit, that section gets its own fuse beside the
+  power supply. Its one + wire goes through the shipping splits to the section, where a
+  terminal block powers everything in it. This would change "each device its own fuse"
+  (2026-11-10). Not built. In the program, which loads share a fuse is decided in one place
+  (`plan_control_power` in control_power.py); terminal blocks, splits and wire numbers follow.
+**Reason:** Sammy, 2026-11-17.
+**Status:** Fuse markers built. UMG 801 Rev2 with its 24 V built 2026-11-17 (test drawing for
+the team). The fuse per section is not happening (the team, 2026-11-17).
+
+### 2026-11-16 — 2.3.1: 24 V through fuses and terminal blocks (plan approved, as built)
+**Decision (Sammy's answers, 2026-11-16):**
+- **The plan of 2026-11-13 is approved** ("This plan looks good, lets move forward"). It goes out
+  as 2.3.1. The UI release (2.4.0) follows once Sammy is happy with the drawing logic.
+- **Bridge:** the `BRIDGE` layer is in the template now. A layer can't make a polyline; the
+  program draws the bridge as a polyline **0.5 wide**.
+- **24 V fuses: the library's fixed fuses** `1P_FUSE_1` (with `2P_FUSE` and `3P_FUSE_1` for later),
+  to which Sammy added attributes. On a column of fixed fuses, the bridge runs between the
+  line-side connection points (the same point serves as its top and bottom).
+- **COM800:** takes 24 V on a fuse of its own. The COM060s connect to it with a Siemens
+  proprietary cable that carries power and comms; how that is shown comes later.
+- **Several connections on one pin are numbered** (`24V+_1`, `24V+_2`): approved, and added to
+  the block standard (docs/BLOCK_LIBRARY_STANDARD.md, rule 10).
+- **Wire labels stay as they are** ("if it ain't broke, don't fix it"): the program writes
+  them as plain text. The `WIRELABEL` block in Sammy's sketch is the one the team's wire
+  label LISP uses; the program doesn't need it.
+**As built (2.3.1):**
+- **What takes 24 V:** every 3WA's trip unit (all on one fuse), the Ethernet switch and each
+  COM800 (a fuse each). They are boxes until their blocks exist, with + and - on their left
+  edge. The COM190 and COM060 boxes get no wires. Without a power supply that can feed
+  them, the Ethernet switch is an unwired box as before, and the trip units and COM800s
+  aren't drawn.
+- **COM800s:** one in each section with a group-mounted breaker that has a comms module.
+  *This is the program's placeholder rule until Sammy says how many there are.* Named
+  COM800-n through the lineup.
+- **Fuses:**
+  - FD-1, FD-2 ... in the power supply's section, standing in a column 10 right of the
+    supply, 20 apart.
+  - The first fuse is level with the supply's + (24P1), so one straight wire feeds it. Their
+    line sides are bridged.
+  - The supply's - drops in a lane between the supply and the fuses, to below them.
+  - The fuse block's line and load markers are named in config: `CONN_A_LINE` /
+    `CONN_A_LOAD`. Until 1P_FUSE_1 has them, the fuses are boxes, and Generate says so.
+  - The rating is left at the block's default for the engineer (no current list yet).
+- **Circuits:** a fuse's + and all it feeds, plus the shared -. Each circuit reaches the
+  sections from the supply's to its farthest load, one shipping split pin per boundary. The
+  pin order is the fuses' circuits, then the -, then any fuse phases.
+- **Terminal blocks:**
+  - A circuit is split on a terminal block in a section where it meets three or more points:
+    what it comes in on, its loads there, and the splits it goes on through. With two points
+    it's one wire.
+  - One wire per terminal point, on the side points only: wires from the left on the points
+    facing left, the rest on the points facing right. In a strip, TOP and BOTTOM face the
+    next terminal. Which side each point faces is read from its markers' names.
+  - A circuit's terminals stack 5 apart, with a bridge from the top one's `BRIDGE_TOP` to the
+    bottom one's `BRIDGE_BOTTOM`.
+  - Terminals are numbered within the strip (`#`), and each group has the strip's name above
+    it as plain text, "1TB24+" / "1TB24-".
+- **Page layout, left to right:**
+  1. The incoming split's male at the page's left edge. In the supply's section it sits
+     below the supply and its fuses.
+  2. The supply and its fuses.
+  3. The terminal blocks in one column, each group level with the wire it comes in on unless
+     that would cover a wire passing by.
+  4. The loads, stacked below the wires going to the outgoing split, each + level with its
+     feed where it can be.
+  5. The outgoing split's male at the page's right edge, lined up first with a fuse's phase,
+     then with a 24 V wire passing straight through, then with anything else.
+  - Wires that can't run straight turn in a lane of their own, 5 apart, in the gap before the
+    terminal blocks or before the loads. No junction dots (2.3.0's rails are gone).
+- **Wire numbers:** every wire its own (2+001 ..., 2-001 ...), counted through the job, starting
+  with the supply's + to the fuses. A wire keeps its number through the shipping splits it
+  passes. On the SHIPPING SPLITS page, each cable carries the number of the wire through it.
+- Spacing and sizes are in `device_pages` (layout_settings.json). Blocks, names and the
+  bridge are in `control_power` (devices.json).
+**Reason:** Sammy, 2026-11-13 and 2026-11-16.
+**Status:** Approved. Built 2026-11-16 for 2.3.1.
+- Waiting on blocks: 1P_FUSE_1's connection markers, plus the COM190, Ethernet switch, new
+  UMG 801 and trip unit (ETU pins) blocks.
+- Noticed: the fixed fuses' rating tags differ (1P CURRENT, 2P RATING, 3P RAITING). The
+  library was open with unsaved changes on 2026-11-16, so the catalog has the last saved
+  version.
+
+### 2026-11-13 — 24 V distribution through terminal blocks; blocks are never final
+**Decision (Sammy's rules):**
+- **+ side:** one 24 V fuse per device (2026-11-10). A fuse feeding one termination point is a
+  single + wire from the fuse to it. When one fuse feeds several termination points, the wire
+  is split on a terminal block.
+- **- side (shared):** in the power supply's section, one big terminal block splits the -.
+  One - wire goes through each shipping split to the next section. There it lands on a
+  terminal block, which sends one wire on to the next shipping split, plus every - wire that
+  section needs.
+- **Block:** `Terminal_Block`, added to the library 2026-11-12. Read 2026-11-13:
+  - 4 points, 12.5 x 5. Each point takes a wire from one of 3 directions, and each direction
+    has its own marker. Points 1 and 2 open to the left (LEFT / TOP / BOTTOM); points 3 and 4
+    open to the right (RIGHT / TOP / BOTTOM).
+  - One attribute, `#`, in the middle. It has no flip and no visibility states.
+  - Slip found: two markers used a hyphen (`2-LEFT`, `2-BOTTOM`). Sammy fixed them the same
+    day; re-read: all 12 are `<point>_<SIDE>`, so the program reads points and directions
+    from the names.
+- **Sammy's answers (same day):**
+  - **The fuses are always next to the power supply.** So each device in another section
+    takes its own shipping split pin for its +; only the - is shared (one pin per boundary).
+  - **More than one terminal block (a strip):** the block is designed so the next one goes
+    5 units below the one before. A polyline 0.1 units wide joins them all (the bridge).
+    Sammy leans towards a layer of its own for it rather than layer 0.
+  - **The strip's name is plain text,** not an attribute. Where it goes depends on how the
+    wires connect to the strip, so it won't always be in the same place.
+  - **Naming follows the legend for now** (it will probably change; an easy change): strips
+    "1TB24+" / "1TB24-" (section, TB, voltage, polarity), terminals numbered inside the
+    strip, and a wire end "2TB24+(1-4)" (terminal, then point).
+  - **Device blocks (Sammy will follow this for 24 V):** + and - both on the block's left
+    edge. A pin that takes more than one wire (daisy-chaining) gets a separate marker for
+    each connection.
+- **Blocks are never final** (Sammy, 2026-11-13). Any block can change at any time, to adjust
+  the look or flow of a drawing or to make the program's rules simpler. How the terminal
+  blocks are used and how the 24 V is laid out through each section will shape the device
+  blocks Sammy is making (COM190, Ethernet switch, UMG 801).
+**Reason:** Sammy, 2026-11-13. He brought it up now, before the device blocks are designed.
+- **Sammy's answers (second round, same day):**
+  - **The bridge:** Sammy added `BRIDGE_TOP` (-1, 2.5) and `BRIDGE_BOTTOM` (-1, -2) to
+    Terminal_Block. The bridge is a polyline 0.5 wide that the program draws (a layer can't
+    make it a polyline). As in Sammy's example (120V_POWER-SCH_EXAMPLE), it is one line from
+    the top block's `BRIDGE_TOP` to the bottom block's `BRIDGE_BOTTOM`. It goes on its own
+    layer, `BRIDGE`. On 2026-11-13 that layer was only in Sammy's HYPER_A_copy.dwg, not yet
+    in the shared HYPER_A.dwt; until it is, the program creates the layer itself. Sammy
+    added it to the shared HYPER_A.dwt on 2026-11-20 and the program's copy was refreshed.
+  - **The strip's name** goes as plain text on the TEXT layer, on the first side of the
+    strip with no wires: above, then below, then left, then right (order in config).
+  - **Several connections on one device pin** are named by number, not side: `24V+_1`,
+    `24V+_2`, `24V-_1` ... The second may sit on the right edge; the program works out the
+    side from where the marker is, so the name only says which pin it belongs to.
+  - **Build it now as 2.3.1.** The UI release (2.4.0) comes once Sammy is happy with the
+    drawing logic. The goal: make the drawing work first, then make the tool fast and easy
+    for everyone.
+**Status:** Rules and answers recorded. The 2.3.1 plan was approved on 2026-11-16 and built
+(see that entry).
+
 ### 2026-11-12 — 24 V to the power meters waits for the new meter block
 **Decision:** The power meters need 24 V on their + and - supply inputs (24V+ / 24V- on the
 UMG 801), but this is left out for now.
@@ -279,6 +749,7 @@ UMG 801), but this is left out for now.
 **Reason:** Sammy, 2026-11-12: the UMG 801 block isn't final; its wires will come out
 horizontally.
 **Status:** Deferred until the new meter block. Possibly an update to 2.3.0 after it ships.
+*(Built 2026-11-17 with the UMG 801 Rev2: see that entry.)*
 
 ### 2026-11-11 — One 24 V power supply; 24 V moves between sections through shipping splits
 **Decision (Sammy's rules):**

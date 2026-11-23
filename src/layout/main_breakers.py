@@ -86,6 +86,9 @@ class BlockPlacement:
     flipped: bool = False                 # set the block's flip parameters
     # When flipped: the one flip setting to turn on. Empty = every flip/mirror setting.
     flip_parameter: str = ""
+    # Dynamic-block distance settings to set, {setting name: value}, e.g. a bracket stretched
+    # to its wires {"Distance1": 17.5}. The block's own stretch does the drawing.
+    distances: dict = field(default_factory=dict)
 
 
 @dataclass

@@ -172,6 +172,11 @@ def generate_drawing(switchboard, layout_settings, autocad_settings, catalog=Non
     # usually came in with the blocks; made here only if not).
     for layer in sorted({wire.layer for page in layout.pages for wire in page.parts.wires}):
         drawing.ensure_layer(layer)
+    # Terminal bridges and strip names (2026-11-16): the template's layers (BRIDGE, TEXT).
+    for layer in sorted({item.layer for page in layout.pages
+                         for item in [*page.parts.polylines, *page.parts.texts]}):
+        if drawing.ensure_layer(layer):
+            problems.append(f'The template had no layer "{layer}"; it was created with default settings.')
 
     for page in layout.pages:
         x, y = origins[page.number]

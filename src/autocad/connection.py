@@ -211,6 +211,8 @@ class Drawing:
                     _flat_2d([moved(p) for p in shape.points])))
                 if shape.closed:
                     _retry(lambda: setattr(entity, "Closed", True))
+                if shape.width:
+                    _retry(lambda: setattr(entity, "ConstantWidth", shape.width))
             elif isinstance(shape, Text):
                 entity = self._add_text(shape, moved(shape.position))
             else:
@@ -219,7 +221,8 @@ class Drawing:
         return problems
 
     def _fill_block(self, reference, shape: BlockInsert) -> list[str]:
-        """Set the block's visibility state and attribute values. Never scales or explodes."""
+        """Set the block's visibility state, its text, its flips and its stretches, in that
+        order. Never scales or explodes."""
         problems = []
         if shape.visibility and _retry(lambda: reference.IsDynamicBlock):
             # Blocks name their visibility setting differently, so find the setting by the
@@ -235,6 +238,13 @@ class Drawing:
             else:
                 problems.append(f'Block {shape.block} has no visibility state '
                                 f'"{shape.visibility}" (it has: {", ".join(states_seen) or "none"}).')
+        # The text goes in before the flip (Sammy, 2026-11-19): set after it, a flipped bracket's
+        # label didn't land where the block puts it, though the block itself is right.
+        if shape.attributes and _retry(lambda: reference.HasAttributes):
+            for attribute in _retry(lambda: reference.GetAttributes()):
+                tag = _retry(lambda: attribute.TagString)
+                if tag in shape.attributes:
+                    self._set_attribute_text(attribute, shape.attributes[tag])
         if shape.flipped:
             # AutoCAD only accepts a "short" whole number for flip settings.
             flip_on = win32com.client.VARIANT(pythoncom.VT_I2, 1)
@@ -247,12 +257,30 @@ class Drawing:
                 problems.append(f"Block {shape.block} should be flipped but has no {wanted} parameter.")
             for prop in flips:
                 _retry(lambda: setattr(prop, "Value", flip_on))
-        if shape.attributes and _retry(lambda: reference.HasAttributes):
-            for attribute in _retry(lambda: reference.GetAttributes()):
-                tag = _retry(lambda: attribute.TagString)
-                if tag in shape.attributes:
-                    _retry(lambda: setattr(attribute, "TextString", shape.attributes[tag]))
+        if shape.distances:
+            # A stretch the block itself draws, e.g. a bracket reaching its outer wires.
+            settings = {_retry(lambda: prop.PropertyName): prop
+                        for prop in _retry(lambda: reference.GetDynamicBlockProperties())}
+            for name, value in shape.distances.items():
+                if name in settings:
+                    _retry(lambda: setattr(settings[name], "Value", float(value)))
+                else:
+                    problems.append(f'Block {shape.block} has no "{name}" setting to stretch it with.')
         return problems
+
+    @staticmethod
+    def _set_attribute_text(attribute, text):
+        """Write an attribute's text. Lines the layout broke ("\\n", e.g. a tilde's two lines,
+        Sammy 2026-11-20) become AutoCAD's line breaks in a multi-line attribute, whose box is
+        set to no width so AutoCAD never wraps the text again on its own: the lines are the
+        layout's, as in the preview. A single-line attribute gets them joined by spaces."""
+        if "\n" in text:
+            if _retry(lambda: attribute.MTextAttribute):
+                _retry(lambda: setattr(attribute, "MTextBoundaryWidth", 0.0))
+                text = text.replace("\n", "\\P")
+            else:
+                text = text.replace("\n", " ")
+        _retry(lambda: setattr(attribute, "TextString", text))
 
     def _add_text(self, shape: Text, position):
         insertion = _point(*position)

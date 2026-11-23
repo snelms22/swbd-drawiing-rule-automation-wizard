@@ -12,50 +12,32 @@
   "power_meters_note": "Power meter models, by the name the engineer picks (always with the brand). For each: its library block, and the blocks wired into it. 'lands_on' pairs each marker of an input block with the meter marker it connects to; this is where a meter's own wiring quirks are written down once (decision 2026-10-22). Audit Blocks checks every pair exists and lines up. A model with an empty block is offered but not drawn yet.",
   "power_meters": {
     "Janitza UMG 801": {
-      "block": "Janitza_UMG801",
-      "voltage_input": {
-        "block": "Voltage_UMG801_Input",
-        "note": "The UMG 801 is wired B to VN and C to V3, V2 unused (as in CORRECTED_FIXED_011511).",
-        "lands_on": {
-          "V_A": "V1",
-          "V_B": "VN",
-          "V_C": "V3"
-        },
-        "number_attribute": "I1_STB",
-        "sheet_attribute": "1FUSE_SHT_NUM"
+      "block": "Janitzia_UMG801_Rev2",
+      "block_note": "Rev2 (Sammy, 2026-11-17; the library spells it Janitzia, used as is): every pin on the block's edge, so the program wires straight into its pins, horizontally, with no input blocks. The old block (Janitza_UMG801) with Voltage_UMG801_Input and CT_Current_Input is no longer used.",
+      "name_attribute": "NAME",
+      "voltage_pins_note": "Phase to meter pin: B to VN and C to V3, V2 unused (as in CORRECTED_FIXED_011511). The fuse lies to the meter's left, A level with its pin; the others turn in lanes.",
+      "voltage_pins": {
+        "A": "V1",
+        "B": "VN",
+        "C": "V3"
       },
-      "current_inputs_note": "One per CT set: the first set on I1-I3, the second on I5-I7 (as in Sabey-011510: STB-1 and STB-2 into one meter). I4 and I8 are not used yet.",
-      "current_inputs": [
-        {
-          "block": "CT_Current_Input",
-          "lands_on": {
-            "CT_A+": "I1+",
-            "CT_A-": "I1-",
-            "CT_B+": "I2+",
-            "CT_B-": "I2-",
-            "CT_C+": "I3+",
-            "CT_C-": "I3-"
-          },
-          "number_attribute": "I_STB",
-          "sheet_attribute": "STB_SHT_NUM"
-        },
-        {
-          "block": "CT_Current_Input",
-          "lands_on": {
-            "CT_A+": "I5+",
-            "CT_A-": "I5-",
-            "CT_B+": "I6+",
-            "CT_B-": "I6-",
-            "CT_C+": "I7+",
-            "CT_C-": "I7-"
-          },
-          "number_attribute": "I_STB",
-          "sheet_attribute": "STB_SHT_NUM"
-        }
+      "current_pins_note": "One per CT set: the first set on I1-I3 (left edge), the second on I5-I7 (right edge), as in Sabey-011510. I4 and I8 are not used yet. Each set's wires come FROM its shorting kit on the 3-line: a stub, a tilde and a bracket on the side its pins are on.",
+      "current_pins": [
+        {"A+": "I1+", "A-": "I1-", "B+": "I2+", "B-": "I2-", "C+": "I3+", "C-": "I3-"},
+        {"A+": "I5+", "A-": "I5-", "B+": "I6+", "B-": "I6-", "C+": "I7+", "C-": "I7-"}
       ],
-      "number_attribute": "NO.",
-      "number_attribute_note": "The program fills in what follows the block's 'PM-': the meter's section and number, e.g. 3-1 (decision 2026-10-23).",
-      "usb_marker": "USB"
+      "current_wire_layers": {
+        "+": "WIRE - CT+_WHT",
+        "-": "WIRE - CT- _BLK"
+      },
+      "supply_pins_note": "Its 24 V (decision 2026-11-12, option A; built 2026-11-17): the meter is a 24 V load on a fuse of its own, drawn in its section's 24 V group.",
+      "supply_pins": {
+        "+": "24V+",
+        "-": "24V-"
+      },
+      "usb_marker": "USB",
+      "ethernet_pin_note": "Where the meter's Ethernet cable starts: a stub out to the right ending in a tilde TO the switch (Sammy, 2026-11-19, after moving USB above the RJ45 ports so the remote display sits clear of it).",
+      "ethernet_pin": "RJ45A"
     },
     "Schneider PM8000": {
       "block": "",
@@ -106,7 +88,7 @@
     },
     "number_attribute": "PS_DRW_NUM",
     "layer": "0",
-    "outputs_note": "The 24 V outputs (Sammy, 2026-11-11): a + and a - wire from these markers feed the comms modules and the Ethernet switch in the supply's section, on these layers.",
+    "outputs_note": "The 24 V outputs (Sammy, 2026-11-11): the + feeds the 24 V fuses (control_power), the - the 24 V loads, on these layers.",
     "outputs": {
       "+": "24P1",
       "-": "24N1"
@@ -126,6 +108,60 @@
     "pin_marker": "CONN_{pin}",
     "pins": 10,
     "layer": "0"
+  },
+  "control_power_note": "24 V control power (Sammy, 2026-11-13; plan approved 2026-11-16). What takes 24 V: every 3WA's trip unit (all on one shared fuse), the Ethernet switch and each COM800 (a fuse each). The COM190 and COM060 modules take none (powered from the trip unit / the COM800 by Siemens' cables). The fuses, FD-1, FD-2 ..., stand in a column beside the power supply, its + into the first, their line sides joined by a bridge. A circuit that connects to three or more points in a section (what it comes in on, its loads, the wires going on) is split on a terminal block there; one wire per terminal point. A strip's terminals go terminal_pitch apart (layout_settings.json), the terminals of one circuit joined by a bridge: a polyline bridge_width wide on bridge_layer from the top terminal's bridge_top_marker to the bottom one's bridge_bottom_marker. Strip names, e.g. 1TB24+, are plain text above the strip. Which side each terminal point faces is read from its markers' names (<point>_LEFT / _RIGHT). Until the fuse block has its line and load markers, the fuses are drawn as boxes.",
+  "control_power": {
+    "fuse_block": "1P_FUSE_1",
+    "fuse_name_attribute": "FUSE_NAME",
+    "fuse_name": "FD-{number}",
+    "fuse_line_marker": "1_LINE",
+    "fuse_load_marker": "1_LOAD",
+    "fuse_layer": "0",
+    "terminal_block": "Terminal_Block",
+    "terminal_number_attribute": "#",
+    "terminal_layer": "0",
+    "bridge_top_marker": "BRIDGE_TOP",
+    "bridge_bottom_marker": "BRIDGE_BOTTOM",
+    "bridge_layer": "BRIDGE",
+    "bridge_width": 0.5,
+    "strip_name": "{section}TB24{sign}",
+    "strip_name_layer": "TEXT",
+    "strip_name_height": 1.25,
+    "strip_name_gap": 0.75,
+    "trip_unit_text": "{breaker} TRIP UNIT",
+    "com800_text": "COM800-{number}"
+  },
+  "ethernet_switch_note": "The Ethernet switch (Sammy, 2026-11-19): one block per size supply chain offers. The program counts what plugs into it (each 3WA's COM190, each COM800, each power meter, and the customer's connection) and picks the smallest size with that many ports (the biggest, with a warning, if none has enough); its block goes in the switch's place in the row. It is a 24 V load: supply_pins on its left edge, + at the top and - at the bottom. The customer's connection is on customer_port (port 1, Sammy 2026-11-19), the others on the next ports in lineup order, spare_ports kept free when picking the size (one for now). Both ends of every cable show (Sammy, 2026-11-19): at the switch a stub on its port ending in a tilde that says to_device_label (customer_connection for the customer's), at the device a stub ending in a tilde that says to_switch_label, both stubs carrying the cable's number (cable_label). A box (a trip unit with its COM190, a COM800) takes its cable on its right edge, half way down. Until a block has its 24 V markers the switch stays a box naming its size.",
+  "ethernet_switch": {
+    "sizes": [
+      {"ports": 5, "block": "Ethernet_Switch_5PORT"},
+      {"ports": 8, "block": "Ethernet_Switch_8PORT"},
+      {"ports": 16, "block": "Ethernet_Switch_16PORT"}
+    ],
+    "name_attribute": "NAME",
+    "supply_pins_note": "The switch blocks name their 24 V pins 24+ and 24- (read 2026-11-19).",
+    "supply_pins": {"+": "24+", "-": "24-"},
+    "port_marker": "PORT_{port}",
+    "customer_connection": "CUSTOMER CONNECTION",
+    "customer_port": 1,
+    "spare_ports": 1,
+    "cable_label": "E-{number:03d}",
+    "to_device_label": "TO {device} SECTION {section}",
+    "to_switch_label": "TO {switch} SECTION {section}",
+    "stub_length": 12.0,
+    "wire_layer": "0",
+    "layer": "0"
+  },
+  "ground_note": "The ground terminal strip (Sammy, 2026-11-17), in the power supply's section at the bottom left of its 24 V ladder, the same terminal block as the 24 V ones, named strip_name (1TBG). The supply's ground pin drops into it from above (one wire). One wire leaves it on the left to a tilde and a bracket saying bus_label (as in NTT-013628: TB1-G -> G001 TO GROUND BUS). Every other device with a ground pin (a marker named in pin_markers), in any section, is wired by reference, the same idea as a wire through a shipping split: a stub out from its pin ending in a tilde that says to_strip_label, and on the strip a stub with the same wire number ending in a tilde that says from_device_label. Wires on wire_layer, numbered G001 (to the ground bus), G002 (the supply), then the devices in lineup order. stub_length leaves room for the wire's number beside the tilde's text.",
+  "ground": {
+    "strip_name": "{section}TBG",
+    "wire_layer": "WIRE_GROUND",
+    "pin_markers_note": "DIGITAL_GND: the UMG 801's ground, for now (Sammy, 2026-11-19); its ANALOG_GND stays unwired.",
+    "pin_markers": ["G", "GND", "PE", "DIGITAL_GND"],
+    "bus_label": "TO GROUND BUS",
+    "to_strip_label": "TO {strip}",
+    "from_device_label": "FROM {device}",
+    "stub_length": 12.0
   },
   "remote_display_note": "A remote display for a power meter (decision 2026-10-23): a checkbox on the meter; drawn beside it on the device page, the meter's USB marker joined to the display's USB marker by a line on usb_layer. The program fills the number after 'RD-' (s-n).",
   "remote_display": {
