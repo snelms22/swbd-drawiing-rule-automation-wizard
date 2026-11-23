@@ -1,5 +1,16 @@
 # Switchboard Configurator: release history
 
+## 2.4.0 (2026-11-23)
+- The wiring update: 24 V runs through a fuse per device and terminal blocks, on a 24 V ladder (devices in a row, + along the top, - along the bottom)
+- Trip units and COM800s on 24 V; the new UMG 801 with its 24 V wired
+- Power supply and its fuses stand beside the + wires: up to 12 fuses fit on a page
+- Ground terminal strip (1TBG) under the power supply, turned, every device's ground wire straight down or up
+- Ethernet switch sized automatically; Ethernet cables shown at both ends with their numbers
+- A fuse's phases run straight from the shipping split into its meter or power supply
+- Every tilde says where its wire goes; long labels go on two lines and never run into each other
+- CT bracket stretched to its wires; terminal block bridges on the BRIDGE layer
+- Trip units, COM800s and comms modules are still boxes until their blocks exist
+
 ## 2.3.0 (2026-11-12)
 - New: 24 V power supply in a section's Devices box, fed by a voltage tap, drawn on the device pages with its fuse beside it
 - Device pages: one page per section ("ELECTRICAL SCHEMATIC SECTION n"); every page has its title, including "THREE-LINE DIAGRAM 01"
